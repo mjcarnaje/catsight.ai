@@ -1,0 +1,4 @@
+__pycache__
+/smartdoc/docs/*
+/smartdoc/migrations/*
+/smartdoc/db.sqlite3
