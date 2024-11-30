@@ -1,6 +1,4 @@
-# SmartDocument
-
-The SmartDocument Backend is a robust system designed to process, analyze, and enable interactive searching and chatting with documents, including scanned PDFs and non-searchable text files.
+The SmartDocument Backend is a comprehensive system designed to process, analyze, and facilitate interactive searching and chatting with documents, including scanned PDFs and non-searchable text files.
 
 ## Table of Contents
 
@@ -16,7 +14,7 @@ The SmartDocument Backend is a robust system designed to process, analyze, and e
 
 - **Content-Based Search**: Search through the actual content of documents, not just titles or keywords.
 - **OCR Processing**: Automatically extract text from scanned PDFs using Optical Character Recognition (OCR).
-- **Vector Embeddings with FAISS**: Utilize Llama Embeddings and FAISS for efficient vector storage and retrieval.
+- **Vector Embeddings with pgvector**: Utilize Llama Embeddings and store vectors in PostgreSQL with the pgvector extension for efficient vector storage and retrieval.
 - **Interactive Chat Interface**: Engage with the document collection using a chat interface powered by Llama LLM, similar to ChatGPT.
 
 ## Prerequisites
@@ -24,7 +22,7 @@ The SmartDocument Backend is a robust system designed to process, analyze, and e
 - Python 3.8 or higher
 - Redis
 - Ollama
-- FAISS (CPU or GPU support)
+- PostgreSQL with pgvector extension
 
 ## Installation
 
@@ -71,19 +69,40 @@ Follow the instructions on the [Ollama GitHub page](https://github.com/ollama/ol
 ollama pull llama2:3.2
 ```
 
-### 6. Install FAISS
+### 6. Install PostgreSQL and pgvector
 
-- **CPU-only support**:
-
-  ```bash
-  pip install faiss-cpu
-  ```
-
-- **GPU support**:
+- **Ubuntu/Debian**:
 
   ```bash
-  pip install faiss-gpu
+  sudo apt-get update
+  sudo apt-get install postgresql postgresql-contrib
   ```
+
+  Then, install pgvector:
+
+  ```bash
+  sudo apt-get install postgresql-PG_VERSION-pgvector
+  ```
+
+  Replace `PG_VERSION` with your PostgreSQL version number.
+
+- **macOS**:
+
+  ```bash
+  brew install postgresql
+  ```
+
+  Then, install pgvector:
+
+  ```bash
+  brew install pgvector
+  ```
+
+- **Windows**:
+
+  Download and install PostgreSQL from the [official website](https://www.postgresql.org/download/windows/).
+
+  For pgvector, follow the instructions on the [pgvector GitHub page](https://github.com/pgvector/pgvector) to build and install the extension on Windows.
 
 ### 7. Set Up Environment Variables
 
@@ -97,7 +116,7 @@ Edit the `.env` file to configure your environment variables (e.g., database set
 
 ## Configuration
 
-Ensure that all services (Redis, Ollama) are running and properly configured. Update the settings in your Django `settings.py` and `.env` files as needed.
+Ensure that all services (Redis, Ollama, PostgreSQL) are running and properly configured. Update the settings in your Django `settings.py` and `.env` files as needed.
 
 ## Running the Application
 
@@ -131,9 +150,9 @@ celery -A smartdocument_backend worker --loglevel=info
 
 1. **File Upload**: Users upload documents through the application interface.
 2. **OCR Processing**: If a file is a scanned PDF or contains non-searchable text, the system automatically performs OCR to extract the content.
-3. **Content Chunking**: The extracted text is divided into manageable chunks.
+3. **Content Chunking**: The extracted text is divided into manageable chunks with overlap.
 4. **Vectorization**: Each text chunk is converted into a vector using Llama Embeddings.
-5. **Storage with FAISS**: Vector representations are stored using FAISS for efficient similarity search.
+5. **Storage with pgvector**: Vector representations are stored in PostgreSQL using the pgvector extension for efficient similarity search.
 6. **Search Functionality**: Users can perform content-based searches, retrieving documents related to their query.
 7. **Interactive Chat**: Users can interact with the document corpus through a chat interface powered by Llama LLM, enabling conversational queries and responses.
 
@@ -143,4 +162,4 @@ The system is ideal for environments with extensive document collections requiri
 
 - Upload all academic materials, including scanned documents.
 - Search for specific events like "Palakasan 2023" and retrieve all related documents based on content.
-- Engage in a conversational interface to ask follow-up questions or seek clarifications, much like interacting with ChatGPT.
+- Engage in a conversational interface to ask follow-up questions or seek clarifications, much like interacting with ChatGPT. 
