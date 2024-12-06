@@ -1,4 +1,4 @@
-The SmartDocument Backend is a comprehensive system designed to process, analyze, and facilitate interactive searching and chatting with documents, including scanned PDFs and non-searchable text files.
+The IntelDocs Backend is a comprehensive system designed to process, analyze, and facilitate interactive searching and chatting with documents, including scanned PDFs and non-searchable text files.
 
 ## Table of Contents
 
@@ -29,8 +29,8 @@ The SmartDocument Backend is a comprehensive system designed to process, analyze
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/mjcarnaje/smartdocument.git
-cd smartdocument
+git clone https://github.com/mjcarnaje/inteldocs.git
+cd inteldocs
 ```
 
 ### 2. Install Python Dependencies
@@ -120,6 +120,18 @@ Ensure that all services (Redis, Ollama, PostgreSQL) are running and properly co
 
 ## Running the Application
 
+### Using Honcho (Recommended)
+
+Create a `Procfile` in your project root and start all services with a single command:
+
+```bash
+honcho start
+```
+
+This will start Redis, Django server, and Celery workers simultaneously.
+
+### Alternative: Start Services Individually
+
 ### Start Redis Server
 
 ```bash
@@ -143,7 +155,7 @@ python manage.py runserver
 If using Celery for background tasks:
 
 ```bash
-celery -A smartdocument_backend worker --loglevel=info
+celery -A inteldocs worker --loglevel=info
 ```
 
 ## How It Works
@@ -162,4 +174,4 @@ The system is ideal for environments with extensive document collections requiri
 
 - Upload all academic materials, including scanned documents.
 - Search for specific events like "Palakasan 2023" and retrieve all related documents based on content.
-- Engage in a conversational interface to ask follow-up questions or seek clarifications, much like interacting with ChatGPT. 
+- Engage in a conversational interface to ask follow-up questions or seek clarifications, much like interacting with ChatGPT.

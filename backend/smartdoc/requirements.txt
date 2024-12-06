@@ -1,9 +1,0 @@
-Django==5.1.2
-djangorestframework
-django-cors-headers
-celery
-ocrmypdf
-elasticsearch # this is not used anymore, we use FAISS instead but keeping it for now
-langchain-ollama
-PyPDF2
-faiss-cpu
