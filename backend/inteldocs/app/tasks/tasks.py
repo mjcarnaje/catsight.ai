@@ -49,8 +49,10 @@ def save_chunks_task(self, doc_id):
         text, _, _ = text_from_rendered(rendered)
         logger.debug("Text extracted from rendered content.")
 
+        logger.info(f"Text: {text}")
+
         # Split text into chunks
-        chunks = split_text_into_chunks(text, chunk_size=3000, chunk_overlap=300)
+        chunks = split_text_into_chunks(text, chunk_size=1000, chunk_overlap=100)
         logger.debug(f"Text split into {len(chunks)} chunks.")
 
         # Save chunks
