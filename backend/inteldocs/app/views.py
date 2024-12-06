@@ -298,8 +298,19 @@ def chat_with_docs(request):
         # Re-rank documents based on cumulative similarity
         ranked_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
 
-        # Select top N documents
-        top_doc_ids = [doc_id for doc_id, score in ranked_docs[:5]]  # Adjust number of documents as needed
+        # Apply similarity difference threshold
+        top_score = ranked_docs[0][1]
+        similarity_threshold = 0.7 * top_score  # Adjust threshold as necessary
+        filtered_docs = [doc for doc in ranked_docs if doc[1] >= similarity_threshold]
+
+        if not filtered_docs:
+            return Response(
+                {"error": "No documents passed the similarity threshold."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Select top N documents after filtering
+        top_doc_ids = [doc_id for doc_id, score in filtered_docs[:5]]  # Adjust number of documents as needed
 
         # Collect chunks from top documents
         final_chunks = []
