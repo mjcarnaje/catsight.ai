@@ -1,0 +1,2 @@
+web: python manage.py runserver
+worker: celery -A inteldocs worker --loglevel=info -P gevent

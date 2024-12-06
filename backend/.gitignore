@@ -1,4 +1,4 @@
 __pycache__
-/smartdoc/docs/*
-/smartdoc/migrations/*
-/smartdoc/db.sqlite3
+/inteldocs/docs/*
+/inteldocs/migrations/*
+/inteldocs/db.sqlite3
