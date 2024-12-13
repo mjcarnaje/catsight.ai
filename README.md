@@ -1,3 +1,5 @@
+# IntelDocs Backend
+
 The IntelDocs Backend is a comprehensive system designed to process, analyze, and facilitate interactive searching and chatting with documents, including scanned PDFs and non-searchable text files.
 
 ## Table of Contents
@@ -14,6 +16,7 @@ The IntelDocs Backend is a comprehensive system designed to process, analyze, an
 
 - **Content-Based Search**: Search through the actual content of documents, not just titles or keywords.
 - **OCR Processing**: Automatically extract text from scanned PDFs using Optical Character Recognition (OCR).
+- **Dynamic Chunking**: Divide text into chunks dynamically with overlapping sections to retain context.
 - **Vector Embeddings with pgvector**: Utilize Llama Embeddings and store vectors in PostgreSQL with the pgvector extension for efficient vector storage and retrieval.
 - **Interactive Chat Interface**: Engage with the document collection using a chat interface powered by Llama LLM, similar to ChatGPT.
 
@@ -132,25 +135,25 @@ This will start Redis, Django server, and Celery workers simultaneously.
 
 ### Alternative: Start Services Individually
 
-### Start Redis Server
+#### Start Redis Server
 
 ```bash
 redis-server
 ```
 
-### Apply Database Migrations
+#### Apply Database Migrations
 
 ```bash
 python manage.py migrate
 ```
 
-### Run the Django Development Server
+#### Run the Django Development Server
 
 ```bash
 python manage.py runserver
 ```
 
-### Start Background Workers
+#### Start Background Workers
 
 If using Celery for background tasks:
 
@@ -160,13 +163,30 @@ celery -A inteldocs worker --loglevel=info
 
 ## How It Works
 
-1. **File Upload**: Users upload documents through the application interface.
-2. **OCR Processing**: If a file is a scanned PDF or contains non-searchable text, the system automatically performs OCR to extract the content.
-3. **Content Chunking**: The extracted text is divided into manageable chunks with overlap.
-4. **Vectorization**: Each text chunk is converted into a vector using Llama Embeddings.
-5. **Storage with pgvector**: Vector representations are stored in PostgreSQL using the pgvector extension for efficient similarity search.
-6. **Search Functionality**: Users can perform content-based searches, retrieving documents related to their query.
-7. **Interactive Chat**: Users can interact with the document corpus through a chat interface powered by Llama LLM, enabling conversational queries and responses.
+```mermaid
+flowchart TB
+    User --> Upload[Upload Document]
+    Upload --> Check[Start Background Task with Celery]
+    Check --> TextConversion[Convert PDF to Markdown using Marker]
+    TextConversion --> Chunking[Divide text into dynamic chunks with overlap]
+    Chunking --> EmbeddingBatch[Batch Generate Embeddings with bge-m3]
+    EmbeddingBatch --> Storage[Store vectors in PostgreSQL with pgvector]
+
+    User --> Search[Perform content-based search]
+    Search --> QueryEmbedding[Generate query embedding with bge-m3]
+    QueryEmbedding --> SimilaritySearch[Find similar vectors in Storage]
+    SimilaritySearch --> Storage
+    SimilaritySearch --> ReRank[Re-rank search results]
+    ReRank --> SearchResults[Return search results]
+
+    User --> Chat[Interact via chat interface powered by Llama 3.2]
+    Chat --> ChatHistory[Manage conversation history]
+    ChatHistory --> ChatEmbedding[Generate message embedding with bge-m3]
+    ChatEmbedding --> ContextRetrieval[Retrieve relevant vectors from Storage]
+    ContextRetrieval --> Storage
+    ContextRetrieval --> ResponseGeneration[Generate response with Llama 3.2 considering context]
+    ResponseGeneration --> ChatOutput[Return response to user]
+```
 
 ## Use Case
 

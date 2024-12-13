@@ -22,7 +22,7 @@ import os
 converter = PdfConverter(
     artifact_dict=create_model_dict(),
 )
-rendered = converter(os.path.join(os.path.dirname(__file__), "docs/14/14_original.pdf"))
+rendered = converter(os.path.join(os.path.dirname(__file__), "docs/35/35_original.pdf"))
 text, _, images = text_from_rendered(rendered)
 
 print(text)
