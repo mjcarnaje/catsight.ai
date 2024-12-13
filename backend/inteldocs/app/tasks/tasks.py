@@ -29,10 +29,11 @@ def save_chunks_task(self, doc_id):
     Task to extract text from a PDF document, split it into chunks, and save them.
     This task might take a significant amount of time due to the processing involved.
     """
+
     import os
 
     # Set the environment variable for PyTorch MPS high watermark ratio
-    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0' # we do this, because we're running on a server with limited memory
 
     try:
         logger.info(f"Starting chunk extraction for Document ID: {doc_id}")
