@@ -19,6 +19,23 @@ services:
     networks:
       - app-network
 
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    networks:
+      - app-network
+    volumes:
+      - ./ollama:/root/.ollama
+    pull_policy: always
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_DEBUG=1
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_KEEP_ALIVE=-1
+    restart: unless-stopped
+  
+
   backend:
     build: ./backend
     ports:
@@ -27,6 +44,8 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=app_db
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
     depends_on:
@@ -41,7 +60,7 @@ services:
 
   celery_worker:
     build: ./backend
-    command: celery -A inteldocs worker --loglevel=info
+    command: celery -A inteldocs worker --loglevel=info -P gevent
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0

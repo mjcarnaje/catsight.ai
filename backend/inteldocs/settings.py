@@ -84,11 +84,11 @@ WSGI_APPLICATION = "inteldocs.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv('POSTGRES_DB'),
-        "USER": os.getenv('POSTGRES_USER'),
-        "PASSWORD": os.getenv('POSTGRES_PASSWORD'),
-        "HOST": "db",
-        "PORT": "5432",
+        "NAME": os.getenv('POSTGRES_DB', 'app_db'),
+        "USER": os.getenv('POSTGRES_USER', 'postgres'),
+        "PASSWORD": os.getenv('POSTGRES_PASSWORD', 'postgres'),
+        "HOST": os.getenv('POSTGRES_HOST', 'db'),
+        "PORT": os.getenv('POSTGRES_PORT', '5432'),
     }
 }
 
@@ -126,16 +126,16 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CELERY_BROKER_URL = os.getenv('CELERY_BROKER')
-CELERY_RESULT_BACKEND = os.getenv('CELERY_BACKEND')
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_BACKEND', 'redis://redis:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=False
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://0.0.0.0:3000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
