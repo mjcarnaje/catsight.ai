@@ -1,4 +1,4 @@
 __pycache__
-/inteldocs/docs/*
-/inteldocs/migrations/*
-/inteldocs/db.sqlite3
+/docs/*
+/migrations/*
+/db.sqlite3

@@ -7,14 +7,10 @@ langchain-ollama
 PyPDF2
 langchain-postgres
 langchain
-psycopg
 redis
 celery[redis]==5.2.7
-pyspellchecker
 pdfminer.six
 textblob
-wordninja
-pdftotext
 scikit-learn
 numpy
 semchunk
@@ -25,3 +21,5 @@ torch
 torchvision
 torchaudio
 gevent
+python-dotenv
+psycopg2-binary>=2.8
