@@ -15,6 +15,7 @@ from .serializers import DocumentChunkSerializer, DocumentSerializer
 from .tasks.tasks import (embed_text_task, generate_summary_task,
                           save_chunks_task)
 from .utils.upload import UploadUtils
+from .utils.doc_processor import DocumentProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +217,7 @@ def search_docs(request):
             )
 
         # Generate embedding for the search query
-        model = OllamaEmbeddings(model="bge-m3")
+        model = OllamaEmbeddings(model="bge-m3", base_url="http://ollama:11434")
         query_embedding = model.embed_query(query)
 
         # Start with base queryset
@@ -254,6 +255,44 @@ def search_docs(request):
         )
 
 @api_view(['POST'])
+def generate_summary(request):
+    """
+    Generate a summary for a given text using LLM.
+    """
+    try:
+        text = request.data.get('text')
+        
+        if not text:
+            return Response(
+                {"error": "Text parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        summary = DocumentProcessor.generate_summary(text)
+        
+        return Response(
+            {"summary": summary},
+            status=status.HTTP_200_OK
+        )
+
+    except ConnectionRefusedError:
+        logger.error("Connection refused when trying to connect to Ollama API")
+        return Response(
+            {
+                "error": "Failed to connect to Ollama API. Please ensure Ollama is running on localhost:11434",
+                "details": "Connection refused"
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    except Exception as e:
+        logger.error(f"Summary generation error: {str(e)}")
+        return Response(
+            {"error": f"Summary generation failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
 def chat_with_docs(request):
     """
     Chat with documents using vector search and LLM.
@@ -267,7 +306,7 @@ def chat_with_docs(request):
 
     try:
         # Generate embedding for the search query
-        embedding_model = OllamaEmbeddings(model="bge-m3")
+        embedding_model = OllamaEmbeddings(model="bge-m3", base_url="http://ollama:11434")
         query_embedding = embedding_model.embed_query(query)
 
         # Safety check for query_embedding
@@ -381,7 +420,7 @@ Question:
 Answer:"""
 
         # Setup LLM
-        llm = OllamaLLM(model="llama3.2")
+        llm = OllamaLLM(model="llama3.2", base_url="http://ollama:11434")
 
         prompt = prompt_template.format(context=context, question=query)
         response_text = llm(prompt)

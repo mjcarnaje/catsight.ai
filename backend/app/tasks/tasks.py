@@ -94,7 +94,7 @@ def embed_text_task(self, doc_id):
                 raise ValueError(f"No chunks found for document {doc_id}")
 
             # Embed document chunks
-            model = OllamaEmbeddings(model="bge-m3")
+            model = OllamaEmbeddings(model="bge-m3", base_url="http://ollama:11434")
             embeddings = model.embed_documents([chunk.content for chunk in chunks])
 
             # Update chunks with embeddings

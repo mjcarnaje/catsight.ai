@@ -48,9 +48,11 @@ services:
       - POSTGRES_PORT=5432
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
+      - OLLAMA_URL=http://ollama:11434
     depends_on:
       - db
       - redis
+      - ollama
     volumes:
       - ./backend:/usr/src/app
     networks:
@@ -64,13 +66,20 @@ services:
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
+      - OLLAMA_URL=http://ollama:11434
     depends_on:
       - backend
       - redis
+      - ollama
     volumes:
       - ./backend:/usr/src/app
     networks:
       - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://0.0.0.0:11434/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build: ./frontend
