@@ -14,18 +14,18 @@ The IntelDocs Backend is a comprehensive system designed to process, analyze, an
 
 ## Features
 
-- **Content-Based Search**: Search through the actual content of documents, not just titles or keywords.
-- **OCR Processing**: Automatically extract text from scanned PDFs using Optical Character Recognition (OCR).
-- **Dynamic Chunking**: Divide text into chunks dynamically with overlapping sections to retain context.
-- **Vector Embeddings with pgvector**: Utilize Llama Embeddings and store vectors in PostgreSQL with the pgvector extension for efficient vector storage and retrieval.
-- **Interactive Chat Interface**: Engage with the document collection using a chat interface powered by Llama LLM, similar to ChatGPT.
+- **Content-Based Search**: Search through the actual content of documents, not just titles or keywords, enabling deeper and more relevant queries.
+- **OCR Processing**: Automatically extract text from scanned PDFs using Optical Character Recognition (OCR) for enhanced accessibility.
+- **Dynamic Chunking**: Divide text into dynamic, overlapping chunks to retain contextual integrity during processing.
+- **Batch Embedding Generation**: Generate embeddings in batches using the bge-m3 model, ensuring efficient vector computation for large datasets.
+- **Vector Storage with pgvector**: Store and retrieve vector embeddings efficiently using PostgreSQL with the pgvector extension.
+- **Interactive Chat Interface**: Engage with the document collection through a chat interface powered by Llama 3.2, supporting contextual conversations.
+- **Enhanced Search Workflow**: Incorporate query embeddings, similarity search, and result re-ranking to provide highly relevant search results.
+- **Context-Aware Chat Responses**: Retrieve relevant context vectors for user messages and generate informed responses using Llama 3.2.
 
 ## Prerequisites
 
-- Python 3.8 or higher
-- Redis
-- Ollama
-- PostgreSQL with pgvector extension
+- Docker and Docker Compose
 
 ## Installation
 
@@ -36,129 +36,35 @@ git clone https://github.com/mjcarnaje/inteldocs.git
 cd inteldocs
 ```
 
-### 2. Install Python Dependencies
+### 2. Pull Required Models
 
-Ensure you have Python 3.8+ installed. Then, install the required Python packages:
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. Install Redis
-
-- **Ubuntu/Debian**:
-
-  ```bash
-  sudo apt-get install redis-server
-  ```
-
-- **macOS**:
-
-  ```bash
-  brew install redis
-  ```
-
-- **Windows**:
-
-  Download and install from [Redis Downloads](https://redis.io/download).
-
-### 4. Install Ollama
-
-Follow the instructions on the [Ollama GitHub page](https://github.com/ollama/ollama) to install Ollama for your operating system.
-
-### 5. Pull the Llama 3.2 Model
+Pull the Llama 3.2 and bge-m3 models using Ollama:
 
 ```bash
 ollama pull llama2:3.2
+ollama pull bge-m3
 ```
 
-### 6. Install PostgreSQL and pgvector
+Ensure that the `ollama` service in the `docker-compose.yml` is correctly configured to access the models.
 
-- **Ubuntu/Debian**:
-
-  ```bash
-  sudo apt-get update
-  sudo apt-get install postgresql postgresql-contrib
-  ```
-
-  Then, install pgvector:
-
-  ```bash
-  sudo apt-get install postgresql-PG_VERSION-pgvector
-  ```
-
-  Replace `PG_VERSION` with your PostgreSQL version number.
-
-- **macOS**:
-
-  ```bash
-  brew install postgresql
-  ```
-
-  Then, install pgvector:
-
-  ```bash
-  brew install pgvector
-  ```
-
-- **Windows**:
-
-  Download and install PostgreSQL from the [official website](https://www.postgresql.org/download/windows/).
-
-  For pgvector, follow the instructions on the [pgvector GitHub page](https://github.com/pgvector/pgvector) to build and install the extension on Windows.
-
-### 7. Set Up Environment Variables
-
-Copy the example environment file and customize it:
+### 3. Build and Start the Containers
 
 ```bash
-cp .env.example .env
+docker-compose up --build
 ```
-
-Edit the `.env` file to configure your environment variables (e.g., database settings, API keys).
 
 ## Configuration
 
-Ensure that all services (Redis, Ollama, PostgreSQL) are running and properly configured. Update the settings in your Django `settings.py` and `.env` files as needed.
+Ensure that all services (Redis, PostgreSQL, and Ollama) are running and properly configured. Update any necessary settings directly in your `docker-compose.yml` file or the application code.
 
 ## Running the Application
 
-### Using Honcho (Recommended)
+### Using Docker Compose (Recommended)
 
-Create a `Procfile` in your project root and start all services with a single command:
-
-```bash
-honcho start
-```
-
-This will start Redis, Django server, and Celery workers simultaneously.
-
-### Alternative: Start Services Individually
-
-#### Start Redis Server
+Start all services using Docker Compose:
 
 ```bash
-redis-server
-```
-
-#### Apply Database Migrations
-
-```bash
-python manage.py migrate
-```
-
-#### Run the Django Development Server
-
-```bash
-python manage.py runserver
-```
-
-#### Start Background Workers
-
-If using Celery for background tasks:
-
-```bash
-celery -A inteldocs worker --loglevel=info
+docker-compose up
 ```
 
 ## How It Works
