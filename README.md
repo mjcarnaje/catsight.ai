@@ -74,8 +74,9 @@ flowchart TB
     User --> Upload[Upload Document]
     Upload --> Check[Start Background Task with Celery]
     Check --> TextConversion[Convert PDF to Markdown using Marker]
-    TextConversion --> Chunking[Divide text into dynamic chunks with overlap]
-    Chunking --> EmbeddingBatch[Batch Generate Embeddings with bge-m3]
+    TextConversion --> Chunking[Divide text into dynamic chunks with overlap using LangChain's RecursiveCharacterTextSplitter]
+    Chunking --> DocumentSummary[Generate summary for the whole document]
+    DocumentSummary --> EmbeddingBatch[Batch Generate Embeddings with bge-m3]
     EmbeddingBatch --> Storage[Store vectors in PostgreSQL with pgvector]
 
     User --> Search[Perform content-based search]
