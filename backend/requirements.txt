@@ -20,6 +20,5 @@ marker
 torch
 torchvision
 torchaudio
-gevent
 python-dotenv
 psycopg2-binary>=2.8

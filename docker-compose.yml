@@ -57,12 +57,15 @@ services:
       - ./backend:/usr/src/app
     networks:
       - app-network
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+            bash -c "python manage.py makemigrations &&
+                     python manage.py migrate &&
+                     python manage.py runserver 0.0.0.0:8000"
 
 
   celery_worker:
     build: ./backend
-    command: celery -A inteldocs worker --loglevel=info -P gevent
+    command: celery -A inteldocs worker --loglevel=info --concurrency=1
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
