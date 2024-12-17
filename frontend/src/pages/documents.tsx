@@ -1,20 +1,7 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { DocumentCard } from "@/components/document-card";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
 import { Document, documentsApi } from "@/lib/api";
-import { ColumnDef } from "@tanstack/react-table";
-import { format } from "date-fns";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export function DocumentsPage() {
@@ -64,61 +51,6 @@ export function DocumentsPage() {
     }
   };
 
-  const columns: ColumnDef<Document>[] = [
-    {
-      accessorKey: "title",
-      header: "Title",
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          {row.original.status === "processing" && (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          )}
-          <span>{row.original.status}</span>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "created_at",
-      header: "Created At",
-      cell: ({ row }) => format(new Date(row.original.created_at), "PPp"),
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="icon">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete the
-                  document.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => handleDelete(row.original.id)}
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      ),
-    },
-  ];
-
   return (
     <div className="container mx-auto py-10">
       <div className="flex flex-col gap-8">
@@ -150,7 +82,15 @@ export function DocumentsPage() {
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : (
-          <DataTable columns={columns} data={documents} />
+          <div className="grid grid-cols-4 gap-8">
+            {documents.map((document) => (
+              <DocumentCard
+                key={document.id}
+                document={document}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

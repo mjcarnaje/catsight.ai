@@ -1,21 +1,21 @@
 import logging
+from collections import defaultdict
 
-from django.http import FileResponse, JsonResponse
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_ollama import OllamaEmbeddings, OllamaLLM
+from django.db.models import F
+from django.http import FileResponse, StreamingHttpResponse
+from langchain_ollama import ChatOllama, OllamaEmbeddings
 from pgvector.django import CosineDistance
 from rest_framework import status
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
-from django.db.models import F
-from collections import defaultdict
+
 from .models import Document, DocumentChunk
 from .serializers import DocumentChunkSerializer, DocumentSerializer
 from .tasks.tasks import (embed_text_task, generate_summary_task,
                           save_chunks_task)
-from .utils.upload import UploadUtils
 from .utils.doc_processor import DocumentProcessor
+from .utils.upload import UploadUtils
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,6 @@ def upload_doc(request):
             logger.error(f"Document upload failed for {file.name}: {serializer.errors}")
             response_data.append({"status": "error", "filename": file.name, "errors": serializer.errors})
 
-    # Determine the appropriate status code
     if all(item["status"] == "success" for item in response_data):
         return Response(response_data, status=status.HTTP_201_CREATED)
     elif all(item["status"] == "error" for item in response_data):
@@ -103,19 +102,14 @@ def get_doc_chunks(request, doc_id):
     Retrieve the summary chunks for a document by its ID.
     """
     try:
-        # Fetch the document by ID
         document = Document.objects.get(id=doc_id)
     except Document.DoesNotExist:
-        # Return a 404 response if the document is not found
         return Response({"status": "error", "message": "Document not found."}, status=status.HTTP_404_NOT_FOUND)
     
-    # Retrieve the chunks associated with the document
     chunks = DocumentChunk.objects.filter(document=document)
     
-    # Serialize the chunks
     serializer = DocumentChunkSerializer(chunks, many=True)
     
-    # Return the serialized chunks in the response
     return Response(serializer.data)
     
 
@@ -295,7 +289,13 @@ def generate_summary(request):
 @api_view(['POST'])
 def chat_with_docs(request):
     """
-    Chat with documents using vector search and LLM.
+    Chat with documents using vector search and an LLM.
+    This endpoint:
+    - Embeds the query
+    - Finds similar document chunks
+    - Ranks documents by chunk similarity
+    - Uses a persona-driven prompt to get a helpful answer from an LLM
+    - Streams the response back to the client
     """
     query = request.data.get('query')
     if not query:
@@ -305,25 +305,20 @@ def chat_with_docs(request):
         )
 
     try:
-        # Generate embedding for the search query
+        # Embed the query
         embedding_model = OllamaEmbeddings(model="bge-m3", base_url="http://ollama:11434")
         query_embedding = embedding_model.embed_query(query)
-
-        # Safety check for query_embedding
         if query_embedding is None:
             return Response(
                 {"error": "Failed to create query embedding."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-        # Perform vector similarity search
-        # Assuming CosineDistance returns a distance measure.
-        # We want similarity = 1 - distance.
+        
         chunks_with_distance = (
             DocumentChunk.objects.annotate(
                 cosine_distance=CosineDistance(F('embedding_vector'), query_embedding)
             )
-            .order_by('cosine_distance')  # ascending order since distance lower = more similar
+            .order_by('cosine_distance') 
         )
 
         if not chunks_with_distance.exists():
@@ -332,13 +327,11 @@ def chat_with_docs(request):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Convert distance to similarity:
-        # similarity = 1 - distance
-        # We'll do this after we retrieve the chunks.
-        initial_top_k = 50
+        # Retrieve top candidate chunks
+        initial_top_k = 10
         candidate_chunks = list(chunks_with_distance[:initial_top_k])
 
-        # Compute similarity scores now
+        # Convert distance to similarity score = 1 - distance
         for c in candidate_chunks:
             c.cosine_similarity = 1.0 - c.cosine_distance
 
@@ -347,15 +340,15 @@ def chat_with_docs(request):
         for chunk in candidate_chunks:
             doc_chunks[chunk.document_id].append(chunk)
 
-        # For each document, sort its chunks by similarity and compute average of top M
-        M = 5
+        # Rank documents by top chunk similarity
         doc_scores = {}
         for doc_id, ch_list in doc_chunks.items():
+            # Sort chunks by similarity
             ch_list.sort(key=lambda x: x.cosine_similarity, reverse=True)
-            top_m_scores = [c.cosine_similarity for c in ch_list[:M]]
-            doc_scores[doc_id] = sum(top_m_scores) / len(top_m_scores) if top_m_scores else 0.0
+            # Use the best chunk similarity as doc score (simple and effective)
+            doc_scores[doc_id] = ch_list[0].cosine_similarity if ch_list else 0.0
 
-        # Re-rank documents based on average similarity
+        # Re-rank documents based on top chunk similarity
         ranked_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
 
         if not ranked_docs:
@@ -375,76 +368,77 @@ def chat_with_docs(request):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # (Optional) Reranking step with a dedicated model (placeholder)
-        # If you have a cross-encoder or re-ranker, you could do:
-        # filtered_docs = re_rank_docs(query, filtered_docs, doc_chunks)
 
-        # Select top N documents after filtering
-        top_n_docs = 5
+        top_n_docs = 4
         top_doc_ids = [doc_id for doc_id, score in filtered_docs[:top_n_docs]]
 
-        # Collect chunks from top documents, sorted by similarity
         final_chunks = []
+
         for doc_id in top_doc_ids:
             sorted_chunks = sorted(doc_chunks[doc_id], key=lambda x: x.cosine_similarity, reverse=True)
             final_chunks.extend(sorted_chunks)
 
-        # (Optional) Deduplicate chunks by content (exact match check)
         unique_contents = set()
         deduped_chunks = []
+
         for chunk in final_chunks:
             if chunk.content not in unique_contents:
                 unique_contents.add(chunk.content)
                 deduped_chunks.append(chunk)
-        
-        # Prepare context from final chunks
-        # Include document titles when providing context
+
         context = "\n\n".join(
             f"From Document '{chunk.document.title}':\n{chunk.content}"
             for chunk in deduped_chunks
         )
 
-        # Improved prompt: Be explicit about citing documents
-        prompt_template = """
-You are an expert assistant helping to answer questions based on the provided document excerpts.
-Use the context below to answer the user's question.
-- If using information from a document, cite its title.
-- If the user does not ask a question, provide a summary of the context.
+        system_prompt = """
+        You are Athena, an intelligent research assistant specializing in document analysis and question answering.
+        Your task is to analyze the provided document excerpts and respond to user queries with precision and clarity.
 
-Context:
-{context}
+        Guidelines:
+        1. Document Citations
+           - Always cite relevant documents by title when referencing specific information
+           - Include document titles in your explanations naturally
+        
+        2. Response Style
+           - Be clear, professional and approachable
+           - Structure responses logically
+           - Use bullet points or numbered lists for complex explanations
+        
+        3. Handling Information
+           - For direct questions: Provide specific, targeted answers
+           - For open-ended queries: Summarize key relevant points
+           - Clearly state any assumptions made
+           - If context is not relevant, acknowledge this explicitly
+           - Avoid speculation beyond the provided content
+        """
 
-Question:
-{question}
+        user_prompt = f"""
+        Question: {query}
 
-Answer:"""
+        Available Document Context:
+        {context}
 
-        # Setup LLM
-        llm = OllamaLLM(model="llama3.2", base_url="http://ollama:11434")
+        Please provide a comprehensive response following the system guidelines.
+        """
 
-        prompt = prompt_template.format(context=context, question=query)
-        response_text = llm(prompt)
+        llm = ChatOllama(model="llama3.2", base_url="http://ollama:11434")
+        messages = [
+            ("system", system_prompt),
+            ("human", user_prompt)
+        ]
 
-        # Format response data: Include top chunks and their similarities
-        response_data = {
-            'answer': response_text.strip(),
-            'sources': [
-                {
-                    'document_id': doc_id,
-                    'document_title': Document.objects.get(id=doc_id).title,
-                    'average_similarity': doc_scores[doc_id],
-                    'chunks': [
-                        {
-                            'chunk_index': chunk.index,
-                            'content': chunk.content,
-                            'similarity': chunk.cosine_similarity
-                        } for chunk in doc_chunks[doc_id]
-                    ]
-                } for doc_id in top_doc_ids
-            ]
-        }
+        def stream_response():
+            response_text = ""
+            for chunk in llm.stream(messages):
+                if hasattr(chunk, 'content') and chunk.content:
+                    response_text += chunk.content
+                    yield chunk.content
 
-        return Response(response_data, status=status.HTTP_200_OK)
+        return StreamingHttpResponse(
+            stream_response(),
+            content_type='application/json'
+        )
 
     except Exception as e:
         logger.error(f"Chat error: {str(e)}", exc_info=True)
@@ -452,15 +446,3 @@ Answer:"""
             {"error": f"Chat failed: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-
-# Optional: Example of a reranking function stub
-def re_rank_docs(query, doc_list, doc_chunks):
-    """
-    Rerank the documents using a dedicated re-ranker model.
-    `doc_list` is [(doc_id, score), ...]
-    `doc_chunks` is {doc_id: [chunk_objects]}
-    Implement your reranking logic here.
-    """
-    # placeholder logic: no changes
-    return doc_list
