@@ -1,13 +1,14 @@
 from django.db import models
-from pgvector.django import VectorField, HnswIndex
-
+from pgvector.django import HnswIndex, VectorField
+from .constant import DocumentStatus
 
 class Document(models.Model):
     title = models.CharField(max_length=500, null=True, blank=True)
     description = models.TextField(null=True, blank=True)
     file = models.CharField(max_length=1000, null=True, blank=True)
     ocr_file = models.CharField(max_length=1000, null=True, blank=True)
-    status = models.CharField(max_length=100, default="pending")
+    status = models.CharField(max_length=100, default=DocumentStatus.PENDING)
+    is_failed = models.BooleanField(default=False)
     no_of_chunks = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -34,7 +35,6 @@ class DocumentChunk(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=['document', 'index']),
             HnswIndex(
                 name='embedding_vector_index',
                 fields=['embedding_vector'],
@@ -43,4 +43,3 @@ class DocumentChunk(models.Model):
                 opclasses=['vector_cosine_ops'],
             ),
         ]
-        ordering = ['document', 'index']

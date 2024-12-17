@@ -1,6 +1,7 @@
 import axios from "axios";
+import { DocumentStatus } from "./document-status";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api";
+export const API_BASE_URL = "http://127.0.0.1:8000/api";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -15,7 +16,8 @@ export interface Document {
   file: string;
   description: string;
   no_of_chunks: number;
-  status: string;
+  status: DocumentStatus;
+  is_failed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -36,7 +38,8 @@ export interface ChatResponse {
 
 export const documentsApi = {
   getAll: () => api.get<Document[]>("/documents"),
-  getOne: (id: number) => api.get<Document>(`/documents/${id}`),
+  getOne: (id: number, abortSignal: AbortSignal) =>
+    api.get<Document>(`/documents/${id}`, { signal: abortSignal }),
   upload: (files: File[]) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
