@@ -1,9 +1,8 @@
+import { Markdown } from "@/components/markdown";
 import { api } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
-import { useParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 export function DocumentMarkdownPage() {
   const { id } = useParams();
@@ -76,9 +75,7 @@ export function DocumentMarkdownPage() {
         Back
       </button>
       <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-2xl p-8 border border-white/10">
-        <ReactMarkdown className="prose prose-invert prose-slate !max-w-none">
-          {data.data.content}
-        </ReactMarkdown>
+        <Markdown content={data.data.content} />
       </div>
     </div>
   );

@@ -36,6 +36,18 @@ export interface ChatResponse {
   }[];
 }
 
+export interface SearchResult {
+  document_id: number;
+  document_title: string;
+  created_at: string;
+  similarity_score: number;
+  chunks: {
+    chunk_index: number;
+    content: string;
+    similarity_score: number;
+  }[];
+}
+
 export const documentsApi = {
   getAll: () => api.get<Document[]>("/documents"),
   getOne: (id: number) => api.get<Document>(`/documents/${id}`),
@@ -53,4 +65,6 @@ export const documentsApi = {
   },
   delete: (id: number) => api.delete(`/documents/${id}/delete`),
   chat: (query: string) => api.post<ChatResponse>("/documents/chat", { query }),
+  search: (params: { query: string; title?: string; limit?: number }) =>
+    api.get<SearchResult[]>("/documents/search", { params }),
 };

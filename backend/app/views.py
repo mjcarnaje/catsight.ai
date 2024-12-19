@@ -249,59 +249,81 @@ def get_doc_original_file(request, doc_id):
         logger.error(f"Error retrieving file: {str(e)}")
         return Response({"status": "error", "message": f"Error retrieving {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@api_view(['POST'])
+@api_view(['GET'])
 def search_docs(request):
     """
     Search documents using vector similarity and optional keyword filtering.
+    Merges chunks from the same document and includes them in the response.
+
+    Expected query parameters:
+    - query: search text (required)
+    - title: optional title substring filter
+    - limit: max number of results (default 10)
     """
+    query = request.GET.get('query')
+    title_filter = request.GET.get('title')
+    limit = request.GET.get('limit', 10)
+
+    # Validate required parameters
+    if not query:
+        return Response({"error": "'query' parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate limit parameter
     try:
-        query = request.data.get('query')
-        filters = request.data.get('filters', {})
-        limit = int(request.data.get('limit', 10))
+        limit = int(limit)
+        if limit <= 0:
+            limit = 10
+    except (ValueError, TypeError):
+        limit = 10
 
-        if not query:
-            return Response(
-                {"error": "Query parameter is required"}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+    try:
         # Generate embedding for the search query
         model = OllamaEmbeddings(model="bge-m3", base_url="http://ollama:11434")
         query_embedding = model.embed_query(query)
 
-        # Start with base queryset
-        chunks_queryset = DocumentChunk.objects.all()
+        # Base queryset with select_related to avoid N+1 queries on document access
+        chunks_queryset = DocumentChunk.objects.select_related('document')
 
-        # Apply any text-based filters
-        if filters.get('title'):
-            chunks_queryset = chunks_queryset.filter(
-                document__title__icontains=filters['title']
-            )
+        # Apply optional title filter if provided
+        if title_filter:
+            chunks_queryset = chunks_queryset.filter(document__title__icontains=title_filter)
 
-        # Perform vector similarity search
-        results = chunks_queryset.order_by(
-            CosineDistance('embedding_vector', query_embedding)
-        )[:limit]
+        # Vector similarity search using pgvector's CosineDistance
+        chunks = (
+            chunks_queryset
+            .annotate(distance=CosineDistance(F('embedding_vector'), query_embedding))
+            .order_by('distance')[:limit]
+        )
 
-        # Format response
-        response_data = []
-        for chunk in results:
-            response_data.append({
-                'document_id': chunk.document.id,
-                'document_title': chunk.document.title,
+        # Group chunks by document and merge into single entries
+        document_chunks = {}
+        for chunk in chunks:
+            doc_id = chunk.document_id
+            # Convert distance to similarity score (1 - distance)
+            similarity = 1 - chunk.distance
+            if doc_id not in document_chunks:
+                document_chunks[doc_id] = {
+                    'document_id': doc_id,
+                    'document_title': chunk.document.title,
+                    'created_at': chunk.document.created_at,
+                    'similarity_score': similarity,
+                    'chunks': []
+                }
+            document_chunks[doc_id]['chunks'].append({
                 'chunk_index': chunk.index,
                 'content': chunk.content,
-                'created_at': chunk.document.created_at,
+                'similarity_score': similarity
             })
+
+        # Convert to list and sort by best similarity score (highest first)
+        response_data = list(document_chunks.values())
+        response_data.sort(key=lambda x: x['similarity_score'], reverse=True)
 
         return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
-        logger.error(f"Search error: {str(e)}")
-        return Response(
-            {"error": f"Search failed: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        logger.error("Search error: %s", str(e), exc_info=True)
+        return Response({"error": f"Search failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
 def generate_summary(request):

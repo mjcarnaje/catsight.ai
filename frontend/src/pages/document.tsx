@@ -1,11 +1,10 @@
+import { Markdown } from "@/components/markdown";
 import { api, Document } from "@/lib/api";
 import { getDocumentStatus } from "@/lib/document-status";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ArrowLeft, FileCode, FileText } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router-dom";
-
 export function DocumentPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -86,9 +85,7 @@ export function DocumentPage() {
               <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
                 {data.data.title}
               </h1>
-              <ReactMarkdown className="prose prose-invert prose-slate !max-w-none">
-                {data.data.description}
-              </ReactMarkdown>
+              <Markdown content={data.data.description} />
               <div className="flex gap-3">
                 <a
                   href={`/documents/${data.data.id}/raw`}

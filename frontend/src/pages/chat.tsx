@@ -1,9 +1,9 @@
+import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { API_BASE_URL } from "@/lib/api";
 import { Loader2, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
 
 interface Message {
   id: string;
@@ -139,73 +139,67 @@ export function ChatPage() {
   };
 
   return (
-    <div className="container mx-auto py-10 h-[calc(100vh-16rem)] flex flex-col">
+    <div className="container mx-auto pt-10 pb-4 h-[calc(100vh-4rem)] flex-1 flex flex-col">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-blue-500">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
           Chat with Documents
         </h1>
       </div>
 
-      {error && (
-        <div className="rounded-md bg-red-100 p-3 text-red-600 mb-4">
-          {error}
-        </div>
-      )}
-
-      <div className="flex-1 h-full overflow-y-auto mb-4 space-y-4 p-4 rounded-lg border bg-gray-50">
-        {messages.map((message) => {
-          return (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
+      <div className="flex-1 h-full w-full flex flex-col">
+        <div className="flex-grow overflow-y-auto mb-4 space-y-4 p-4 rounded-lg backdrop-blur-xl bg-white/10 border border-white/10 shadow-2xl">
+          {messages.map((message) => {
+            return (
               <div
-                className={`max-w-[80%] rounded-lg p-4 shadow-sm ${
-                  message.role === "user"
-                    ? "bg-blue-500 text-white ml-4"
-                    : "bg-white mr-4 border"
+                key={message.id}
+                className={`flex ${
+                  message.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                {message.content === "loading..." ? (
-                  <div className="flex gap-1 items-center">
-                    <div className="w-2 h-2 rounded-full bg-blue-200 animate-bounce" />
-                    <div className="w-2 h-2 rounded-full bg-blue-200 animate-bounce [animation-delay:0.1s]" />
-                    <div className="w-2 h-2 rounded-full bg-blue-200 animate-bounce [animation-delay:0.2s]" />
-                  </div>
-                ) : (
-                  <ReactMarkdown className="prose prose-sm max-w-none">
-                    {message.content}
-                  </ReactMarkdown>
-                )}
+                <div
+                  className={`max-w-[80%] rounded-lg p-4 ${
+                    message.role === "user"
+                      ? "bg-blue-500/80 backdrop-blur-sm text-white ml-4 shadow-lg"
+                      : "bg-white/10 backdrop-blur-sm border border-white/10 mr-4 text-white shadow-lg"
+                  }`}
+                >
+                  {message.content === "loading..." ? (
+                    <div className="flex gap-1 items-center">
+                      <div className="w-2 h-2 rounded-full bg-white/40 animate-bounce" />
+                      <div className="w-2 h-2 rounded-full bg-white/40 animate-bounce [animation-delay:0.1s]" />
+                      <div className="w-2 h-2 rounded-full bg-white/40 animate-bounce [animation-delay:0.2s]" />
+                    </div>
+                  ) : (
+                    <Markdown content={message.content} />
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
+            );
+          })}
+          <div ref={messagesEndRef} />
+        </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask a question about your documents..."
-          disabled={loading}
-          className="border-2 focus:ring-blue-500 focus:border-blue-500"
-        />
-        <Button
-          type="submit"
-          disabled={loading}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
-        >
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </Button>
-      </form>
+        <form onSubmit={handleSubmit} className="flex gap-2">
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask a question about your documents..."
+            disabled={loading}
+            className="bg-white/10 border-white/10 min-h-[80px] text-white placeholder:text-white/60 focus:ring-blue-500/50 focus:border-blue-500/50"
+          />
+          <Button
+            type="submit"
+            disabled={loading}
+            className="bg-blue-500/80 hover:bg-blue-600/80 backdrop-blur-sm text-white px-4 py-2 rounded-md"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
