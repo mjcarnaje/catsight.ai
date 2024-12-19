@@ -17,4 +17,5 @@ urlpatterns = [
     path('documents/delete_all', views.delete_all_docs, name='delete_all_docs'),
     path('documents/generate_summary', views.generate_summary, name='generate_summary'),
     path('documents/<str:doc_id>/retry/', views.retry_doc_processing, name='retry_doc_processing'),
+    path('documents/<str:doc_id>/chat', views.chat_with_single_doc, name='chat_with_single_doc'),
 ]
