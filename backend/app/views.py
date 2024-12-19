@@ -629,7 +629,7 @@ def chat_with_single_doc(request, doc_id):
 
         def stream_response():
             response_text = ""
-            for chunk in LLM.stream(messages):
+            for chunk in CHAT_LLM.stream(messages):
                 if hasattr(chunk, 'content') and chunk.content:
                     response_text += chunk.content
                     yield chunk.content
