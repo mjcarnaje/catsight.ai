@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { FileText, MessageSquare } from "lucide-react";
+import { FileText, MessageSquare, Search } from "lucide-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const queryClient = new QueryClient();
@@ -18,6 +18,11 @@ export function Layout() {
       href: "/chat",
       label: "Chat",
       icon: <MessageSquare className="h-4 w-4 mr-2" />,
+    },
+    {
+      href: "/search",
+      label: "Search",
+      icon: <Search className="h-4 w-4 mr-2" />,
     },
   ];
 
