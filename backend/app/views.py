@@ -540,3 +540,108 @@ def retry_doc_processing(request, doc_id):
             {"status": "error", "message": str(e)}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@api_view(['POST'])
+def chat_with_single_doc(request, doc_id):
+    """
+    Chat with a specific document using vector search and LLM.
+    This endpoint:
+    - Validates document exists
+    - Embeds the query
+    - Finds similar chunks within the specified document
+    - Uses a persona-driven prompt to get a helpful answer
+    - Streams the response back to the client
+    """
+    query = request.data.get('query')
+    if not query:
+        return Response(
+            {"error": "Query parameter is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        # Verify document exists
+        try:
+            document = Document.objects.get(id=doc_id)
+        except Document.DoesNotExist:
+            return Response(
+                {"error": "Document not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Embed the query
+        query_embedding = EMBEDDING_MODEL.embed_query(query)
+
+        if query_embedding is None:
+            return Response(
+                {"error": "Failed to create query embedding."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        # Retrieve top 10 similar chunks from this specific document
+        chunks_with_distance = (
+            DocumentChunk.objects.filter(document_id=doc_id)
+            .annotate(
+                cosine_distance=CosineDistance(F('embedding_vector'), query_embedding)
+            )
+            .order_by('cosine_distance')[:10]
+        )
+
+        if not chunks_with_distance.exists():
+            return Response(
+                {"error": "No relevant content found in this document for the query."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Create context from chunks
+        context = "\n\n".join(
+            f"Document Section {chunk.index}:\n{chunk.content}"
+            for chunk in chunks_with_distance
+        )
+
+        # System prompt focused on single document
+        system_prompt = f"""
+        You are Athena, an intelligent research assistant analyzing the document titled "{document.title}".
+        Your task is to answer questions specifically about this document using the provided excerpts.
+
+        Guidelines:
+        1. Focus solely on the content from this document
+        2. Reference specific sections when relevant
+        3. If the provided context doesn't contain enough information to answer the question,
+           clearly state that limitation
+        4. Structure your responses clearly and logically
+        5. Use bullet points or numbered lists for complex explanations
+        """
+
+        user_prompt = f"""
+        Question about "{document.title}": {query}
+
+        Relevant Document Sections:
+        {context}
+
+        Please provide a focused response about this specific document.
+        """
+
+        messages = [
+            ("system", system_prompt),
+            ("human", user_prompt)
+        ]
+
+        def stream_response():
+            response_text = ""
+            for chunk in LLM.stream(messages):
+                if hasattr(chunk, 'content') and chunk.content:
+                    response_text += chunk.content
+                    yield chunk.content
+
+        return StreamingHttpResponse(
+            stream_response(),
+            content_type='application/json'
+        )
+
+    except Exception as e:
+        logger.error(f"Single document chat error: {str(e)}", exc_info=True)
+        return Response(
+            {"error": f"Chat failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
