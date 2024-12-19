@@ -5,6 +5,7 @@ import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { DocumentPage } from "./pages/document";
 import { DocumentMarkdownPage } from "./pages/document-markdown";
 import { SearchPage } from "./pages/search";
+import { DocumentChatPage } from "./pages/document-chat";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
             element={<DocumentMarkdownPage />}
           />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/:id" element={<DocumentChatPage />} />
           <Route path="/search" element={<SearchPage />} />
         </Route>
       </Routes>
