@@ -31,9 +31,15 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_DEBUG=1
-      - OLLAMA_NUM_PARALLEL=1
       - OLLAMA_KEEP_ALIVE=-1
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
 
   backend:
     build: ./backend
@@ -63,11 +69,13 @@ services:
 
   celery_worker:
     build: ./backend
-    command: celery -A inteldocs worker --loglevel=info --concurrency=1
+    command: celery -A inteldocs worker --loglevel=info
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
       - OLLAMA_URL=http://ollama:11434
+      - TORCH_DEVICE=cuda
+      - INFERENCE_RAM=8
     depends_on:
       - backend
     volumes:
@@ -79,6 +87,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 8G  
+          cpus: '4'
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] 
 
   frontend:
     build: ./frontend

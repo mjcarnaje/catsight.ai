@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from .constant import DocumentStatus
 from .models import Document, DocumentChunk
 from .serializers import DocumentChunkSerializer, DocumentSerializer
-from .services.ollama import EMBEDDING_MODEL, LLM
+from .services.ollama import EMBEDDING_MODEL, LLM, CHAT_LLM
 from .tasks.tasks import (embed_text_task, generate_summary_task,
                           save_chunks_task)
 from .utils.doc_processor import DocumentProcessor
@@ -460,7 +460,7 @@ def chat_with_docs(request):
         # Stream the response back to the client
         def stream_response():
             response_text = ""
-            for chunk in LLM.stream(messages):
+            for chunk in CHAT_LLM.stream(messages):
                 if hasattr(chunk, 'content') and chunk.content:
                     response_text += chunk.content
                     yield chunk.content
