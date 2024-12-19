@@ -17,6 +17,7 @@ export function DocumentsPage() {
       const response = await documentsApi.getAll();
       return response.data;
     },
+    refetchInterval: 5000,
   });
 
   const uploadMutation = useMutation({

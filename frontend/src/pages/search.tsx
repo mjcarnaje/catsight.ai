@@ -1,12 +1,11 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { documentsApi } from "@/lib/api";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Loader2, Search as SearchIcon } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/markdown";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { documentsApi } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { Loader2, Search as SearchIcon } from "lucide-react";
+import { useState } from "react";
 
 export function SearchPage() {
   const [query, setQuery] = useState("");
