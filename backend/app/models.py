@@ -1,9 +1,11 @@
 from django.db import models
 from pgvector.django import HnswIndex, VectorField
+
 from .constant import DocumentStatus
 
+
 class Document(models.Model):
-    title = models.CharField(max_length=500, null=True, blank=True)
+    title = models.TextField(null=True, blank=True)
     description = models.TextField(null=True, blank=True)
     file = models.CharField(max_length=1000, null=True, blank=True)
     ocr_file = models.CharField(max_length=1000, null=True, blank=True)
