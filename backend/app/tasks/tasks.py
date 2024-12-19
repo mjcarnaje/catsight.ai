@@ -53,7 +53,7 @@ def save_chunks_task(self, doc_id):
 
     import os
 
-    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+    # os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
 
     try:
         logger.info(f"Starting chunk extraction for Document ID: {doc_id}")
@@ -62,7 +62,7 @@ def save_chunks_task(self, doc_id):
 
         config = {
             "output_format": "markdown",
-            "disable_multiprocessing": True,
+            "disable_multiprocessing": False,
             "disable_image_extraction": True,
         }
         config_parser = ConfigParser(config)
