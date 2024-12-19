@@ -48,7 +48,7 @@ class DocumentProcessor:
         """
         title_template = (
             "You are a professional title creator. Based on the following summary, create a short, concise, and informative title that accurately represents the content. "
-            "The title should be no more than 10 words long and should not use any markdown syntax.\n\n"
+            "The title should be no more than 500 characters long, clear, descriptive, and free of any special formatting or markdown syntax.\n\n"
             "Summary: {summary}\n\n"
             "Title:"
         )
