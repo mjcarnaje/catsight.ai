@@ -17,7 +17,7 @@ class DocumentProcessor:
         Generate a detailed summary of the provided text using a language model.
 
         Args:
-            text: The text extracted from the document.
+        text: The text extracted from the document.
 
         Returns:
             A summary string.
