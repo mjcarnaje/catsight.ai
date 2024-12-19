@@ -1,7 +1,8 @@
-from langchain_ollama import OllamaLLM
-from langchain_core.prompts import ChatPromptTemplate
 import logging
-import os
+
+from langchain_core.prompts import ChatPromptTemplate
+
+from ..services.ollama import LLM
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,6 @@ class DocumentProcessor:
             A summary string.
         """
 
-        model = OllamaLLM(model='llama3.2', base_url="http://ollama:11434", temperature=0.7)
         
         summary_template = (
             "You are an expert document analyst. Your task is to read the following text and provide a concise yet comprehensive summary. "
@@ -31,7 +31,7 @@ class DocumentProcessor:
             "Summary:"
         )
         prompt = ChatPromptTemplate.from_template(summary_template)
-        summary = (prompt | model).invoke({"text": text})
+        summary = (prompt | LLM).invoke({"text": text})
         logger.info("Summary generated successfully.")
         return summary
 
@@ -46,7 +46,6 @@ class DocumentProcessor:
         Returns:
             A title string.
         """
-        model = OllamaLLM(model='llama3.2', base_url="http://ollama:11434", temperature=0.7)
         title_template = (
             "You are a professional title creator. Based on the following summary, create a short, concise, and informative title that accurately represents the content. "
             "The title should be no more than 10 words long and should not use any markdown syntax.\n\n"
@@ -54,6 +53,6 @@ class DocumentProcessor:
             "Title:"
         )
         prompt = ChatPromptTemplate.from_template(title_template)
-        title = (prompt | model).invoke({"summary": summary})
+        title = (prompt | LLM).invoke({"summary": summary})
         logger.info("Title generated successfully.")
         return title
