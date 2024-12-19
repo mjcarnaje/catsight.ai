@@ -1,8 +1,11 @@
 import logging
+
 from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from functools import lru_cache
+from marker.config.parser import ConfigParser
+from marker.converters.pdf import PdfConverter
+from marker.models import create_model_dict
 
 from ..constant import DocumentStatus
 from ..models import Document, DocumentChunk
@@ -11,6 +14,21 @@ from ..utils.doc_processor import DocumentProcessor
 from ..utils.extractor import split_text_into_chunks
 
 logger = logging.getLogger(__name__)
+
+
+config = {
+    "output_format": "markdown",
+    "disable_multiprocessing": True,
+    "disable_image_extraction": True,
+}
+config_parser = ConfigParser(config)
+
+pdf_converter = PdfConverter(
+    config=config_parser.generate_config_dict(),
+    artifact_dict=create_model_dict(),
+    processor_list=config_parser.get_processors(),
+    renderer=config_parser.get_renderer()
+)
 
 
 def update_document_status(doc_instance, status, update_fields=None, failed=False):
@@ -25,31 +43,6 @@ def update_document_status(doc_instance, status, update_fields=None, failed=Fals
     doc_instance.status = status.value
     doc_instance.save(update_fields=update_fields)
     logger.info(f"Document status updated to '{status.value}' for Document ID: {doc_instance.id}")
-
-
-@lru_cache(maxsize=1)
-def get_pdf_converter():
-    """
-    Singleton factory function for PdfConverter.
-    Will only initialize once per worker process.
-    """
-    from marker.config.parser import ConfigParser
-    from marker.converters.pdf import PdfConverter
-    from marker.models import create_model_dict
-
-    config = {
-        "output_format": "markdown",
-        "disable_multiprocessing": True,
-        "disable_image_extraction": True,
-    }
-    config_parser = ConfigParser(config)
-
-    return PdfConverter(
-        config=config_parser.generate_config_dict(),
-        artifact_dict=create_model_dict(),
-        processor_list=config_parser.get_processors(),
-        renderer=config_parser.get_renderer()
-    )
 
 
 def save_document_chunks(doc_instance, chunks):
@@ -82,7 +75,6 @@ def save_chunks_task(self, doc_id):
         doc_instance = Document.objects.get(id=doc_id)
         update_document_status(doc_instance, DocumentStatus.TEXT_EXTRACTING)
 
-        pdf_converter = get_pdf_converter()
         rendered = pdf_converter(doc_instance.file)
         text, _, _ = text_from_rendered(rendered)
 
