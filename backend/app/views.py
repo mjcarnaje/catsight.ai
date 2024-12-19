@@ -31,6 +31,14 @@ def index(request):
     serializer = DocumentSerializer(documents, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
+@api_view(['GET'])
+def health(request):
+    """
+    Health check endpoint.
+    """
+    logger.info("Health check endpoint called")
+    return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
 def upload_doc(request):

@@ -3,9 +3,6 @@ import logging
 from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from marker.config.parser import ConfigParser
-from marker.converters.pdf import PdfConverter
-from marker.models import create_model_dict
 
 from ..constant import DocumentStatus
 from ..models import Document, DocumentChunk
@@ -14,22 +11,6 @@ from ..utils.doc_processor import DocumentProcessor
 from ..utils.extractor import split_text_into_chunks
 
 logger = logging.getLogger(__name__)
-
-
-config = {
-    "output_format": "markdown",
-    "disable_multiprocessing": True,
-    "disable_image_extraction": True,
-}
-config_parser = ConfigParser(config)
-
-pdf_converter = PdfConverter(
-    config=config_parser.generate_config_dict(),
-    artifact_dict=create_model_dict(),
-    processor_list=config_parser.get_processors(),
-    renderer=config_parser.get_renderer()
-)
-
 
 def update_document_status(doc_instance, status, update_fields=None, failed=False):
     """
@@ -66,6 +47,10 @@ def save_chunks_task(self, doc_id):
     Task to extract text from a PDF document, split it into chunks, and save them.
     """
     from marker.output import text_from_rendered
+    from marker.config.parser import ConfigParser
+    from marker.converters.pdf import PdfConverter
+    from marker.models import create_model_dict
+
     import os
 
     os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
@@ -74,6 +59,20 @@ def save_chunks_task(self, doc_id):
         logger.info(f"Starting chunk extraction for Document ID: {doc_id}")
         doc_instance = Document.objects.get(id=doc_id)
         update_document_status(doc_instance, DocumentStatus.TEXT_EXTRACTING)
+
+        config = {
+            "output_format": "markdown",
+            "disable_multiprocessing": True,
+            "disable_image_extraction": True,
+        }
+        config_parser = ConfigParser(config)
+
+        pdf_converter = PdfConverter(
+            config=config_parser.generate_config_dict(),
+            artifact_dict=create_model_dict(),
+            processor_list=config_parser.get_processors(),
+            renderer=config_parser.get_renderer()
+        )
 
         rendered = pdf_converter(doc_instance.file)
         text, _, _ = text_from_rendered(rendered)
