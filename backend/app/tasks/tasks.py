@@ -7,7 +7,8 @@ from marker.output import text_from_rendered
 
 from ..constant import DocumentStatus
 from ..models import Document, DocumentChunk
-from ..services import pdf_converter, EMBEDDING_MODEL
+from ..services.marker import pdf_converter
+from ..services.ollama import EMBEDDING_MODEL
 from ..utils.doc_processor import DocumentProcessor
 from ..utils.extractor import split_text_into_chunks
 

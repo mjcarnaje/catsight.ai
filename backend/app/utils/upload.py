@@ -1,7 +1,8 @@
+import logging
 import os
+
 from django.conf import settings
 from django.core.files.storage import default_storage
-import logging
 
 logger = logging.getLogger(__name__)
 

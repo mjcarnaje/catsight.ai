@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from .constant import DocumentStatus
 from .models import Document, DocumentChunk
 from .serializers import DocumentChunkSerializer, DocumentSerializer
-from .services import EMBEDDING_MODEL, LLM
+from .services.ollama import EMBEDDING_MODEL, LLM
 from .tasks.tasks import (embed_text_task, generate_summary_task,
                           save_chunks_task)
 from .utils.doc_processor import DocumentProcessor
