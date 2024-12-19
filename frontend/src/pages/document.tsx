@@ -1,124 +1,157 @@
-import { Document, documentsApi } from "@/lib/api";
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { api, Document } from "@/lib/api";
+import { getDocumentStatus } from "@/lib/document-status";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { ArrowLeft, FileCode, FileText } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { useNavigate, useParams } from "react-router-dom";
 
 export function DocumentPage() {
   const { id } = useParams();
-  const [document, setDocument] = useState<Document | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  const fetchDocument = async (
-    id: number,
-    abortController: AbortController
-  ) => {
-    try {
-      const response = await documentsApi.getOne(id, abortController.signal);
-      setDocument(response.data);
-      setError(null);
-    } catch (err) {
-      setError("Failed to fetch documents");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { isPending, error, data } = useQuery({
+    queryKey: ["document", id],
+    queryFn: () => api.get<Document>(`/documents/${id}`),
+  });
 
-  useEffect(() => {
-    const abortController = new AbortController();
-    fetchDocument(Number(id), abortController);
-    return () => abortController.abort();
-  }, [id]);
-
-  if (loading) {
+  if (isPending) {
     return (
-      <div className="container mx-auto py-10">
-        <div className="animate-pulse">Loading...</div>
+      <div className="container mx-auto">
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-8 flex items-center gap-2 text-white/80 hover:text-white transition-colors"
+        >
+          <ArrowLeft size={20} />
+          Back
+        </button>
+        <div className="animate-pulse flex items-center justify-center text-white">
+          <div className="animate-spin mr-3 h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div>
+          Loading...
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto py-10">
-        <div className="text-red-500">{error}</div>
+      <div className="container mx-auto">
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-8 flex items-center gap-2 text-white/80 hover:text-white transition-colors"
+        >
+          <ArrowLeft size={20} />
+          Back
+        </button>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
+          {error.message}
+        </div>
       </div>
     );
   }
 
+  if (!data) {
+    return (
+      <div className="container mx-auto">
+        <button
+          onClick={() => navigate(-1)}
+          className="mb-8 flex items-center gap-2 text-white/80 hover:text-white transition-colors"
+        >
+          <ArrowLeft size={20} />
+          Back
+        </button>
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-400">
+          Document not found
+        </div>
+      </div>
+    );
+  }
+
+  const { label, color, progress } = getDocumentStatus(data.data.status);
+
   return (
-    <div className="container mx-auto py-10">
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <div className="flex flex-col gap-6">
+    <div className="container mx-auto">
+      <button
+        onClick={() => navigate(-1)}
+        className="mb-4 flex items-center gap-2 text-white/80 hover:text-white transition-colors"
+      >
+        <ArrowLeft size={20} />
+        Back
+      </button>
+      <div className="backdrop-blur-xl bg-white/10 rounded-2xl shadow-2xl p-8 border border-white/10">
+        <div className="flex flex-col gap-8">
           {/* Header */}
-          <div className="border-b pb-4">
-            <h1 className="text-3xl font-bold text-gray-900">
-              {document?.title}
-            </h1>
-            <p className="mt-2 text-gray-600">{document?.description}</p>
+          <div className="border-b border-white/10 pb-6">
+            <div className="flex flex-col gap-8 items-start">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                {data.data.title}
+              </h1>
+              <ReactMarkdown className="prose prose-invert prose-slate !max-w-none">
+                {data.data.description}
+              </ReactMarkdown>
+              <div className="flex gap-3">
+                <a
+                  href={`/documents/${data.data.id}/raw`}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:text-white transition-colors rounded-lg border border-white/10 hover:border-white/20"
+                >
+                  <FileText size={16} />
+                  <span>View Raw</span>
+                </a>
+                <a
+                  href={`/documents/${data.data.id}/markdown`}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:text-white transition-colors rounded-lg border border-white/10 hover:border-white/20"
+                >
+                  <FileCode size={16} />
+                  <span>View Markdown</span>
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* Document Details */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="space-y-6">
               <div>
-                <h3 className="text-sm font-medium text-gray-500">Status</h3>
-                <div className="mt-1">
+                <h3 className="text-sm font-medium text-gray-400">Status</h3>
+                <div className="mt-2">
                   <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                    ${
-                      document?.status === "completed"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                      ${color.bg} ${color.text} border ${color.border}`}
                   >
-                    {document?.status}
+                    {label}
                   </span>
                 </div>
               </div>
 
               <div>
-                <h3 className="text-sm font-medium text-gray-500">
+                <h3 className="text-sm font-medium text-gray-400">
                   Number of Chunks
                 </h3>
-                <p className="mt-1 text-sm text-gray-900">
-                  {document?.no_of_chunks}
-                </p>
+                <p className="mt-2 text-white">{data.data.no_of_chunks}</p>
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
-                <h3 className="text-sm font-medium text-gray-500">
+                <h3 className="text-sm font-medium text-gray-400">
                   Created At
                 </h3>
-                <p className="mt-1 text-sm text-gray-900">
-                  {document?.created_at &&
-                    format(new Date(document.created_at), "PPP")}
+                <p className="mt-2 text-white">
+                  {data.data.created_at &&
+                    format(new Date(data.data.created_at), "PPP")}
                 </p>
               </div>
 
               <div>
-                <h3 className="text-sm font-medium text-gray-500">
+                <h3 className="text-sm font-medium text-gray-400">
                   Last Updated
                 </h3>
-                <p className="mt-1 text-sm text-gray-900">
-                  {document?.updated_at &&
-                    format(new Date(document.updated_at), "PPP")}
+                <p className="mt-2 text-white">
+                  {data.data.updated_at &&
+                    format(new Date(data.data.updated_at), "PPP")}
                 </p>
               </div>
             </div>
-          </div>
-
-          {/* File Link */}
-          <div className="mt-4">
-            <h3 className="text-sm font-medium text-gray-500">File</h3>
-            <a
-              href={document?.file}
-              className="mt-1 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Download File
-            </a>
           </div>
         </div>
       </div>

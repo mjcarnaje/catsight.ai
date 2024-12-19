@@ -43,42 +43,54 @@ export const DocumentStatusProgress = {
 
 export const DocumentStatusColor = {
   [DocumentStatus.PENDING]: {
-    text: "text-gray-600",
-    bg: "bg-gray-200",
+    text: "text-gray-400",
+    bg: "bg-gray-500/20",
+    border: "border-gray-500/20",
   },
   [DocumentStatus.TEXT_EXTRACTING]: {
-    text: "text-blue-600",
-    bg: "bg-blue-200",
+    text: "text-blue-400",
+    bg: "bg-blue-500/20",
+    border: "border-blue-500/20",
   },
   [DocumentStatus.TEXT_EXTRACTED]: {
-    text: "text-blue-600",
-    bg: "bg-blue-200",
+    text: "text-blue-400",
+    bg: "bg-blue-500/20",
+    border: "border-blue-500/20",
   },
   [DocumentStatus.GENERATING_SUMMARY]: {
-    text: "text-blue-600",
-    bg: "bg-blue-200",
+    text: "text-blue-400",
+    bg: "bg-blue-500/20",
+    border: "border-blue-500/20",
   },
   [DocumentStatus.SUMMARY_GENERATED]: {
-    text: "text-blue-600",
-    bg: "bg-blue-200",
+    text: "text-blue-400",
+    bg: "bg-blue-500/20",
+    border: "border-blue-500/20",
   },
   [DocumentStatus.EMBEDDING_TEXT]: {
-    text: "text-blue-600",
-    bg: "bg-blue-200",
+    text: "text-blue-400",
+    bg: "bg-blue-500/20",
+    border: "border-blue-500/20",
   },
   [DocumentStatus.EMBEDDED_TEXT]: {
-    text: "text-blue-600",
-    bg: "bg-blue-200",
+    text: "text-blue-400",
+    bg: "bg-blue-500/20",
+    border: "border-blue-500/20",
   },
   [DocumentStatus.COMPLETED]: {
-    text: "text-green-600",
-    bg: "bg-green-200",
+    text: "text-green-400",
+    bg: "bg-green-500/20",
+    border: "border-green-500/20",
   },
 };
 
 export const getDocumentStatus = (
   status: DocumentStatus
-): { label: string; color: { text: string; bg: string }; progress: number } => {
+): {
+  label: string;
+  color: { text: string; bg: string; border: string };
+  progress: number;
+} => {
   const statusLabel = DocumentStatusLabel[status];
   const statusProgress = DocumentStatusProgress[status];
   const statusColor = DocumentStatusColor[status];

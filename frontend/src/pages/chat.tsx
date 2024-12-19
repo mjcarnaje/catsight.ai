@@ -139,18 +139,20 @@ export function ChatPage() {
   };
 
   return (
-    <div className="container mx-auto py-10 h-screen flex flex-col">
+    <div className="container mx-auto py-10 h-[calc(100vh-16rem)] flex flex-col">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Chat with Documents</h1>
+        <h1 className="text-3xl font-bold text-blue-500">
+          Chat with Documents
+        </h1>
       </div>
 
       {error && (
-        <div className="rounded-md bg-destructive/15 p-3 text-destructive mb-4">
+        <div className="rounded-md bg-red-100 p-3 text-red-600 mb-4">
           {error}
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4 rounded-lg border">
+      <div className="flex-1 h-full overflow-y-auto mb-4 space-y-4 p-4 rounded-lg border bg-gray-50">
         {messages.map((message) => {
           return (
             <div
@@ -160,20 +162,22 @@ export function ChatPage() {
               }`}
             >
               <div
-                className={`max-w-[80%] rounded-lg p-4 ${
+                className={`max-w-[80%] rounded-lg p-4 shadow-sm ${
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground ml-4"
-                    : "bg-muted mr-4"
+                    ? "bg-blue-500 text-white ml-4"
+                    : "bg-white mr-4 border"
                 }`}
               >
                 {message.content === "loading..." ? (
                   <div className="flex gap-1 items-center">
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce" />
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:0.1s]" />
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:0.2s]" />
+                    <div className="w-2 h-2 rounded-full bg-blue-200 animate-bounce" />
+                    <div className="w-2 h-2 rounded-full bg-blue-200 animate-bounce [animation-delay:0.1s]" />
+                    <div className="w-2 h-2 rounded-full bg-blue-200 animate-bounce [animation-delay:0.2s]" />
                   </div>
                 ) : (
-                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                  <ReactMarkdown className="prose prose-sm max-w-none">
+                    {message.content}
+                  </ReactMarkdown>
                 )}
               </div>
             </div>
@@ -188,8 +192,13 @@ export function ChatPage() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask a question about your documents..."
           disabled={loading}
+          className="border-2 focus:ring-blue-500 focus:border-blue-500"
         />
-        <Button type="submit" disabled={loading}>
+        <Button
+          type="submit"
+          disabled={loading}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
+        >
           {loading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
