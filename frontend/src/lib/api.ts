@@ -38,8 +38,10 @@ export interface ChatResponse {
 
 export const documentsApi = {
   getAll: () => api.get<Document[]>("/documents"),
-  getOne: (id: number, abortSignal: AbortSignal) =>
-    api.get<Document>(`/documents/${id}`, { signal: abortSignal }),
+  getOne: (id: number) => api.get<Document>(`/documents/${id}`),
+  getRaw: (id: number) => api.get<Document>(`/documents/${id}/raw`),
+  getMarkdown: (id: number) => api.get<Document>(`/documents/${id}/markdown`),
+  retry: (id: number) => api.post(`/documents/${id}/retry/`),
   upload: (files: File[]) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));

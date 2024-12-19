@@ -1,6 +1,8 @@
 import logging
 from collections import defaultdict
 
+from celery import chain
+from celery.result import AsyncResult
 from django.db.models import F
 from django.http import FileResponse, StreamingHttpResponse
 from langchain_ollama import ChatOllama, OllamaEmbeddings
@@ -10,11 +12,13 @@ from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
+from .constant import DocumentStatus
 from .models import Document, DocumentChunk
 from .serializers import DocumentChunkSerializer, DocumentSerializer
 from .tasks.tasks import (embed_text_task, generate_summary_task,
                           save_chunks_task)
 from .utils.doc_processor import DocumentProcessor
+from .utils.extractor import combine_chunks
 from .utils.upload import UploadUtils
 
 logger = logging.getLogger(__name__)
@@ -50,12 +54,17 @@ def upload_doc(request):
             document = serializer.save(file=None)
 
             document.file = UploadUtils.upload_document(file, str(document.id))
-            
             document.save()
+            
+            task_chain = chain(
+                save_chunks_task.s(document.id),
+                generate_summary_task.s(),
+                embed_text_task.s()
+            )
 
-            (save_chunks_task.s(document.id) | 
-             generate_summary_task.s() | 
-             embed_text_task.s()).delay()
+            result = task_chain.apply_async()
+            document.task_id = result.id
+            document.save()
 
             response_data.append({"status": "success", "id": document.id, "filename": file.name})
         else:
@@ -81,20 +90,83 @@ def get_doc(request, doc_id):
     except Document.DoesNotExist:
         logger.warning(f"Documentnot found: {doc_id}")
         return Response({"status": "error", "message": "Documentnot found"}, status=status.HTTP_404_NOT_FOUND)
+    
+
+@api_view(['GET'])
+def get_doc_raw(request, doc_id):
+    """
+    Retrieve the raw content of a document by its ID.
+    """
+    document = Document.objects.get(id=doc_id)
+    file_path = UploadUtils.get_document_file(doc_id, 'original')
+    return FileResponse(open(file_path, 'rb'))
+
+@api_view(['GET'])  
+def get_doc_markdown(request, doc_id):
+    """
+    Retrieve the markdown content of a document by its ID.
+    Handles overlapping chunks by removing duplicate content.
+    """
+    try:
+        document = Document.objects.get(id=doc_id)
+        chunks = DocumentChunk.objects.filter(document=document).order_by('index')
+        
+        combined_text = combine_chunks(chunks.values_list('content', flat=True))
+       
+        return Response({"content": combined_text}, status=status.HTTP_200_OK)
+    except Document.DoesNotExist:
+        logger.warning(f"Document not found: {doc_id}")
+        return Response(
+            {"status": "error", "message": "Document not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+def revoke_task(task_id):
+    """Helper function to revoke a Celery task"""
+    if task_id:
+        try:
+            AsyncResult(task_id).revoke(terminate=True)
+            logger.info(f"Task {task_id} revoked successfully")
+        except Exception as e:
+            logger.error(f"Error revoking task {task_id}: {str(e)}")
 
 @api_view(['DELETE'])
 def delete_doc(request, doc_id):
     """
-    Delete a document by its ID and remove associated files.
+    Delete a document by its ID, cancel any running tasks, and remove associated files.
     """
     try:
+        document = Document.objects.get(id=doc_id)
+        
+        # Revoke any running tasks
+        revoke_task(document.task_id)
+        
+        # Delete associated chunks
         document_chunks = DocumentChunk.objects.filter(document=doc_id)
         document_chunks.delete()
-        document = Document.objects.get(id=doc_id)
+        
+        # Delete files and document
+        UploadUtils.delete_document(doc_id)
         document.delete()
-        return Response({"status": "success", "message": "Document deleted successfully"}, status=status.HTTP_200_OK)
+        
+        logger.info(f"Document deleted successfully: {doc_id}")
+        return Response(
+            {"status": "success", "message": "Document deleted successfully"}, 
+            status=status.HTTP_200_OK
+        )
     except Document.DoesNotExist:
-        return Response({"status": "error", "message": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
+        logger.warning(f"Document not found: {doc_id}")
+        return Response(
+            {"status": "error", "message": "Document not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error deleting document: {str(e)}")
+        return Response(
+            {"status": "error", "message": f"Error deleting document: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 @api_view(['GET'])
 def get_doc_chunks(request, doc_id):
@@ -114,34 +186,33 @@ def get_doc_chunks(request, doc_id):
     
 
 @api_view(['DELETE'])
-def delete_doc(request, doc_id):
-    """
-    Delete a document by its ID and remove associated files.
-    """
-    try:
-        document = Document.objects.get(id=doc_id)
-        document_chunks = DocumentChunk.objects.filter(document=doc_id)
-        document_chunks.delete()
-        UploadUtils.delete_document(doc_id)
-        document.delete()
-        logger.info(f"Document deleted successfully: {doc_id}")
-        return Response({"status": "success", "message": "Document deleted successfully"}, status=status.HTTP_200_OK)
-    except Document.DoesNotExist:
-        logger.warning(f"Document not found: {doc_id}")
-        return Response({"status": "error", "message": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        logger.error(f"Error deleting document: {str(e)}")
-        return Response({"status": "error", "message": f"Error deleting document: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['DELETE'])
 def delete_all_docs(request):
     """
-    Delete all documents and associated files.
+    Delete all documents, cancel running tasks, and remove associated files.
     """
-    Document.objects.all().delete()
-    DocumentChunk.objects.all().delete()
-    UploadUtils.delete_all_documents()
-    return Response({"status": "success", "message": "All documents deleted successfully"}, status=status.HTTP_200_OK)
+    try:
+        # Revoke all running tasks for all documents
+        documents = Document.objects.all()
+        for doc in documents:
+            revoke_task(doc.task_id)
+        
+        # Delete all documents and chunks
+        Document.objects.all().delete()
+        DocumentChunk.objects.all().delete()
+        
+        # Delete all files
+        UploadUtils.delete_all_documents()
+        
+        return Response(
+            {"status": "success", "message": "All documents deleted successfully"}, 
+            status=status.HTTP_200_OK
+        )
+    except Exception as e:
+        logger.error(f"Error deleting all documents: {str(e)}")
+        return Response(
+            {"status": "error", "message": f"Error deleting all documents: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['PUT'])
@@ -177,22 +248,6 @@ def get_doc_original_file(request, doc_id):
     except Exception as e:
         logger.error(f"Error retrieving file: {str(e)}")
         return Response({"status": "error", "message": f"Error retrieving {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-def get_doc_ocr_file(request, doc_id):
-    """
-    Retrieve the OCR file for a document by its ID.
-    """
-    try:
-        logger.info(f"Retrieving OCR file for PDF: {doc_id}")
-        file_path = UploadUtils.get_document_file(doc_id, 'ocr')
-        return FileResponse(open(file_path, 'rb'))
-    except Document.DoesNotExist:
-        logger.warning(f"Documentnot found: {doc_id}")
-        return Response({"status": "error", "message": "Documentnot found"}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        logger.error(f"Error retrieving file: {str(e)}")
-        return Response({"status": "error", "message": f"Error retrieving {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 @api_view(['POST'])
 def search_docs(request):
@@ -444,5 +499,68 @@ def chat_with_docs(request):
         logger.error(f"Chat error: {str(e)}", exc_info=True)
         return Response(
             {"error": f"Chat failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+def retry_doc_processing(request, doc_id):
+    """
+    Retry processing a failed document from where it left off.
+    """
+    try:
+        document = Document.objects.get(id=doc_id)
+        
+        if not document.is_failed:
+            return Response(
+                {"status": "error", "message": "Document is not in failed state"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create task chain based on current status
+        tasks = []
+        current_status = DocumentStatus(document.status)
+
+        if current_status in [DocumentStatus.PENDING, DocumentStatus.TEXT_EXTRACTING]:
+            tasks.append(save_chunks_task.s(document.id))
+            tasks.append(generate_summary_task.s())
+            tasks.append(embed_text_task.s())
+        elif current_status in [DocumentStatus.TEXT_EXTRACTED, DocumentStatus.GENERATING_SUMMARY]:
+            tasks.append(generate_summary_task.s(document.id))
+            tasks.append(embed_text_task.s())
+        elif current_status in [DocumentStatus.SUMMARY_GENERATED, DocumentStatus.EMBEDDING_TEXT]:
+            tasks.append(embed_text_task.s(document.id))
+
+        if not tasks:
+            return Response(
+                {"status": "error", "message": "No tasks to retry"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Reset failed status
+        document.is_failed = False
+        
+        # Create and execute task chain
+        task_chain = chain(*tasks)
+        result = task_chain.apply_async()
+        
+        # Update document with new task ID
+        document.task_id = result.id
+        document.save()
+
+        return Response({
+            "status": "success",
+            "message": "Document processing restarted",
+            "task_id": result.id
+        }, status=status.HTTP_200_OK)
+
+    except Document.DoesNotExist:
+        return Response(
+            {"status": "error", "message": "Document not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error retrying document processing: {str(e)}")
+        return Response(
+            {"status": "error", "message": str(e)}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
