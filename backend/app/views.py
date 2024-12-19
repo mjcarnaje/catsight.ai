@@ -1,11 +1,9 @@
 import logging
-from collections import defaultdict
 
 from celery import chain
 from celery.result import AsyncResult
 from django.db.models import F
 from django.http import FileResponse, StreamingHttpResponse
-from langchain_ollama import ChatOllama, OllamaEmbeddings
 from pgvector.django import CosineDistance
 from rest_framework import status
 from rest_framework.decorators import api_view, parser_classes
@@ -15,6 +13,7 @@ from rest_framework.response import Response
 from .constant import DocumentStatus
 from .models import Document, DocumentChunk
 from .serializers import DocumentChunkSerializer, DocumentSerializer
+from .services import EMBEDDING_MODEL, LLM
 from .tasks.tasks import (embed_text_task, generate_summary_task,
                           save_chunks_task)
 from .utils.doc_processor import DocumentProcessor
@@ -22,7 +21,6 @@ from .utils.extractor import combine_chunks
 from .utils.upload import UploadUtils
 
 logger = logging.getLogger(__name__)
-
 
 @api_view(['GET'])
 def index(request):
@@ -278,8 +276,7 @@ def search_docs(request):
 
     try:
         # Generate embedding for the search query
-        model = OllamaEmbeddings(model="bge-m3", base_url="http://ollama:11434")
-        query_embedding = model.embed_query(query)
+        query_embedding = EMBEDDING_MODEL.embed_query(query)
 
         # Base queryset with select_related to avoid N+1 queries on document access
         chunks_queryset = DocumentChunk.objects.select_related('document')
@@ -299,25 +296,26 @@ def search_docs(request):
         document_chunks = {}
         for chunk in chunks:
             doc_id = chunk.document_id
-            # Convert distance to similarity score (1 - distance)
-            similarity = 1 - chunk.distance
+     
+            print(f"Distance: {chunk.distance}")
+            
             if doc_id not in document_chunks:
                 document_chunks[doc_id] = {
                     'document_id': doc_id,
                     'document_title': chunk.document.title,
                     'created_at': chunk.document.created_at,
-                    'similarity_score': similarity,
+                    'distance': chunk.distance,
                     'chunks': []
                 }
             document_chunks[doc_id]['chunks'].append({
                 'chunk_index': chunk.index,
                 'content': chunk.content,
-                'similarity_score': similarity
+                'distance': chunk.distance
             })
 
-        # Convert to list and sort by best similarity score (highest first)
         response_data = list(document_chunks.values())
-        response_data.sort(key=lambda x: x['similarity_score'], reverse=True)
+        # sort by distance - lowest first
+        response_data.sort(key=lambda x: x['distance'])
 
         return Response(response_data, status=status.HTTP_200_OK)
 
@@ -383,19 +381,21 @@ def chat_with_docs(request):
 
     try:
         # Embed the query
-        embedding_model = OllamaEmbeddings(model="bge-m3", base_url="http://ollama:11434")
-        query_embedding = embedding_model.embed_query(query)
+        query_embedding = EMBEDDING_MODEL.embed_query(query)
+
         if query_embedding is None:
             return Response(
                 {"error": "Failed to create query embedding."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
+
+        # Retrieve top 10 similar chunks using vector search
+        # Replace ORM-based search with a dedicated vector database for faster retrieval
         chunks_with_distance = (
             DocumentChunk.objects.annotate(
                 cosine_distance=CosineDistance(F('embedding_vector'), query_embedding)
             )
-            .order_by('cosine_distance') 
+            .order_by('cosine_distance')[:10]
         )
 
         if not chunks_with_distance.exists():
@@ -404,70 +404,13 @@ def chat_with_docs(request):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Retrieve top candidate chunks
-        initial_top_k = 10
-        candidate_chunks = list(chunks_with_distance[:initial_top_k])
-
-        # Convert distance to similarity score = 1 - distance
-        for c in candidate_chunks:
-            c.cosine_similarity = 1.0 - c.cosine_distance
-
-        # Group chunks by document
-        doc_chunks = defaultdict(list)
-        for chunk in candidate_chunks:
-            doc_chunks[chunk.document_id].append(chunk)
-
-        # Rank documents by top chunk similarity
-        doc_scores = {}
-        for doc_id, ch_list in doc_chunks.items():
-            # Sort chunks by similarity
-            ch_list.sort(key=lambda x: x.cosine_similarity, reverse=True)
-            # Use the best chunk similarity as doc score (simple and effective)
-            doc_scores[doc_id] = ch_list[0].cosine_similarity if ch_list else 0.0
-
-        # Re-rank documents based on top chunk similarity
-        ranked_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
-
-        if not ranked_docs:
-            return Response(
-                {"error": "No documents could be ranked."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Apply similarity difference threshold
-        top_score = ranked_docs[0][1]
-        similarity_threshold = 0.70 * top_score
-        filtered_docs = [doc for doc in ranked_docs if doc[1] >= similarity_threshold]
-
-        if not filtered_docs:
-            return Response(
-                {"error": "No documents passed the similarity threshold."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-
-        top_n_docs = 4
-        top_doc_ids = [doc_id for doc_id, score in filtered_docs[:top_n_docs]]
-
-        final_chunks = []
-
-        for doc_id in top_doc_ids:
-            sorted_chunks = sorted(doc_chunks[doc_id], key=lambda x: x.cosine_similarity, reverse=True)
-            final_chunks.extend(sorted_chunks)
-
-        unique_contents = set()
-        deduped_chunks = []
-
-        for chunk in final_chunks:
-            if chunk.content not in unique_contents:
-                unique_contents.add(chunk.content)
-                deduped_chunks.append(chunk)
-
+        # Create the context string for the LLM prompt
         context = "\n\n".join(
             f"From Document '{chunk.document.title}':\n{chunk.content}"
-            for chunk in deduped_chunks
+            for chunk in chunks_with_distance
         )
 
+        # Define the system-level instructions for the LLM
         system_prompt = """
         You are Athena, an intelligent research assistant specializing in document analysis and question answering.
         Your task is to analyze the provided document excerpts and respond to user queries with precision and clarity.
@@ -478,7 +421,7 @@ def chat_with_docs(request):
            - Include document titles in your explanations naturally
         
         2. Response Style
-           - Be clear, professional and approachable
+           - Be clear, professional, and approachable
            - Structure responses logically
            - Use bullet points or numbered lists for complex explanations
         
@@ -490,6 +433,7 @@ def chat_with_docs(request):
            - Avoid speculation beyond the provided content
         """
 
+        # Build the user prompt with the query and retrieved context
         user_prompt = f"""
         Question: {query}
 
@@ -499,15 +443,16 @@ def chat_with_docs(request):
         Please provide a comprehensive response following the system guidelines.
         """
 
-        llm = ChatOllama(model="llama3.2", base_url="http://ollama:11434")
+        # Prepare the message sequence for the LLM
         messages = [
             ("system", system_prompt),
             ("human", user_prompt)
         ]
 
+        # Stream the response back to the client
         def stream_response():
             response_text = ""
-            for chunk in llm.stream(messages):
+            for chunk in LLM.stream(messages):
                 if hasattr(chunk, 'content') and chunk.content:
                     response_text += chunk.content
                     yield chunk.content
@@ -518,6 +463,7 @@ def chat_with_docs(request):
         )
 
     except Exception as e:
+        # Log the error with details for easier debugging
         logger.error(f"Chat error: {str(e)}", exc_info=True)
         return Response(
             {"error": f"Chat failed: {str(e)}"},

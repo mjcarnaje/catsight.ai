@@ -1,20 +1,17 @@
 import logging
+
 from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from langchain_ollama import OllamaEmbeddings
-from marker.converters.pdf import PdfConverter
-from marker.models import create_model_dict
 from marker.output import text_from_rendered
 
+from ..constant import DocumentStatus
 from ..models import Document, DocumentChunk
+from ..services import pdf_converter, EMBEDDING_MODEL
 from ..utils.doc_processor import DocumentProcessor
 from ..utils.extractor import split_text_into_chunks
-from marker.config.parser import ConfigParser
-from ..constant import DocumentStatus
 
 logger = logging.getLogger(__name__)
-
 
 def update_document_status(doc_instance, status, update_fields=None, failed=False):
     """
@@ -47,22 +44,10 @@ def save_chunks_task(self, doc_id):
         update_document_status(doc_instance, DocumentStatus.TEXT_EXTRACTING)
         logger.debug(f"Document status set to 'text_extracting' for Document ID: {doc_id}")
 
-        config = {
-            "output_format": "markdown",
-            "disable_multiprocessing": True,
-            "disable_image_extraction": True,
-        }
-        config_parser = ConfigParser(config)
-        
-        converter = PdfConverter(
-            config=config_parser.generate_config_dict(),
-            artifact_dict=create_model_dict(),
-            processor_list=config_parser.get_processors(),
-            renderer=config_parser.get_renderer()
-        )       
+
 
         logger.debug("PdfConverter initialized.")
-        rendered = converter(doc_instance.file)
+        rendered = pdf_converter(doc_instance.file)
         logger.debug("Text rendered from PDF.")
         text, _, _ = text_from_rendered(rendered)
         logger.debug("Text extracted from rendered content.")
@@ -106,8 +91,7 @@ def embed_text_task(self, doc_id):
                 raise ValueError(f"No chunks found for document {doc_id}")
 
             # Embed document chunks
-            model = OllamaEmbeddings(model="bge-m3", base_url="http://ollama:11434")
-            embeddings = model.embed_documents([chunk.content for chunk in chunks])
+            embeddings = EMBEDDING_MODEL.embed_documents([chunk.content for chunk in chunks])
 
             # Update chunks with embeddings
             for chunk, embedding in zip(chunks, embeddings):

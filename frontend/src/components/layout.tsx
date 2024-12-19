@@ -29,7 +29,7 @@ export function Layout() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen flex flex-col">
-        <header className="border-b bg-gradient-to-br from-slate-900 to-slate-800 border-white/10">
+        <header className="border-b bg-gradient-to-r shadow-2xl from-slate-900 to-slate-900 border-white/10">
           <div className="container mx-auto flex h-16 items-center px-4">
             <nav className="flex items-center space-x-6">
               {links.map((link) => (
