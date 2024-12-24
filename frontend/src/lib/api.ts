@@ -54,9 +54,10 @@ export const documentsApi = {
   getRaw: (id: number) => api.get<Document>(`/documents/${id}/raw`),
   getMarkdown: (id: number) => api.get<Document>(`/documents/${id}/markdown`),
   retry: (id: number) => api.post(`/documents/${id}/retry/`),
-  upload: (files: File[]) => {
+  upload: (files: File[], markdown_converter: string) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
+    formData.append("markdown_converter", markdown_converter);
     return api.post("/documents/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",

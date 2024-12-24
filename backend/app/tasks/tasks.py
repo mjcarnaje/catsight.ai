@@ -4,7 +4,7 @@ from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
-from ..constant import DocumentStatus
+from ..constant import DocumentStatus, MarkdownConverter
 from ..models import Document, DocumentChunk
 from ..services.ollama import EMBEDDING_MODEL
 from ..utils.doc_processor import DocumentProcessor
@@ -41,55 +41,84 @@ def save_document_chunks(doc_instance, chunks):
     update_document_status(doc_instance, DocumentStatus.TEXT_EXTRACTED, update_fields=["status", "no_of_chunks"])
 
 
+def convert_with_marker(doc_file_path: str) -> str:
+    """
+    Convert PDF to text using Marker.
+    """
+    # Local imports if you prefer lazy loading; or do them at the top if you want one-time init
+    from marker.config.parser import ConfigParser
+    from marker.converters.pdf import PdfConverter
+    from marker.models import create_model_dict
+    from marker.output import text_from_rendered
+    import os
+
+    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+
+    config = {
+        "output_format": "markdown",
+        "disable_multiprocessing": False,
+        "disable_image_extraction": True,
+    }
+    config_parser = ConfigParser(config)
+
+    pdf_converter = PdfConverter(
+        config=config_parser.generate_config_dict(),
+        artifact_dict=create_model_dict(),
+        processor_list=config_parser.get_processors(),
+        renderer=config_parser.get_renderer()
+    )
+    rendered = pdf_converter(doc_file_path)
+    text, _, _ = text_from_rendered(rendered)
+    return text
+
+
+def convert_with_markitdown(doc_file_path: str) -> str:
+    """
+    Convert PDF to text using MarkItDown.
+    """
+    from markitdown import MarkItDown
+    md = MarkItDown()
+    md_result = md.convert(doc_file_path)
+    return md_result.text_content
+
+
 @shared_task(bind=True)
 def save_chunks_task(self, doc_id):
     """
     Task to extract text from a PDF document, split it into chunks, and save them.
     """
-    from marker.output import text_from_rendered
-    from marker.config.parser import ConfigParser
-    from marker.converters.pdf import PdfConverter
-    from marker.models import create_model_dict
-
-    import os
-
-    # os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
+    logger.info("Starting chunk extraction for Document ID: %s", doc_id)
 
     try:
-        logger.info(f"Starting chunk extraction for Document ID: {doc_id}")
         doc_instance = Document.objects.get(id=doc_id)
         update_document_status(doc_instance, DocumentStatus.TEXT_EXTRACTING)
 
-        config = {
-            "output_format": "markdown",
-            "disable_multiprocessing": False,
-            "disable_image_extraction": True,
-        }
-        config_parser = ConfigParser(config)
+        if doc_instance.markdown_converter == MarkdownConverter.MARKER.value:
+            text = convert_with_marker(doc_instance.file)
+        elif doc_instance.markdown_converter == MarkdownConverter.MARKITDOWN.value:
+            text = convert_with_markitdown(doc_instance.file)
+        else:
+            raise ValueError(
+                f"Invalid markdown converter: {doc_instance.markdown_converter}"
+            )
 
-        pdf_converter = PdfConverter(
-            config=config_parser.generate_config_dict(),
-            artifact_dict=create_model_dict(),
-            processor_list=config_parser.get_processors(),
-            renderer=config_parser.get_renderer()
+        chunks = split_text_into_chunks(
+            text,
+            chunk_size=1000,
+            chunk_overlap=100
         )
-
-        rendered = pdf_converter(doc_instance.file)
-        text, _, _ = text_from_rendered(rendered)
-
-        chunks = split_text_into_chunks(text, chunk_size=1000, chunk_overlap=100)
         save_document_chunks(doc_instance, chunks)
 
-        logger.info(f"Successfully processed and saved chunks for Document ID: {doc_id}")
+        logger.info("Successfully processed and saved chunks for Document ID: %s", doc_id)
         return doc_instance.id
 
-    except ObjectDoesNotExist:
-        logger.error(f"Document with ID {doc_id} does not exist.")
-        raise
-    except Exception as e:
-        logger.error(f"Error processing document ID {doc_id}: {str(e)}")
+    except ObjectDoesNotExist as e:
+        logger.error("Document with ID %s does not exist. Error: %s", doc_id, str(e))
         raise
 
+    except Exception as e:
+        logger.error("Error processing document ID %s: %s", doc_id, str(e))
+        raise
 
 @shared_task(bind=True)
 def embed_text_task(self, doc_id):
@@ -135,11 +164,12 @@ def generate_summary_task(self, doc_id):
         update_document_status(doc_instance, DocumentStatus.GENERATING_SUMMARY)
 
         first_chunk = DocumentChunk.objects.filter(document=doc_instance).first()
+        
         if first_chunk:
-            description = DocumentProcessor.generate_summary(first_chunk.content)
-            title = DocumentProcessor.generate_title(description)
+            summary = DocumentProcessor.generate_summary(first_chunk.content)
+            title = DocumentProcessor.generate_title(summary)
 
-            doc_instance.description = description
+            doc_instance.description = summary
             doc_instance.title = title
             update_document_status(doc_instance, DocumentStatus.SUMMARY_GENERATED, update_fields=["status", "description", "title"])
 

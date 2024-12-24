@@ -12,6 +12,7 @@ class Document(models.Model):
     status = models.CharField(max_length=100, default=DocumentStatus.PENDING)
     is_failed = models.BooleanField(default=False)
     task_id = models.CharField(max_length=255, null=True, blank=True)
+    markdown_converter = models.CharField(max_length=100, null=True, blank=True)
     no_of_chunks = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

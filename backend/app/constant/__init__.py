@@ -9,3 +9,7 @@ class DocumentStatus(Enum):
     EMBEDDING_TEXT = "embedding_text"
     EMBEDDED_TEXT = "embedded_text"
     COMPLETED = "completed"
+
+class MarkdownConverter(Enum):
+    MARKER = "marker"
+    MARKITDOWN = "markitdown"
