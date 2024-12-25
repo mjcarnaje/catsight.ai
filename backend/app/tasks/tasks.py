@@ -166,8 +166,7 @@ def generate_summary_task(self, doc_id):
         first_chunk = DocumentChunk.objects.filter(document=doc_instance).first()
         
         if first_chunk:
-            summary = DocumentProcessor.generate_summary(first_chunk.content)
-            title = DocumentProcessor.generate_title(summary)
+            title, summary = DocumentProcessor.generate_title_and_summary(first_chunk.content)
 
             doc_instance.description = summary
             doc_instance.title = title
