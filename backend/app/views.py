@@ -22,21 +22,21 @@ from .utils.upload import UploadUtils
 logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
-def index(request):
-    """
-    Retrieve a list of all documents.
-    """
-    documents = Document.objects.all()
-    serializer = DocumentSerializer(documents, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
 def health(request):
     """
     Health check endpoint.
     """
     logger.info("Health check endpoint called")
     return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def get_docs(request):
+    """
+    Retrieve a list of all documents sorted by creation date.
+    """
+    documents = Document.objects.all().order_by('-created_at')
+    serializer = DocumentSerializer(documents, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
@@ -240,22 +240,7 @@ def update_doc(request, doc_id):
     except Document.DoesNotExist:
         logger.warning(f"Documentnot found: {doc_id}")
         return Response({"status": "error", "message": "Documentnot found"}, status=status.HTTP_404_NOT_FOUND)
-
-@api_view(['GET'])
-def get_doc_original_file(request, doc_id):
-    """
-    Retrieve the original file for a document by its ID.
-    """
-    try:
-        file_path = UploadUtils.get_document_file(doc_id, 'original')
-        return FileResponse(open(file_path, 'rb'))
-    except Document.DoesNotExist:
-        logger.warning(f"Documentnot found: {doc_id}")
-        return Response({"status": "error", "message": "Documentnot found"}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        logger.error(f"Error retrieving file: {str(e)}")
-        return Response({"status": "error", "message": f"Error retrieving {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+    
 @api_view(['GET'])
 def search_docs(request):
     """
