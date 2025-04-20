@@ -78,52 +78,48 @@ export function DocumentTable({ documents }: DocumentTableProps) {
               ? getDocumentStatusFromHistory(doc.status_history)
               : { ...getStatusInfo(doc.status), progress: 0, currentStatus: doc.status };
 
-            // Get the status changes with timestamps (completed statuses)
-            const completedStatuses = hasStatusHistory
-              ? doc.status_history!
-                .filter(s => s.changed_at !== null)
-                .sort((a, b) => {
-                  return new Date(b.changed_at!).getTime() - new Date(a.changed_at!).getTime();
-                })
-                .slice(0, 5)
-              : [];
-
             return (
               <TableRow key={doc.id}>
                 <TableCell className="font-medium">{doc.title}</TableCell>
                 <TableCell>
-                  <Badge variant="default">{statusInfo.label}</Badge>
-                  {completedStatuses.length > 0 && (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="ml-2 h-7 w-7">
-                          <Clock className="w-4 h-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-80">
-                        <div className="space-y-2">
-                          <h4 className="font-medium">Status History</h4>
-                          <div className="space-y-1">
-                            {completedStatuses.map((statusChange: StatusHistory) => (
-                              <div key={statusChange.id} className="flex items-center justify-between text-sm">
-                                <span>{getStatusInfo(statusChange.status).label}</span>
-                                <span className="text-muted-foreground">
-                                  {statusChange.changed_at && formatDistanceToNow(new Date(statusChange.changed_at), { addSuffix: true })}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="pt-2 mt-2 border-t">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium">Progress</span>
-                              <span className="text-sm">{statusInfo.progress}%</span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default">{statusInfo.label}</Badge>
+                    {doc.status_history && doc.status_history.length > 0 && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="ml-2 h-7 w-7">
+                            <Clock className="w-4 h-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80">
+                          <div className="space-y-2">
+                            <h4 className="font-medium">Status History</h4>
+                            <div className="space-y-1">
+                              {doc.status_history
+                                .filter(s => s.changed_at !== null)
+                                .sort((a, b) => {
+                                  return new Date(b.changed_at!).getTime() - new Date(a.changed_at!).getTime();
+                                }).map((statusChange: StatusHistory) => (
+                                  <div key={statusChange.id} className="flex items-center justify-between text-sm">
+                                    <span>{getStatusInfo(statusChange.status).label}</span>
+                                    <span className="text-muted-foreground">
+                                      {statusChange.changed_at && formatDistanceToNow(new Date(statusChange.changed_at), { addSuffix: true })}
+                                    </span>
+                                  </div>
+                                ))}
                             </div>
-                            <Progress value={statusInfo.progress} className="h-2 mt-1" />
+                            <div className="pt-2 mt-2 border-t">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Progress</span>
+                                <span className="text-sm">{statusInfo.progress}%</span>
+                              </div>
+                              <Progress value={statusInfo.progress} className="h-2 mt-1" />
+                            </div>
                           </div>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  )}
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   {doc.uploaded_by ? (

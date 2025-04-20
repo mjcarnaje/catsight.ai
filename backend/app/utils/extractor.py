@@ -67,3 +67,21 @@ def combine_chunks(chunks, chunk_overlap=100):
     print(combined_text)
     
     return combined_text
+
+
+def make_snippet(text: str, keyword: str, radius: int = 50) -> str:
+    """
+    Returns ~2*radius chars around the first occurrence of keyword.
+    """
+    idx = text.lower().find(keyword.lower())
+    if idx == -1:
+        snippet = text[:radius * 2]
+        return snippet + ("…" if len(text) > len(snippet) else "")
+    start = max(0, idx - radius)
+    end = min(len(text), idx + len(keyword) + radius)
+    snippet = text[start:end]
+    if start > 0:
+        snippet = "…" + snippet
+    if end < len(text):
+        snippet = snippet + "…"
+    return snippet

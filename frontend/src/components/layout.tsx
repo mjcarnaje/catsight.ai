@@ -1,28 +1,30 @@
-import { Navbar } from "@/components/navbar";
-import { cn } from "@/lib/utils";
+import { SidebarNav } from "@/components/sidebar-nav";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, useLocation } from "react-router-dom";
+import { SidebarProvider } from "./ui/sidebar";
 
 const queryClient = new QueryClient();
 
 export function Layout() {
   const location = useLocation();
   const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
-  const isChatPage = location.pathname.startsWith("/chat");
 
-  if (isChatPage) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <Outlet />
-      </QueryClientProvider>
-    );
-  }
   return (
     <QueryClientProvider client={queryClient}>
-      {!isAuthPage && !isChatPage && <Navbar />}
-      <main className={cn("h-screen p-4 bg-gray-50 min-h-screen", !isAuthPage ? "pt-4" : "")}>
-        <Outlet />
-      </main>
+      <SidebarProvider defaultOpen={true}>
+        {isAuthPage ? (
+          <main className="h-screen min-h-screen bg-gray-50">
+            <Outlet />
+          </main>
+        ) : (
+          <div className="relative flex w-full h-screen">
+            <SidebarNav />
+            <main className="flex-1 w-full h-full overflow-auto bg-gray-50">
+              <Outlet />
+            </main>
+          </div>
+        )}
+      </SidebarProvider>
     </QueryClientProvider>
   );
 }

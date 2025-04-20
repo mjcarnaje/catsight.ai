@@ -52,3 +52,12 @@ export interface ChatMessage {
 }
 
 export type ViewMode = "card" | "table";
+
+export interface PaginatedResponse<T> {
+  results: T[];
+  count: number;
+  num_pages: number;
+  page: number;
+  next: number | null;
+  previous: number | null;
+}

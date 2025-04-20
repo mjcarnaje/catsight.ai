@@ -8,12 +8,13 @@ from rest_framework import status
 from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 from ..models import Document, User
 from ..serializers import DocumentSerializer
 from ..tasks.tasks import (generate_document_summary_task,
                           process_document_chunks_task)
-from ..utils.extractor import combine_chunks
+from ..utils.extractor import combine_chunks, make_snippet
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsAdmin, IsSuperAdmin, IsOwnerOrAdmin
 from ..services.vectorstore import vector_store
@@ -28,11 +29,33 @@ logger = logging.getLogger(__name__)
 @permission_classes([IsAuthenticated])
 def get_docs(request):
     """
-    Retrieve a list of all documents sorted by creation date.
+    Retrieve a list of all documents sorted by creation date with pagination.
     """
     documents = Document.objects.all().order_by('-created_at')
-    serializer = DocumentSerializer(documents, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    # Pagination
+    page_size = int(request.GET.get('page_size', 9))
+    page_number = int(request.GET.get('page', 1))
+    
+    paginator = Paginator(documents, page_size)
+    
+    try:
+        page = paginator.page(page_number)
+    except PageNotAnInteger:
+        page = paginator.page(1)
+    except EmptyPage:
+        page = paginator.page(paginator.num_pages)
+    
+    serializer = DocumentSerializer(page.object_list, many=True)
+    
+    return Response({
+        'results': serializer.data,
+        'count': paginator.count,
+        'num_pages': paginator.num_pages,
+        'page': page.number,
+        'next': page.next_page_number() if page.has_next() else None,
+        'previous': page.previous_page_number() if page.has_previous() else None,
+    }, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
@@ -283,81 +306,60 @@ def update_doc(request, doc_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def search_docs(request):
-    """
-    Search documents using vector similarity and optional keyword filtering.
-    Merges chunks from the same document and includes them in the response.
-
-    Expected query parameters:
-    - query: search text (required)
-    - title: optional title substring filter
-    - limit: max number of results (default 10)
-    """
-    query = request.GET.get('query')
-    title_filter = request.GET.get('title')
-    limit = request.GET.get('limit', 10)
-
-    # Validate required parameters
+    query = request.GET.get("query", "").strip()
     if not query:
-        return Response({"error": "'query' parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Validate limit parameter
-    try:
-        limit = int(limit)
-        if limit <= 0:
-            limit = 10
-    except (ValueError, TypeError):
-        limit = 10
-
-    try:
-        # Use the filter parameter if title is provided
-        filter_params = {}
-        if title_filter:
-            # NOTE: Vector stores may handle filtering differently
-            # This implementation assumes that document titles are indexed in the vector store metadata
-            # You may need to adjust this based on your specific vector store API
-            documents = Document.objects.filter(title__icontains=title_filter)
-            if documents:
-                doc_ids = [str(doc.id) for doc in documents]
-                filter_params = {"doc_id": {"$in": doc_ids}}
-        
-        # Similarity search using vector store
-        results = vector_store.similarity_search(
-            query, 
-            k=limit,
-            filter=filter_params
+        return Response(
+            {"error": "The 'query' parameter is required."},
+            status=status.HTTP_400_BAD_REQUEST
         )
-        
-        # Group results by document
-        document_chunks = {}
-        for chunk in results:
-            doc_id = chunk.metadata.get("doc_id")
-            if not doc_id:
-                continue
-            
-            # Try to get document info from database
-            try:
-                doc = Document.objects.get(id=doc_id)
-                if doc_id not in document_chunks:
-                    document_chunks[doc_id] = {
-                        'document_id': doc_id,
-                        'document_title': doc.title,
-                        'created_at': doc.created_at,
-                        'chunks': []
-                    }
-                document_chunks[doc_id]['chunks'].append({
-                    'chunk_index': chunk.metadata.get("index"),
-                    'content': chunk.page_content,
-                })
-            except Document.DoesNotExist:
-                # Skip if document doesn't exist anymore
-                continue
 
-        response_data = list(document_chunks.values())
-        return Response(response_data, status=status.HTTP_200_OK)
+    # Pagination
+    page_size = int(request.GET.get('page_size', 9))
+    page_number = int(request.GET.get('page', 1))
+
+    try:
+        # Perform similarity search with scores
+        docs_with_scores = vector_store.similarity_search_with_score(query, k=50)  # Get more results for pagination
+
+        # Build result list including score, chunk index, and snippet
+        results = []
+        for doc, score in docs_with_scores:
+            chunk_index = doc.metadata.get("chunk")
+            results.append({
+                "source": doc.metadata.get("source"),
+                "chunk_index": chunk_index,
+                "text": doc.page_content,
+                "score": score,
+                "snippet": make_snippet(doc.page_content, query)
+            })
+
+        # Paginate the results
+        paginator = Paginator(results, page_size)
+        
+        
+        try:
+            page = paginator.page(page_number)
+        except PageNotAnInteger:
+            page = paginator.page(1)
+        except EmptyPage:
+            page = paginator.page(paginator.num_pages)
+        
+        return Response({
+            'results': page.object_list,
+            'count': paginator.count,
+            'num_pages': paginator.num_pages,
+            'page': page.number,
+            'next': page.next_page_number() if page.has_next() else None,
+            'previous': page.previous_page_number() if page.has_previous() else None,
+        }, status=status.HTTP_200_OK)
 
     except Exception as e:
-        logger.error("Search error: %s", str(e), exc_info=True)
-        return Response({"error": f"Search failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.exception("Search failed")
+        return Response(
+            {"error": f"Search failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -395,3 +397,5 @@ def chat_with_docs(request):
             {"error": f"Failed to generate response: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+

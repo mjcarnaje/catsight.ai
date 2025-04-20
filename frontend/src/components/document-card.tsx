@@ -2,7 +2,7 @@ import { documentsApi } from "@/lib/api";
 import { DocumentStatus, getStatusInfo, getDocumentStatusFromHistory } from "@/lib/document-status";
 import { Document, StatusHistory } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Loader2, Trash, User } from "lucide-react";
+import { Clock, FileText, Loader2, Trash, User } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
@@ -23,6 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 interface DocumentCardProps {
   doc: Document;
@@ -105,7 +106,44 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               </TooltipProvider>
             )}
           </div>
-          <Badge variant="default">{statusInfo.label}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="default">{statusInfo.label}</Badge>
+            {doc.status_history && doc.status_history.length > 0 && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="ml-2 h-7 w-7">
+                    <Clock className="w-4 h-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  <div className="space-y-2">
+                    <h4 className="font-medium">Status History</h4>
+                    <div className="space-y-1">
+                      {doc.status_history
+                        .filter(s => s.changed_at !== null)
+                        .sort((a, b) => {
+                          return new Date(b.changed_at!).getTime() - new Date(a.changed_at!).getTime();
+                        }).map((statusChange: StatusHistory) => (
+                          <div key={statusChange.id} className="flex items-center justify-between text-sm">
+                            <span>{getStatusInfo(statusChange.status).label}</span>
+                            <span className="text-muted-foreground">
+                              {statusChange.changed_at && formatDistanceToNow(new Date(statusChange.changed_at), { addSuffix: true })}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                    <div className="pt-2 mt-2 border-t">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Progress</span>
+                        <span className="text-sm">{statusInfo.progress}%</span>
+                      </div>
+                      <Progress value={statusInfo.progress} className="h-2 mt-1" />
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+          </div>
         </div>
         <CardDescription>
           {new Date(doc.created_at).toLocaleDateString()}
