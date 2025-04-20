@@ -13,3 +13,12 @@ class DocumentStatus(Enum):
 class MarkdownConverter(Enum):
     MARKER = "marker"
     MARKITDOWN = "markitdown"
+
+class UserRole(Enum):
+    USER = "user"
+    ADMIN = "admin"
+    SUPER_ADMIN = "super_admin"
+
+    @classmethod
+    def choices(cls):
+        return [(role.value, role.name) for role in cls]

@@ -6,11 +6,25 @@ from django.db import transaction
 
 from ..constant import DocumentStatus, MarkdownConverter
 from ..models import Document, DocumentChunk
-from ..services.ollama import EMBEDDING_MODEL
+from ..services.ollama import OLLAMA_EMBEDDINGS
 from ..utils.doc_processor import DocumentProcessor
 from ..utils.extractor import split_text_into_chunks
-
+from ..services.vectorstore import vector_store
 logger = logging.getLogger(__name__)
+
+@shared_task
+def test_vector_search():
+    results = vector_store.similarity_search(
+        "The", k=10, filter={"id": {"$in": [1, 5, 2, 9]}} 
+    )
+    for doc in results:
+        logger.debug(f"* {doc.page_content} [{doc.metadata}]")
+    if len(results) == 0:   
+        logger.debug("No results found")    
+    else:
+        logger.debug("Results found")
+
+    return "Logging test completed"
 
 def update_document_status(doc_instance, status, update_fields=None, failed=False):
     """
@@ -30,12 +44,24 @@ def save_document_chunks(doc_instance, chunks):
     """
     Saves the given chunks to the database and updates the document instance.
     """
-    with transaction.atomic():
-        document_chunks = [
-            DocumentChunk(document=doc_instance, content=chunk, index=index)
-            for index, chunk in enumerate(chunks)
-        ]
-        DocumentChunk.objects.bulk_create(document_chunks)
+    # _ = vector_store.add_documents(documents=chunks)
+
+    docs_chunks = []
+
+    for index, chunk in enumerate(chunks):
+        docs_chunks.append(Document(
+            page_content=chunk.page_content,
+            metadata={"doc_id": doc_instance.id, "id": f"{doc_instance.id}-{index}", "index": index},
+        ))    
+    
+    vector_store.add_documents(docs_chunks, ids=[doc.metadata["id"] for doc in docs_chunks])
+    
+    # with transaction.atomic():
+    #     document_chunks = [
+    #         DocumentChunk(document=doc_instance, content=chunk, index=index)
+    #         for index, chunk in enumerate(chunks)
+    #     ]
+    #     DocumentChunk.objects.bulk_create(document_chunks)
 
     doc_instance.no_of_chunks = len(chunks)
     update_document_status(doc_instance, DocumentStatus.TEXT_EXTRACTED, update_fields=["status", "no_of_chunks"])
@@ -105,8 +131,9 @@ def save_chunks_task(self, doc_id):
         chunks = split_text_into_chunks(
             text,
             chunk_size=1000,
-            chunk_overlap=100
+            chunk_overlap=200
         )
+
         save_document_chunks(doc_instance, chunks)
 
         logger.info("Successfully processed and saved chunks for Document ID: %s", doc_id)
@@ -134,7 +161,7 @@ def embed_text_task(self, doc_id):
             if not chunks.exists():
                 raise ValueError(f"No chunks found for document {doc_id}")
 
-            embeddings = EMBEDDING_MODEL.embed_documents([chunk.content for chunk in chunks])
+            embeddings = OLLAMA_EMBEDDINGS.embed_documents([chunk.content for chunk in chunks])
             for chunk, embedding in zip(chunks, embeddings):
                 chunk.embedding_vector = embedding
 
@@ -166,7 +193,7 @@ def generate_summary_task(self, doc_id):
         first_chunk = DocumentChunk.objects.filter(document=doc_instance).first()
         
         if first_chunk:
-            title, summary = DocumentProcessor.generate_title_and_summary(first_chunk.content)
+            title, summary = DocumentProcessor.generate_information(first_chunk.content)
 
             doc_instance.description = summary
             doc_instance.title = title

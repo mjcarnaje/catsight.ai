@@ -14,7 +14,7 @@ class UploadUtils:
         """
         try:
             file_name = f"{id}_original.pdf"
-            file_path = os.path.join('docs', str(id), file_name)
+            file_path = os.path.join(settings.MEDIA_ROOT, 'docs', str(id), file_name)
             
             # Ensure the directory exists
             directory = os.path.join(settings.MEDIA_ROOT, 'docs', str(id))
@@ -36,25 +36,6 @@ class UploadUtils:
             logger.error(f"Error uploading document {id}: {str(e)}")
             raise
     
-
-    @staticmethod
-    def upload_ocr_document(file, id):
-        """
-        Upload a OCR document file and save it to the media root.
-        """
-        file_name = f"{id}_ocr.pdf"
-        file_path = os.path.join('docs', str(id), file_name)
-
-        # Ensure the directory exists
-        directory = os.path.dirname(file_path)
-        os.makedirs(os.path.join(settings.MEDIA_ROOT, directory), exist_ok=True)
-
-        # Use default_storage to handle file saving
-        with default_storage.open(file_path, 'wb+') as destination:
-            for chunk in file.chunks():
-                destination.write(chunk)
-        
-        return file_path
 
     @staticmethod
     def delete_document(document_id):

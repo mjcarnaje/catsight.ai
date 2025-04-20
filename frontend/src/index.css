@@ -1,9 +1,4 @@
-@font-face {
-  font-family: "Inter";
-  src: url("@/assets/Inter.ttf");
-  font-weight: normal;
-  font-style: normal;
-}
+@import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,wght@0,200..1000;1,200..1000&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -69,6 +64,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: "Inter", sans-serif;
+    font-family: "Nunito Sans", sans-serif;
   }
 }

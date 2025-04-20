@@ -20,20 +20,26 @@ services:
       - app-network
 
   ollama:
-    build: ./ollama
+    volumes:
+      - ./ollama/ollama:/root/.ollama
+    container_name: ollama
+    pull_policy: always
+    tty: true
+    restart: unless-stopped
+    image: docker.io/ollama/ollama:latest
     ports:
-      - "11434:11434"
+      - 7869:11434
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
     networks:
       - app-network
-    volumes:
-      - ./ollama:/root/.ollama
-    pull_policy: always
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_DEBUG=1
-      - OLLAMA_KEEP_ALIVE=-1
-    restart: unless-stopped
-
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
   backend:
     build: ./backend
     ports:
@@ -46,7 +52,10 @@ services:
       - POSTGRES_PORT=5432
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://host.docker.internal:7869
+      - GOOGLE_OAUTH_CLIENT_ID=283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com
+      - GOOGLE_OAUTH_CLIENT_SECRET=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
+      - GOOGLE_REDIRECT_URI=http://localhost:3000/auth/login
     depends_on:
       - db
       - redis
@@ -56,28 +65,28 @@ services:
     networks:
       - app-network
     command: >
-            bash -c "python manage.py makemigrations &&
-                     python manage.py migrate &&
-                     python manage.py runserver 0.0.0.0:8000"
+      bash -c "mkdir -p /usr/src/app/logs &&
+               python manage.py makemigrations &&
+               python manage.py migrate &&
+               python manage.py runserver 0.0.0.0:8000"
 
   celery_worker:
     build: ./backend
-    command: celery -A inteldocs worker --loglevel=info --concurrency=1
+    command: >
+      bash -c "mkdir -p /usr/src/app/logs &&
+               celery -A inteldocs worker --loglevel=info --concurrency=1"
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=http://host.docker.internal:7869
     depends_on:
       - backend
     volumes:
       - ./backend:/usr/src/app
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://0.0.0.0:11434"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    extra_hosts:
+      - host.docker.internal:host-gateway
 
   frontend:
     build: ./frontend
@@ -90,10 +99,17 @@ services:
       - backend
     networks:
       - app-network
+    command: npm run dev
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - HOST=0.0.0.0
+      - CHOKIDAR_USEPOLLING=true
+      - WDS_SOCKET_HOST=localhost
 
 networks:
   app-network:
     driver: bridge
 
 volumes:
-  postgres_data: 
+  postgres_data:

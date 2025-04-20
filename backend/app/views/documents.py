@@ -6,30 +6,25 @@ from django.db.models import F
 from django.http import FileResponse, StreamingHttpResponse
 from pgvector.django import CosineDistance
 from rest_framework import status
-from rest_framework.decorators import api_view, parser_classes
+from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
-from .constant import DocumentStatus
-from .models import Document, DocumentChunk
-from .serializers import DocumentChunkSerializer, DocumentSerializer
-from .services.ollama import EMBEDDING_MODEL, CHAT_LLM
-from .tasks.tasks import (embed_text_task, generate_summary_task,
+from ..constant import DocumentStatus
+from ..models import Document, DocumentChunk, User
+from ..serializers import DocumentChunkSerializer, DocumentSerializer
+from langchain_ollama import OllamaEmbeddings, ChatOllama
+from ..tasks.tasks import (generate_summary_task,
                           save_chunks_task)
-from .utils.extractor import combine_chunks
-from .utils.upload import UploadUtils
+from ..utils.extractor import combine_chunks
+from ..utils.upload import UploadUtils
+from ..utils.permissions import IsAuthenticated, IsAdmin, IsSuperAdmin, IsAdminOrReadOnly
+from ..services.ollama import OLLAMA_EMBEDDINGS, OLLAMA_CHAT
 
 logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
-def health(request):
-    """
-    Health check endpoint.
-    """
-    logger.info("Health check endpoint called")
-    return Response({"status": "ok"}, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_docs(request):
     """
     Retrieve a list of all documents sorted by creation date.
@@ -40,9 +35,11 @@ def get_docs(request):
 
 @api_view(['POST'])
 @parser_classes([MultiPartParser, FormParser])
+@permission_classes([IsAdmin])
 def upload_doc(request):
     """
     Handle multiple document uploads and initiate OCR and summary generation using Celery tasks.
+    Only admins can upload documents.
     """
     uploaded_files = request.FILES.getlist('files')
     markdown_converter = request.data.get('markdown_converter')
@@ -57,7 +54,7 @@ def upload_doc(request):
         serializer = DocumentSerializer(data={'title': file.name})
         
         if serializer.is_valid():
-            document = serializer.save(file=None)
+            document = serializer.save(file=None, uploaded_by=request.user)
 
             document.file = UploadUtils.upload_document(file, str(document.id))
             document.markdown_converter = markdown_converter
@@ -66,7 +63,6 @@ def upload_doc(request):
             task_chain = chain(
                 save_chunks_task.s(document.id),
                 generate_summary_task.s(),
-                embed_text_task.s()
             )
 
             result = task_chain.apply_async()
@@ -86,6 +82,7 @@ def upload_doc(request):
         return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_doc(request, doc_id):
     """
     Retrieve a single document by its ID.
@@ -100,6 +97,7 @@ def get_doc(request, doc_id):
     
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_doc_raw(request, doc_id):
     """
     Retrieve the raw content of a document by its ID.
@@ -108,7 +106,8 @@ def get_doc_raw(request, doc_id):
     file_path = UploadUtils.get_document_file(doc_id, 'original')
     return FileResponse(open(file_path, 'rb'))
 
-@api_view(['GET'])  
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_doc_markdown(request, doc_id):
     """
     Retrieve the markdown content of a document by its ID.
@@ -139,9 +138,11 @@ def revoke_task(task_id):
             logger.error(f"Error revoking task {task_id}: {str(e)}")
 
 @api_view(['DELETE'])
+@permission_classes([IsAdmin])
 def delete_doc(request, doc_id):
     """
     Delete a document by its ID, cancel any running tasks, and remove associated files.
+    Only admins can delete documents.
     """
     try:
         document = Document.objects.get(id=doc_id)
@@ -176,6 +177,7 @@ def delete_doc(request, doc_id):
         )
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_doc_chunks(request, doc_id):
     """
     Retrieve the summary chunks for a document by its ID.
@@ -193,9 +195,11 @@ def get_doc_chunks(request, doc_id):
     
 
 @api_view(['DELETE'])
+@permission_classes([IsSuperAdmin])
 def delete_all_docs(request):
     """
     Delete all documents, cancel running tasks, and remove associated files.
+    Only super admins can delete all documents.
     """
     try:
         # Revoke all running tasks for all documents
@@ -223,9 +227,11 @@ def delete_all_docs(request):
 
 
 @api_view(['PUT'])
+@permission_classes([IsAdmin])
 def update_doc(request, doc_id):
     """
-    Update the details of a specific document by its ID.
+    Update document metadata (title, description).
+    Only admins can update documents.
     """
     try:
         document= Document.objects.get(id=doc_id)
@@ -242,6 +248,7 @@ def update_doc(request, doc_id):
         return Response({"status": "error", "message": "Documentnot found"}, status=status.HTTP_404_NOT_FOUND)
     
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def search_docs(request):
     """
     Search documents using vector similarity and optional keyword filtering.
@@ -270,7 +277,7 @@ def search_docs(request):
 
     try:
         # Generate embedding for the search query
-        query_embedding = EMBEDDING_MODEL.embed_query(query)
+        query_embedding = OllamaEmbeddings(model=OLLAMA_EMBEDDINGS).embed_query(query)
 
         # Base queryset with select_related to avoid N+1 queries on document access
         chunks_queryset = DocumentChunk.objects.select_related('document')
@@ -318,6 +325,7 @@ def search_docs(request):
         return Response({"error": f"Search failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def chat_with_docs(request):
     """
     Chat with documents using vector search and an LLM.
@@ -337,7 +345,7 @@ def chat_with_docs(request):
 
     try:
         # Embed the query
-        query_embedding = EMBEDDING_MODEL.embed_query(query)
+        query_embedding = OLLAMA_EMBEDDINGS.embed_query(query)
 
         if query_embedding is None:
             return Response(
@@ -406,7 +414,7 @@ def chat_with_docs(request):
 
         def stream_response():
             response_text = ""
-            for chunk in CHAT_LLM.stream(messages):
+            for chunk in OLLAMA_CHAT.stream(messages):
                 if hasattr(chunk, 'content') and chunk.content:
                     response_text += chunk.content
                     yield chunk.content
@@ -424,9 +432,11 @@ def chat_with_docs(request):
         )
 
 @api_view(['POST'])
+@permission_classes([IsAdmin])
 def retry_doc_processing(request, doc_id):
     """
-    Retry processing a failed document from where it left off.
+    Retry processing a document if it failed.
+    Only admins can retry document processing.
     """
     try:
         document = Document.objects.get(id=doc_id)
@@ -444,13 +454,11 @@ def retry_doc_processing(request, doc_id):
         if current_status in [DocumentStatus.PENDING, DocumentStatus.TEXT_EXTRACTING]:
             tasks.append(save_chunks_task.s(document.id))
             tasks.append(generate_summary_task.s())
-            tasks.append(embed_text_task.s())
         elif current_status in [DocumentStatus.TEXT_EXTRACTED, DocumentStatus.GENERATING_SUMMARY]:
             tasks.append(generate_summary_task.s(document.id))
-            tasks.append(embed_text_task.s())
         elif current_status in [DocumentStatus.SUMMARY_GENERATED, DocumentStatus.EMBEDDING_TEXT]:
-            tasks.append(embed_text_task.s(document.id))
-
+            pass
+        
         if not tasks:
             return Response(
                 {"status": "error", "message": "No tasks to retry"}, 
@@ -487,6 +495,7 @@ def retry_doc_processing(request, doc_id):
         )
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def chat_with_single_doc(request, doc_id):
     """
     Chat with a specific document using vector search and LLM.
@@ -515,7 +524,7 @@ def chat_with_single_doc(request, doc_id):
             )
 
         # Embed the query
-        query_embedding = EMBEDDING_MODEL.embed_query(query)
+        query_embedding = OllamaEmbeddings(model=OLLAMA_EMBEDDINGS).embed_query(query)
 
         if query_embedding is None:
             return Response(
@@ -574,7 +583,7 @@ def chat_with_single_doc(request, doc_id):
 
         def stream_response():
             response_text = ""
-            for chunk in CHAT_LLM.stream(messages):
+            for chunk in OLLAMA_CHAT.stream(messages):
                 if hasattr(chunk, 'content') and chunk.content:
                     response_text += chunk.content
                     yield chunk.content
