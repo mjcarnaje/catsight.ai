@@ -1,29 +1,100 @@
 import { Layout } from "@/components/layout";
-import { ChatPage } from "@/pages/chat";
-import { DocumentsPage } from "@/pages/documents";
+import { Toaster } from "@/components/ui/toaster";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { ProtectedRoute } from "./components/protected-route";
+import LoginPage from "./pages/auth/login";
+import RegisterPage from "./pages/auth/register";
+import ChatSessionPage from "./pages/chat/chat-session";
+import DashboardPage from "./pages/dashboard/dashboard";
 import { DocumentPage } from "./pages/document";
 import { DocumentMarkdownPage } from "./pages/document-markdown";
+import DocumentsPage from "./pages/documents";
 import { SearchPage } from "./pages/search";
-import { DocumentChatPage } from "./pages/document-chat";
+import ChatPage from "./pages/chat/chat";
+import SettingsPage from "./pages/settings/settings";
 
 export default function App() {
   return (
     <Router>
       <Routes>
         <Route element={<Layout />}>
-          <Route path="/" element={<DocumentsPage />} />
-          <Route path="/documents/:id" element={<DocumentPage />} />
-          <Route path="/documents/:id/raw" element={<DocumentPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/documents"
+            element={
+              <ProtectedRoute>
+                <DocumentsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/documents/:id"
+            element={
+              <ProtectedRoute>
+                <DocumentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/documents/:id/raw"
+            element={
+              <ProtectedRoute>
+                <DocumentPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/documents/:id/markdown"
-            element={<DocumentMarkdownPage />}
+            element={
+              <ProtectedRoute>
+                <DocumentMarkdownPage />
+              </ProtectedRoute>
+            }
           />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/chat/:id" element={<DocumentChatPage />} />
-          <Route path="/search" element={<SearchPage />} />
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <ChatPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat/:id"
+            element={
+              <ProtectedRoute>
+                <ChatSessionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <SearchPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
       </Routes>
+      <Toaster />
     </Router>
   );
 }

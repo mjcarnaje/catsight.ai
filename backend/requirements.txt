@@ -3,6 +3,7 @@ djangorestframework
 django-cors-headers
 celery
 ocrmypdf
+ollama
 langchain-ollama
 PyPDF2
 langchain-postgres
@@ -23,3 +24,8 @@ torchaudio
 python-dotenv
 psycopg2-binary>=2.8
 markitdown
+pyyaml==6.0.1
+djangorestframework-simplejwt
+google-auth
+google-auth-oauthlib
+langgraph

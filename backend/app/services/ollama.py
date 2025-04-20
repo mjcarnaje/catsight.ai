@@ -1,7 +1,10 @@
 from langchain_ollama import ChatOllama, OllamaEmbeddings, OllamaLLM
 
+EMBEDDING_MODEL_ID = "bge-m3"
+CHAT_MODELS = ["llama3.2:1b", "deepseek-r1:1.5b"]
+
 base_url = "http://ollama:11434"
 
-EMBEDDING_MODEL = OllamaEmbeddings(model="bge-m3", base_url=base_url)
+OLLAMA_EMBEDDINGS = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url=base_url)
 
-CHAT_LLM = ChatOllama(model="llama3.2:1b", base_url=base_url, temperature=0)
+OLLAMA_CHAT = ChatOllama(model=CHAT_MODELS[0], base_url=base_url, temperature=0)
