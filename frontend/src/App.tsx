@@ -1,6 +1,6 @@
 import { Layout } from "@/components/layout";
 import { Toaster } from "@/components/ui/toaster";
-import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { Route, BrowserRouter as Router, Routes, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/protected-route";
 import LoginPage from "./pages/auth/login";
 import RegisterPage from "./pages/auth/register";
@@ -15,6 +15,7 @@ export default function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route element={<Layout />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -22,7 +23,9 @@ export default function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <DashboardPage />
+                <div className="p-8">
+                  <DashboardPage />
+                </div>
               </ProtectedRoute>
             }
           />
@@ -30,7 +33,9 @@ export default function App() {
             path="/documents"
             element={
               <ProtectedRoute>
-                <DocumentsPage />
+                <div className="p-8">
+                  <DocumentsPage />
+                </div>
               </ProtectedRoute>
             }
           />
@@ -54,7 +59,9 @@ export default function App() {
             path="/search"
             element={
               <ProtectedRoute>
-                <SearchPage />
+                <div className="p-8">
+                  <SearchPage />
+                </div>
               </ProtectedRoute>
             }
           />
@@ -62,7 +69,9 @@ export default function App() {
             path="/settings"
             element={
               <ProtectedRoute>
-                <SettingsPage />
+                <div className="p-8">
+                  <SettingsPage />
+                </div>
               </ProtectedRoute>
             }
           />

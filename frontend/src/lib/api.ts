@@ -1,5 +1,6 @@
 import axios from "axios";
 import { DocumentStatus } from "./document-status";
+import { Document, PaginatedResponse } from "@/types";
 
 // Use environment variable for API URL with fallback
 export const API_BASE_URL =
@@ -78,33 +79,6 @@ api.interceptors.response.use(
   }
 );
 
-export interface Document {
-  id: number;
-  title: string;
-  file: string;
-  description: string;
-  no_of_chunks: number;
-  status: DocumentStatus;
-  is_failed: boolean;
-  created_at: string;
-  updated_at: string;
-  uploaded_by?: {
-    id: string | number;
-    name?: string;
-    username?: string;
-    email: string;
-    avatar?: string;
-    first_name?: string;
-    last_name?: string;
-    role?: string;
-  };
-  status_history?: {
-    id: number;
-    status: DocumentStatus;
-    changed_at: string | null;
-  }[];
-}
-
 export interface ChatResponse {
   answer: string;
   sources: {
@@ -125,19 +99,21 @@ export interface ChatResponse {
 }
 
 export interface SearchResult {
-  document_id: number;
-  document_title: string;
-  created_at: string;
-  similarity_score: number;
-  chunks: {
-    chunk_index: number;
-    content: string;
-    similarity_score: number;
-  }[];
+  source: string;
+  chunk_index: number;
+  text: string;
+  score: number;
+  snippet: string;
 }
 
 export const documentsApi = {
-  getAll: () => api.get<Document[]>("/documents"),
+  getAll: (page: number = 1, pageSize: number = 9) =>
+    api.get<PaginatedResponse<Document>>("/documents", {
+      params: {
+        page,
+        page_size: pageSize,
+      },
+    }),
   getOne: (id: number) => api.get<Document>(`/documents/${id}`),
   getRaw: (id: number) => api.get<Document>(`/documents/${id}/raw`),
   getMarkdown: (id: number) => api.get<Document>(`/documents/${id}/markdown`),
@@ -154,8 +130,14 @@ export const documentsApi = {
   },
   delete: (id: string) => api.delete(`/documents/${id}/delete`),
   chat: (query: string) => api.post<ChatResponse>("/documents/chat", { query }),
-  search: (params: { query: string; title?: string; limit?: number }) =>
-    api.get<SearchResult[]>("/documents/search", { params }),
+  search: (params: {
+    query: string;
+    title?: string;
+    limit?: number;
+    page?: number;
+    page_size?: number;
+  }) =>
+    api.get<PaginatedResponse<SearchResult>>("/documents/search", { params }),
 };
 
 interface LLMModel {

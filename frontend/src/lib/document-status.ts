@@ -131,7 +131,7 @@ export const getDocumentStatusFromHistory = (
   // Find the highest completed status in the workflow
   const currentStatus =
     completedStatuses.length > 0
-      ? completedStatuses[completedStatuses.length - 1].status
+      ? completedStatuses[0].status
       : DocumentStatus.PENDING;
 
   // Calculate progress based on percentage of statuses with timestamps

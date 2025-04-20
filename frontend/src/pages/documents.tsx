@@ -6,7 +6,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { UploadDocumentsModal } from "@/components/upload-documents-modal"
 import { documentsApi } from "@/lib/api"
 import { DocumentStatus, getStatusInfo } from "@/lib/document-status"
-import { Document, ViewMode } from "@/types"
+import { Document, PaginatedResponse, ViewMode } from "@/types"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FileText, Grid, List, Search, Upload } from "lucide-react"
 import { useState } from "react"
@@ -27,6 +27,7 @@ import {
   PaginationPrevious
 } from "@/components/ui/pagination"
 import { DocumentTable } from "@/components/document-table"
+import { useNavigate } from "react-router-dom"
 
 const PAGE_SIZE = 9
 
@@ -34,35 +35,21 @@ export default function DocumentsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('card')
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(PAGE_SIZE)
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">("all")
   const [searchQuery, setSearchQuery] = useState("")
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
-  const { data: allDocuments, isLoading: isDocumentsLoading } = useQuery({
-    queryKey: ["documents"],
-    queryFn: () => documentsApi.getAll().then((res) => res.data),
+  const { data: paginatedDocuments, isLoading: isDocumentsLoading } = useQuery({
+    queryKey: ["documents", currentPage, pageSize],
+    queryFn: () => documentsApi.getAll(currentPage, pageSize).then((res) => res.data),
     refetchInterval: 5000,
   })
 
-  const filteredDocuments = allDocuments
-    ? allDocuments
-      .filter(doc =>
-        statusFilter === "all" || doc.status === statusFilter
-      )
-      .filter(doc =>
-        searchQuery === "" ||
-        doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (doc.description && doc.description.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    : []
-
-  const totalPages = Math.ceil(filteredDocuments.length / PAGE_SIZE)
-
-  // Get paginated documents
-  const paginatedDocuments = filteredDocuments
-    .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages = paginatedDocuments?.num_pages || 1
 
   const uploadMutation = useMutation({
     mutationFn: ({
@@ -88,7 +75,30 @@ export default function DocumentsPage() {
   // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    // Reset any filters when changing pages
+    if (statusFilter !== "all" || searchQuery !== "") {
+      setStatusFilter("all");
+      setSearchQuery("");
+    }
   };
+
+  // Handle search
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+
+    // Redirect to search page with query parameters
+    const params = new URLSearchParams()
+    params.set("query", searchQuery)
+    if (statusFilter !== "all") {
+      params.set("title", searchQuery)
+    }
+
+    navigate({
+      pathname: "/search",
+      search: params.toString()
+    })
+  }
 
   return (
     <div className="container py-10 mx-auto">
@@ -109,7 +119,7 @@ export default function DocumentsPage() {
       {/* Filters and View Mode */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-4">
-          <div className="relative w-64">
+          <form onSubmit={handleSearch} className="relative w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search documents..."
@@ -117,7 +127,7 @@ export default function DocumentsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-          </div>
+          </form>
           <Select
             value={statusFilter}
             onValueChange={(value) => setStatusFilter(value as DocumentStatus | "all")}
@@ -141,14 +151,14 @@ export default function DocumentsPage() {
             size="icon"
             onClick={() => setViewMode('card')}
           >
-            <Grid className="h-4 w-4" />
+            <Grid className="w-4 h-4" />
           </Button>
           <Button
             variant={viewMode === 'table' ? "default" : "outline"}
             size="icon"
             onClick={() => setViewMode('table')}
           >
-            <List className="h-4 w-4" />
+            <List className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -162,16 +172,16 @@ export default function DocumentsPage() {
         <>
           {viewMode === 'card' ? (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {paginatedDocuments.map((doc) => (
+              {paginatedDocuments?.results.map((doc) => (
                 <DocumentCard key={doc.id} doc={doc} />
               ))}
             </div>
           ) : (
-            <DocumentTable documents={paginatedDocuments} />
+            <DocumentTable documents={paginatedDocuments?.results || []} />
           )}
 
           {/* Pagination */}
-          {filteredDocuments.length > PAGE_SIZE && (
+          {paginatedDocuments && paginatedDocuments.count > PAGE_SIZE && (
             <Pagination className="mt-8">
               <PaginationContent>
                 <PaginationItem>
@@ -202,7 +212,7 @@ export default function DocumentsPage() {
             </Pagination>
           )}
 
-          {filteredDocuments.length === 0 && (
+          {paginatedDocuments?.results.length === 0 && (
             <div className="py-12 text-center">
               <FileText className="w-12 h-12 mx-auto text-muted-foreground" />
               <h3 className="mt-4 text-lg font-semibold">No documents found</h3>
