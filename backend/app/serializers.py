@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Document, DocumentChunk
+from .models import User, Document, LLMModel, DocumentStatusHistory
 import json
 import logging
 
@@ -7,6 +7,11 @@ logger = logging.getLogger(__name__)
 
 
 class UserSerializer(serializers.ModelSerializer):
+    favorite_llm_models = serializers.SerializerMethodField()
+    
+    def get_favorite_llm_models(self, obj):
+        return [model.code for model in obj.favorite_llm_models.all()]
+    
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'username', 'role', 'avatar', 'favorite_llm_models']
@@ -51,13 +56,24 @@ class GoogleAuthSerializer(serializers.Serializer):
     token = serializers.CharField(required=True)
 
 
+class DocumentStatusHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentStatusHistory
+        fields = ['id', 'status', 'changed_at']
+
+
 class DocumentSerializer(serializers.ModelSerializer):
+    uploaded_by = UserSerializer(read_only=True)
+    status_history = DocumentStatusHistorySerializer(many=True, read_only=True)
+    
     class Meta:
         model = Document
         fields = '__all__'
 
 
-class DocumentChunkSerializer(serializers.ModelSerializer):
+class LLMModelSerializer(serializers.ModelSerializer):
+    logo = serializers.CharField(read_only=True)
+
     class Meta:
-        model = DocumentChunk
-        fields = '__all__'
+        model = LLMModel
+        fields = ['id', 'code', 'name', 'description', 'logo']

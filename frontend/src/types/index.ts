@@ -1,10 +1,20 @@
 import { DocumentStatus } from "@/lib/document-status";
 
 export interface User {
-  id: string;
-  name: string;
+  id: string | number;
   email: string;
-  role: "User" | "Admin" | "SuperAdmin";
+  role: string;
+  name?: string;
+  avatar?: string;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+}
+
+export interface StatusHistory {
+  id: number;
+  status: DocumentStatus;
+  changed_at: string | null;
 }
 
 export interface Document {
@@ -17,6 +27,8 @@ export interface Document {
   is_failed: boolean;
   created_at: string;
   updated_at: string;
+  uploaded_by?: User;
+  status_history?: StatusHistory[];
 }
 
 export interface ChatMessage {
@@ -25,9 +37,18 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   sources: {
-    documentId: string;
+    documentId: string | number;
     documentTitle: string;
-    pageNumber: number;
     content: string;
+    chunkIndexes?: number[];
+    similarity?: number;
+    pageNumber?: number;
   }[];
+  grade?: {
+    relevance: string;
+    accuracy: string;
+    score: number;
+  };
 }
+
+export type ViewMode = "card" | "table";

@@ -4,13 +4,11 @@ import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/protected-route";
 import LoginPage from "./pages/auth/login";
 import RegisterPage from "./pages/auth/register";
+import ChatPage from "./pages/chat/chat";
 import ChatSessionPage from "./pages/chat/chat-session";
 import DashboardPage from "./pages/dashboard/dashboard";
-import { DocumentPage } from "./pages/document";
-import { DocumentMarkdownPage } from "./pages/document-markdown";
 import DocumentsPage from "./pages/documents";
 import { SearchPage } from "./pages/search";
-import ChatPage from "./pages/chat/chat";
 import SettingsPage from "./pages/settings/settings";
 
 export default function App() {
@@ -33,30 +31,6 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <DocumentsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/documents/:id"
-            element={
-              <ProtectedRoute>
-                <DocumentPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/documents/:id/raw"
-            element={
-              <ProtectedRoute>
-                <DocumentPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/documents/:id/markdown"
-            element={
-              <ProtectedRoute>
-                <DocumentMarkdownPage />
               </ProtectedRoute>
             }
           />

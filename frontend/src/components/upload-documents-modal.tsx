@@ -32,7 +32,7 @@ export function UploadDocumentsModal({
   onUpload,
   isUploading,
 }: UploadDocumentsModalProps) {
-  const [selectedConverter, setSelectedConverter] = useState<"marker" | "markitdown">("marker");
+  const [selectedConverter, setSelectedConverter] = useState<"marker" | "markitdown">("markitdown");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -79,8 +79,8 @@ export function UploadDocumentsModal({
                 <SelectValue placeholder="Select markdown converter" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="marker">Marker</SelectItem>
                 <SelectItem value="markitdown">Markitdown</SelectItem>
+                <SelectItem value="marker">Marker</SelectItem>
               </SelectContent>
             </Select>
           </div>

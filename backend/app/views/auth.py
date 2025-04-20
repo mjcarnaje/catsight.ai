@@ -192,19 +192,36 @@ class UserProfileView(APIView):
             full_url = request.build_absolute_uri(settings.MEDIA_URL + path)
             data['avatar'] = full_url
         
-        # Handle favorite_llm_models from form data - convert string to list
+        # Handle favorite_llm_models - convert to LLMModel instances if provided
         if 'favorite_llm_models' in data:
-            favorite_models = data.getlist('favorite_llm_models')
-            # Validate each model in the list
-            valid_models = {model[0] for model in LLM_MODELS.choices()}
-            filtered_models = [model for model in favorite_models if model in valid_models]
-            
-            # Store as a comma-separated string
-            data['favorite_llm_models'] = ','.join(filtered_models)
-
-            logger.info(f"Favorite models: {data['favorite_llm_models']}")
-
+            # Convert model codes to model instances
+            try:
+                from app.models import LLMModel
+                model_codes = data['favorite_llm_models']
+                if isinstance(model_codes, str):
+                    # Handle potential string JSON input
+                    try:
+                        model_codes = json.loads(model_codes)
+                    except json.JSONDecodeError:
+                        model_codes = [model_codes]  # Single string value
+                
+                # Clear current favorites and set new ones
+                request.user.favorite_llm_models.clear()
+                if model_codes:
+                    models = LLMModel.objects.filter(code__in=model_codes)
+                    request.user.favorite_llm_models.add(*models)
+                
+                # Remove from data since we've handled it manually
+                data.pop('favorite_llm_models')
+            except Exception as e:
+                logger.error(f"Error updating favorite_llm_models: {e}")
+                return Response(
+                    {"detail": "Failed to update favorite models"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
         serializer = UserSerializer(request.user, data=data, partial=True)
+        
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)

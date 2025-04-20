@@ -88,6 +88,21 @@ export interface Document {
   is_failed: boolean;
   created_at: string;
   updated_at: string;
+  uploaded_by?: {
+    id: string | number;
+    name?: string;
+    username?: string;
+    email: string;
+    avatar?: string;
+    first_name?: string;
+    last_name?: string;
+    role?: string;
+  };
+  status_history?: {
+    id: number;
+    status: DocumentStatus;
+    changed_at: string | null;
+  }[];
 }
 
 export interface ChatResponse {
@@ -102,6 +117,11 @@ export interface ChatResponse {
       similarity: number;
     }[];
   }[];
+  grade?: {
+    relevance: string;
+    accuracy: string;
+    score: number;
+  };
 }
 
 export interface SearchResult {
@@ -132,8 +152,36 @@ export const documentsApi = {
       },
     });
   },
-  delete: (id: number) => api.delete(`/documents/${id}/delete`),
+  delete: (id: string) => api.delete(`/documents/${id}/delete`),
   chat: (query: string) => api.post<ChatResponse>("/documents/chat", { query }),
   search: (params: { query: string; title?: string; limit?: number }) =>
     api.get<SearchResult[]>("/documents/search", { params }),
+};
+
+interface LLMModel {
+  id: number;
+  name: string;
+  code: string;
+  description: string;
+  logo: string;
+}
+
+export const llmApi = {
+  getAll: () => api.get<LLMModel[]>("/llm-models").then((res) => res.data),
+  getOne: (id: number) =>
+    api.get<LLMModel>(`/llm-models/${id}`).then((res) => res.data),
+  updateFavorites: (modelCodes: string[]) =>
+    api
+      .patch(
+        "/auth/profile",
+        {
+          favorite_llm_models: modelCodes,
+        },
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      )
+      .then((res) => res.data),
 };

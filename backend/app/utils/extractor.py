@@ -22,7 +22,7 @@ def split_text_into_chunks(text, chunk_size=1000, chunk_overlap=100):
     )
     
     # Split the text into chunks
-    chunks = text_splitter.split_documents(text)
+    chunks = text_splitter.split_text(text)
     
     return chunks
 

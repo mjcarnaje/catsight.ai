@@ -1,136 +1,68 @@
 "use client"
 
-import type React from "react"
-
-import { Badge } from "@/components/ui/badge"
+import { DocumentCard } from "@/components/document-card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { useToast } from "@/components/ui/use-toast"
 import { UploadDocumentsModal } from "@/components/upload-documents-modal"
-import { api, Document, documentsApi } from "@/lib/api"
-import { DocumentStatus, getDocumentStatus } from "@/lib/document-status"
-import { Download, FileText, Trash, Upload } from "lucide-react"
-import { useEffect, useState } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { documentsApi } from "@/lib/api"
+import { DocumentStatus, getStatusInfo } from "@/lib/document-status"
+import { Document, ViewMode } from "@/types"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { FileText, Grid, List, Search, Upload } from "lucide-react"
+import { useState } from "react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious
+} from "@/components/ui/pagination"
+import { DocumentTable } from "@/components/document-table"
+
+const PAGE_SIZE = 9
 
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<Document[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
-  const [isUploading, setIsUploading] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [viewMode, setViewMode] = useState<ViewMode>('card')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">("all")
+  const [searchQuery, setSearchQuery] = useState("")
+
   const { toast } = useToast()
-
-  // Fetch documents on page load
-  useEffect(() => {
-    fetchDocuments()
-  }, [])
-
-  const fetchDocuments = async () => {
-    try {
-      setLoading(true)
-
-      const response = await documentsApi.getAll()
-      setDocuments(response.data)
-    } catch (error) {
-      console.error("Failed to fetch documents:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch documents. Please try again later.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files)
-      setSelectedFiles(files)
-    }
-  }
-
-  const handleDeleteDocument = async (id: number) => {
-    try {
-      await documentsApi.delete(id)
-      setDocuments(documents.filter(doc => doc.id !== id))
-      toast({
-        title: "Success",
-        description: "Document deleted successfully.",
-      })
-    } catch (error) {
-      console.error("Failed to delete document:", error)
-      toast({
-        title: "Error",
-        description: "Failed to delete document. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleRetryProcessing = async (id: number) => {
-    try {
-      await documentsApi.retry(id)
-      toast({
-        title: "Success",
-        description: "Document processing restarted.",
-      })
-      fetchDocuments()
-    } catch (error) {
-      console.error("Failed to retry document processing:", error)
-      toast({
-        title: "Error",
-        description: "Failed to restart document processing. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleDownload = async (id: number) => {
-    try {
-      // For downloading files, we use a direct API call with blob response type instead of using documentsApi helper
-      const response = await api.get(`/documents/${id}/raw`, {
-        responseType: 'blob'
-      });
-
-      // Create a download link for the document
-      const url = window.URL.createObjectURL(response.data);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `document-${id}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error("Failed to download document:", error);
-      toast({
-        title: "Error",
-        description: "Failed to download document. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const getDocumentStatusInfo = (status: DocumentStatus, isFailed: boolean) => {
-    if (isFailed) {
-      return {
-        label: "Failed",
-        variant: "destructive" as const,
-        progress: 0
-      }
-    }
-
-    const statusInfo = getDocumentStatus(status)
-    return {
-      label: statusInfo.label,
-      variant: status === DocumentStatus.COMPLETED ? "default" as const : "outline" as const,
-      progress: statusInfo.progress
-    }
-  }
-
   const queryClient = useQueryClient()
+
+  const { data: allDocuments, isLoading: isDocumentsLoading } = useQuery({
+    queryKey: ["documents"],
+    queryFn: () => documentsApi.getAll().then((res) => res.data),
+    refetchInterval: 5000,
+  })
+
+  const filteredDocuments = allDocuments
+    ? allDocuments
+      .filter(doc =>
+        statusFilter === "all" || doc.status === statusFilter
+      )
+      .filter(doc =>
+        searchQuery === "" ||
+        doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (doc.description && doc.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : []
+
+  const totalPages = Math.ceil(filteredDocuments.length / PAGE_SIZE)
+
+  // Get paginated documents
+  const paginatedDocuments = filteredDocuments
+    .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const uploadMutation = useMutation({
     mutationFn: ({
@@ -153,6 +85,10 @@ export default function DocumentsPage() {
     },
   });
 
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   return (
     <div className="container py-10 mx-auto">
@@ -170,83 +106,117 @@ export default function DocumentsPage() {
         />
       </div>
 
-      {loading ? (
+      {/* Filters and View Mode */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-4">
+          <div className="relative w-64">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search documents..."
+              className="pl-8"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as DocumentStatus | "all")}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {Object.values(DocumentStatus).map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'card' ? "default" : "outline"}
+            size="icon"
+            onClick={() => setViewMode('card')}
+          >
+            <Grid className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? "default" : "outline"}
+            size="icon"
+            onClick={() => setViewMode('table')}
+          >
+            <List className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {isDocumentsLoading ? (
         <div className="py-12 text-center">
           <div className="w-8 h-8 mx-auto border-4 rounded-full animate-spin border-primary border-t-transparent"></div>
           <p className="mt-4 text-muted-foreground">Loading documents...</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {documents.map((doc) => {
-              const statusInfo = getDocumentStatusInfo(doc.status, doc.is_failed)
+          {viewMode === 'card' ? (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {paginatedDocuments.map((doc) => (
+                <DocumentCard key={doc.id} doc={doc} />
+              ))}
+            </div>
+          ) : (
+            <DocumentTable documents={paginatedDocuments} />
+          )}
 
-              return (
-                <Card key={doc.id} className="transition-shadow hover:shadow-md">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{doc.title}</CardTitle>
-                        <CardDescription>{new Date(doc.created_at).toLocaleDateString()}</CardDescription>
-                      </div>
-                      <Badge variant={statusInfo.variant}>
-                        {statusInfo.label}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="mb-2 text-sm">{doc.description || "No description available"}</p>
-                    {doc.status !== DocumentStatus.COMPLETED && !doc.is_failed && (
-                      <Progress value={statusInfo.progress} className="h-2 mt-2" />
-                    )}
-                    <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                      <span>{doc.no_of_chunks || 0} chunks</span>
-                      <span>ID: {doc.id}</span>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex justify-between">
-                    <Button variant="outline" size="sm" onClick={() => window.location.href = `/document/${doc.id}`}>
-                      <FileText className="w-4 h-4 mr-2" />
-                      View
-                    </Button>
-                    <div className="flex space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleDownload(doc.id)}>
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
-                      {doc.is_failed && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRetryProcessing(doc.id)}
-                        >
-                          Retry
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                        onClick={() => handleDeleteDocument(doc.id)}
-                      >
-                        <Trash className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardFooter>
-                </Card>
-              )
-            })}
-          </div>
+          {/* Pagination */}
+          {filteredDocuments.length > PAGE_SIZE && (
+            <Pagination className="mt-8">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
 
-          {documents.length === 0 && (
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <PaginationItem key={page}>
+                    <PaginationLink
+                      isActive={page === currentPage}
+                      onClick={() => handlePageChange(page)}
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          )}
+
+          {filteredDocuments.length === 0 && (
             <div className="py-12 text-center">
               <FileText className="w-12 h-12 mx-auto text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold">No documents yet</h3>
-              <p className="mb-4 text-muted-foreground">Upload documents to make them available for search and chat.</p>
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Document
-              </Button>
+              <h3 className="mt-4 text-lg font-semibold">No documents found</h3>
+              <p className="mb-4 text-muted-foreground">
+                {searchQuery || statusFilter !== "all"
+                  ? "Try adjusting your filters to see more results."
+                  : "Upload documents to make them available for search and chat."}
+              </p>
+              {!searchQuery && statusFilter === "all" && (
+                <Button onClick={() => setIsDialogOpen(true)}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Document
+                </Button>
+              )}
             </div>
           )}
         </>

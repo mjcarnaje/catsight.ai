@@ -1,6 +1,4 @@
 from .tasks import (
-    test_vector_search,
-    save_chunks_task,
-    embed_text_task,
-    generate_summary_task
+    process_document_chunks_task,
+    generate_document_summary_task
 )   

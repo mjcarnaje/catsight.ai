@@ -82,30 +82,45 @@ export default function ChatSessionPage() {
     setNewMessage("")
     setIsLoading(true)
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
-        role: "assistant",
-        content: `I've processed your query about "${newMessage}". Based on the MSU-IIT documents, here's what I found:
+    // Call the actual chat API
+    import("@/lib/api").then(({ documentsApi }) => {
+      documentsApi.chat(newMessage)
+        .then((response) => {
+          const aiMessage: ChatMessage = {
+            id: `msg-${Date.now() + 1}`,
+            role: "assistant",
+            content: response.data.answer,
+            timestamp: new Date().toISOString(),
+            sources: response.data.sources.map((source) => ({
+              documentId: source.document_id,
+              documentTitle: source.document_title,
+              content: source.chunks.map((chunk) => chunk.content).join('\n\n'),
+              chunkIndexes: source.chunks.map((chunk) => chunk.chunk_index),
+              similarity: source.total_similarity
+            })),
+            grade: response.data.grade
+          }
 
-The information you're looking for can be found in the Student Handbook. According to the guidelines, students need to maintain a minimum GPA of 2.0 to remain in good academic standing.
+          setMessages((prev) => [...prev, aiMessage])
+        })
+        .catch((error) => {
+          console.error("Error fetching chat response:", error)
 
-For more detailed information, you can refer to page 15 of the MSU-IIT Student Handbook 2023.`,
-        timestamp: new Date().toISOString(),
-        sources: [
-          {
-            documentId: "doc-1",
-            documentTitle: "MSU-IIT Student Handbook 2023",
-            pageNumber: 15,
-            content: "Sample content from the document that supports this answer.",
-          },
-        ],
-      }
+          // Add error message
+          const errorMessage: ChatMessage = {
+            id: `msg-${Date.now() + 1}`,
+            role: "assistant",
+            content: "I'm sorry, I encountered an error while processing your request. Please try again later.",
+            timestamp: new Date().toISOString(),
+            sources: [],
+          }
 
-      setMessages((prev) => [...prev, aiMessage])
-      setIsLoading(false)
-    }, 2000)
+          setMessages((prev) => [...prev, errorMessage])
+        })
+        .finally(() => {
+          setIsLoading(false)
+        })
+    })
   }
 
   const handleNewChat = () => {
@@ -196,10 +211,62 @@ For more detailed information, you can refer to page 15 of the MSU-IIT Student H
                         <p className="mb-2 text-xs text-gray-400">Sources:</p>
                         {message.sources.map((source, index) => (
                           <Card key={index} className="bg-[#222] border-gray-700 p-2 text-xs mb-2">
-                            <p className="font-medium">{source.documentTitle}</p>
-                            <p className="text-gray-400">Page {source.pageNumber}</p>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium">{source.documentTitle}</p>
+                                {source.chunkIndexes && (
+                                  <p className="text-gray-400">
+                                    Chunks: {source.chunkIndexes.join(', ')}
+                                  </p>
+                                )}
+                                {source.pageNumber && (
+                                  <p className="text-gray-400">Page {source.pageNumber}</p>
+                                )}
+                              </div>
+                              {source.similarity !== undefined && (
+                                <span className="px-1.5 py-0.5 bg-blue-900 text-blue-100 text-xs rounded-md">
+                                  {(source.similarity * 100).toFixed(0)}%
+                                </span>
+                              )}
+                            </div>
                           </Card>
                         ))}
+                      </div>
+                    )}
+
+                    {message.grade && (
+                      <div className="pt-3 mt-3 border-t border-gray-700">
+                        <p className="mb-2 text-xs text-gray-400">Quality Assessment:</p>
+                        <div className="flex gap-2">
+                          <div className="bg-[#222] border-gray-700 p-1.5 px-2 text-xs rounded-md">
+                            <span>Relevance: </span>
+                            <span
+                              className={
+                                message.grade.relevance === 'High' ? 'text-green-400' :
+                                  message.grade.relevance === 'Medium' ? 'text-yellow-400' :
+                                    'text-red-400'
+                              }
+                            >
+                              {message.grade.relevance}
+                            </span>
+                          </div>
+                          <div className="bg-[#222] border-gray-700 p-1.5 px-2 text-xs rounded-md">
+                            <span>Accuracy: </span>
+                            <span>{message.grade.accuracy}</span>
+                          </div>
+                          <div className="bg-[#222] border-gray-700 p-1.5 px-2 text-xs rounded-md">
+                            <span>Score: </span>
+                            <span
+                              className={
+                                parseInt(message.grade.score.toString()) >= 8 ? 'text-green-400' :
+                                  parseInt(message.grade.score.toString()) >= 5 ? 'text-yellow-400' :
+                                    'text-red-400'
+                              }
+                            >
+                              {message.grade.score}/10
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
