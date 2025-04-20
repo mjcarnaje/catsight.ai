@@ -116,72 +116,74 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="space-y-1 text-center">
-        <CardTitle className="text-2xl font-bold">Intel Docs</CardTitle>
-        <CardDescription>Sign in to access the document management system</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="email" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="email">Email</TabsTrigger>
-            <TabsTrigger value="google">Google</TabsTrigger>
-          </TabsList>
-          <TabsContent value="email">
-            <form onSubmit={handleEmailLogin} className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="your.email@g.msuiit.edu.ph"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                  <Button variant="link" className="px-0 text-xs">
-                    Forgot password?
-                  </Button>
+    <div className="flex items-center justify-center h-screen">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold">Intel Docs</CardTitle>
+          <CardDescription>Sign in to access the document management system</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="email" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="email">Email</TabsTrigger>
+              <TabsTrigger value="google">Google</TabsTrigger>
+            </TabsList>
+            <TabsContent value="email">
+              <form onSubmit={handleEmailLogin} className="mt-4 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your.email@g.msuiit.edu.ph"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    <Button variant="link" className="px-0 text-xs">
+                      Forgot password?
+                    </Button>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={login.isPending}>
+                  {login.isPending ? "Signing in..." : "Sign In"}
+                </Button>
+              </form>
+            </TabsContent>
+            <TabsContent value="google">
+              <div className="mt-4 space-y-4">
+                <p className="text-sm text-center text-muted-foreground">Sign in with your MSU-IIT Google account</p>
+                <Button onClick={handleGoogleLogin} className="w-full" variant="outline" disabled={googleAuth.isPending}>
+                  {googleAuth.isPending ? "Signing in..." : "Sign in with Google"}
+                </Button>
               </div>
-              <Button type="submit" className="w-full" disabled={login.isPending}>
-                {login.isPending ? "Signing in..." : "Sign In"}
-              </Button>
-            </form>
-          </TabsContent>
-          <TabsContent value="google">
-            <div className="mt-4 space-y-4">
-              <p className="text-sm text-center text-muted-foreground">Sign in with your MSU-IIT Google account</p>
-              <Button onClick={handleGoogleLogin} className="w-full" variant="outline" disabled={googleAuth.isPending}>
-                {googleAuth.isPending ? "Signing in..." : "Sign in with Google"}
-              </Button>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-      <CardFooter className="flex flex-col">
-        <div className="mt-4 text-sm text-center">
-          Don't have an account?{" "}
-          <Link to="/register" className="text-primary hover:underline">
-            Sign up
-          </Link>
-        </div>
-        <p className="mt-4 text-xs text-center text-muted-foreground">
-          Only users with @g.msuiit.edu.ph email addresses are allowed access.
-        </p>
-      </CardFooter>
-    </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+        <CardFooter className="flex flex-col">
+          <div className="mt-4 text-sm text-center">
+            Don't have an account?{" "}
+            <Link to="/register" className="text-primary hover:underline">
+              Sign up
+            </Link>
+          </div>
+          <p className="mt-4 text-xs text-center text-muted-foreground">
+            Only users with @g.msuiit.edu.ph email addresses are allowed access.
+          </p>
+        </CardFooter>
+      </Card>
+    </div>
 
   )
 }

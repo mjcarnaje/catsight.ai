@@ -67,7 +67,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex items-center justify-center h-screen p-4 bg-gray-50 dark:bg-gray-900">
+    <div className="flex items-center justify-center h-screen">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
@@ -122,7 +122,7 @@ export default function RegisterPage() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col">
-          <div className="mt-4 text-center text-sm">
+          <div className="mt-4 text-sm text-center">
             Already have an account?{" "}
             <Link to="/login" className="text-primary hover:underline">
               Sign in

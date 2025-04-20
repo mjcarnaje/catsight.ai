@@ -1,172 +1,165 @@
-import { Button } from "@/components/ui/button";
+import { documentsApi } from "@/lib/api";
+import { DocumentStatus, getStatusInfo, getDocumentStatusFromHistory } from "@/lib/document-status";
+import { Document, StatusHistory } from "@/types";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { FileText, Loader2, Trash, User } from "lucide-react";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Progress } from "@/components/ui/progress";
-import { Document } from "@/lib/api";
-import { DocumentStatus, getDocumentStatus } from "@/lib/document-status";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./ui/card";
+import { Progress } from "./ui/progress";
+import { useToast } from "./ui/use-toast";
+import { formatDistanceToNow } from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import {
-  AlertTriangleIcon,
-  CheckIcon,
-  FolderIcon,
-  LoaderCircleIcon,
-  MessageCircleIcon,
-  MoreHorizontal,
-  RefreshCcwIcon,
-  TrashIcon,
-} from "lucide-react";
-import { Link } from "react-router-dom";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 
 interface DocumentCardProps {
-  document: Document;
-  onDelete: (id: number) => void;
-  onRetry?: (id: number) => Promise<void>;
+  doc: Document;
 }
 
-export function DocumentCard({
-  document,
-  onDelete,
-  onRetry,
-}: DocumentCardProps) {
-  const { id, title, status, is_failed, created_at } = document;
-  const { label, color, progress } = getDocumentStatus(status);
+export function DocumentCard({ doc }: DocumentCardProps) {
+  const { toast } = useToast();
+  const hasStatusHistory = doc.status_history && doc.status_history.length > 0;
 
-  const isFailed = is_failed;
-  const isCompleted = status === DocumentStatus.COMPLETED;
-  const isLoading = progress > 0 && progress < 100;
+  // Use status history if available, otherwise use the current status
+  const statusInfo = hasStatusHistory
+    ? getDocumentStatusFromHistory(doc.status_history)
+    : { ...getStatusInfo(doc.status), progress: 0, currentStatus: doc.status };
 
-  const handleChat = (e: React.MouseEvent) => {
-    e.preventDefault();
-    window.open(`/chat/${id}`, "_blank");
+  const queryClient = useQueryClient();
+
+  const handleDeleteMutation = useMutation({
+    mutationFn: () => documentsApi.delete(doc.id.toString()),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Success",
+        description: "Document deleted successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete document. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.preventDefault();
-    onDelete(id);
-  };
-
-  const handleRetry = (e: React.MouseEvent) => {
-    e.preventDefault();
-    onRetry?.(id);
-  };
+  // Get the status changes with timestamps (completed statuses)
+  const completedStatuses = hasStatusHistory
+    ? doc.status_history!
+      .filter(s => s.changed_at !== null)
+      .sort((a, b) => {
+        return new Date(b.changed_at!).getTime() - new Date(a.changed_at!).getTime();
+      })
+    : [];
 
   return (
-    <Link
-      to={`/documents/${id}`}
-      className={cn(
-        "group p-6 border border-white/10 flex flex-col gap-3 rounded-3xl",
-        "hover:shadow-lg hover:scale-[1.02] cursor-pointer transition-all",
-        "duration-300 backdrop-blur-xl bg-white/10 relative"
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-          <FolderIcon className="h-6 w-6 text-blue-400" />
-        </div>
-
-        <div className="absolute top-4 right-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className={cn(
-                  "h-8 w-8 p-0 group-hover:bg-blue-500/20 transition-all",
-                  "opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white"
-                )}
-              >
-                <MoreHorizontal />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="bg-gray-900 border-white/10"
-            >
-              <DropdownMenuItem
-                onClick={handleChat}
-                className={cn(
-                  "text-blue-400 focus:text-blue-300 hover:bg-blue-500/50 cursor-pointer"
-                )}
-              >
-                <MessageCircleIcon className="h-4 w-4 mr-2" />
-                Chat
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleDelete}
-                className={cn(
-                  "text-red-400 focus:text-red-300 hover:bg-blue-500/50 cursor-pointer"
-                )}
-              >
-                <TrashIcon className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-              {isFailed && onRetry && (
-                <DropdownMenuItem
-                  onClick={handleRetry}
-                  className={cn(
-                    "text-yellow-400 focus:text-yellow-300 hover:bg-blue-500/50 cursor-pointer"
-                  )}
-                >
-                  <RefreshCcwIcon className="h-4 w-4 mr-2" />
-                  Retry Processing
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <p
-          className={cn(
-            "text-xl font-semibold text-white group-hover:text-blue-400 transition-colors line-clamp-2"
-          )}
-        >
-          {title}
-        </p>
-        <p className="text-sm font-medium text-gray-400">
-          {format(created_at, "MMM d, yyyy")}
-        </p>
-      </div>
-
-      <div className="space-y-2 mt-auto">
-        <div className="flex items-center justify-between">
+    <Card key={doc.id} className="transition-shadow hover:shadow-md">
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            {isLoading && !isFailed && (
-              <div className="animate-spin">
-                <LoaderCircleIcon className="h-4 w-4 text-blue-400" />
-              </div>
+            <CardTitle className="text-lg">{doc.title}</CardTitle>
+            {doc.uploaded_by && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Avatar className="w-6 h-6">
+                      <AvatarImage
+                        src={doc.uploaded_by.avatar || ''}
+                        alt={doc.uploaded_by.username || doc.uploaded_by.email}
+                      />
+                      <AvatarFallback>
+                        {getInitials(doc.uploaded_by.first_name && doc.uploaded_by.last_name
+                          ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
+                          : doc.uploaded_by.username)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Uploaded by {doc.uploaded_by.username || doc.uploaded_by.email}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
-            {isFailed && (
-              <AlertTriangleIcon className="h-4 w-4 text-yellow-400" />
-            )}
-            {isCompleted && <CheckIcon className="h-4 w-4 text-green-400" />}
-            <span
-              className={cn(
-                "text-sm font-medium",
-                isFailed ? "text-yellow-400" : "text-blue-400"
-              )}
-            >
-              {label}
-            </span>
           </div>
-          {isLoading && (
-            <span className="text-sm font-semibold text-gray-400">
-              {progress}%
-            </span>
-          )}
+          <Badge variant="default">{statusInfo.label}</Badge>
         </div>
-        {isLoading && (
-          <Progress
-            value={progress}
-            className={cn("h-2", isFailed ? "text-red-400" : "text-blue-400")}
-          />
+        <CardDescription>
+          {new Date(doc.created_at).toLocaleDateString()}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-2 text-sm">
+          {doc.description || "No description available"}
+        </p>
+        {doc.status !== DocumentStatus.COMPLETED && !doc.is_failed && (
+          <div className="space-y-2">
+            <Progress value={statusInfo.progress} className="h-2" />
+            <div className="text-xs text-muted-foreground">
+              {completedStatuses.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {completedStatuses.map((statusChange: StatusHistory) => (
+                    <div key={statusChange.id} className="flex items-center justify-between">
+                      <span>{getStatusInfo(statusChange.status).label}</span>
+                      <span>{statusChange.changed_at && formatDistanceToNow(new Date(statusChange.changed_at), { addSuffix: true })}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
-      </div>
-    </Link>
+        <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+          <span>{doc.no_of_chunks || 0} chunks</span>
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => (window.location.href = `/document/${doc.id}`)}
+        >
+          <FileText className="w-4 h-4 mr-2" />
+          View
+        </Button>
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={() => handleDeleteMutation.mutate()}
+          >
+            {handleDeleteMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
+      </CardFooter>
+    </Card>
   );
 }

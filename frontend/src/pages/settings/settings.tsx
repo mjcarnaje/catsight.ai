@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import { llmApi } from "@/lib/api";
 import { useUpdateProfile, useUser } from "@/lib/auth";
-import { LLM_MODELS } from "@/lib/models";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit, Loader2, Upload } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
@@ -21,7 +22,6 @@ const formSchema = z.object({
   username: z.string().optional(),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
-  favorite_llm_models: z.array(z.string()).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -45,7 +45,6 @@ const SettingsPage = () => {
 
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -73,12 +72,6 @@ const SettingsPage = () => {
       formData.append('first_name', data.first_name || user?.first_name || '');
       formData.append('last_name', data.last_name || user?.last_name || '');
 
-      for (const model of data.favorite_llm_models || []) {
-        if (model) {
-          formData.append('favorite_llm_models', model);
-        }
-      }
-
       if (avatarFile) {
         formData.append('avatar_file', avatarFile);
       }
@@ -96,7 +89,6 @@ const SettingsPage = () => {
         username: user.username,
         first_name: user.first_name,
         last_name: user.last_name,
-        favorite_llm_models: user.favorite_llm_models.split(',') as string[] || [],
       });
       setPreviewImage(user.avatar);
     }
@@ -119,17 +111,6 @@ const SettingsPage = () => {
   }
 
 
-  const selectedModels = watch("favorite_llm_models") || [];
-
-  // Toggle selection for models
-  const handleToggle = (modelValue: string, checked: boolean) => {
-    const currentModels = watch("favorite_llm_models") || [];
-    if (checked) {
-      setValue("favorite_llm_models", [...currentModels, modelValue]);
-    } else {
-      setValue("favorite_llm_models", currentModels.filter(v => v !== modelValue));
-    }
-  };
 
   return (
     <div className="container max-w-4xl py-10 mx-auto">
@@ -246,35 +227,13 @@ const SettingsPage = () => {
           </Card>
 
           {/* Favorite Models Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Favorite Models</CardTitle>
-              <CardDescription>Select your preferred models for AI interactions</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {LLM_MODELS.map(model => (
-                <div key={model.value} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <div className="flex items-center space-x-3">
-                    <img src={model.logo} alt={model.name} className="w-6 h-6 rounded" />
-                    <div>
-                      <div className="text-sm font-medium">{model.name}</div>
-                      <p className="text-sm text-muted-foreground">{model.description}</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={selectedModels.includes(model.value)}
-                    onCheckedChange={checked => handleToggle(model.value, checked)}
-                  />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <FavoriteModelsForm />
 
           {/* Submit Button */}
           <div className="flex justify-end">
             <Button
               type="submit"
-              disabled={updateProfile.isPending || (!isDirty && !avatarFile && JSON.stringify(selectedModels) === JSON.stringify(user?.favorite_llm_models || []))}
+              disabled={updateProfile.isPending || (!isDirty && !avatarFile)}
             >
               {updateProfile.isPending ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
@@ -290,3 +249,128 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
+
+const FavoriteModelsForm = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: user } = useUser();
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: llmModels, isLoading: llmModelsLoading } = useQuery({
+    queryKey: ["llm-models"],
+    queryFn: () => llmApi.getAll(),
+  });
+
+  // Initialize selected models from user data
+  useEffect(() => {
+    if (user?.favorite_llm_models) {
+      setSelectedModels(user.favorite_llm_models);
+    }
+  }, [user]);
+
+  const handleToggle = async (modelValue: string, checked: boolean) => {
+    let newSelectedModels;
+
+    if (checked) {
+      newSelectedModels = [...selectedModels, modelValue];
+    } else {
+      newSelectedModels = selectedModels.filter(v => v !== modelValue);
+    }
+
+    setSelectedModels(newSelectedModels);
+
+    // Save changes immediately
+    try {
+      setIsSaving(true);
+      await llmApi.updateFavorites(newSelectedModels);
+
+      // Update local user data
+      if (user) {
+        const updatedUser = { ...user, favorite_llm_models: newSelectedModels };
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        queryClient.setQueryData(["user"], updatedUser);
+      }
+
+      toast({
+        title: "Preferences updated",
+        description: checked ? "Model added to favorites" : "Model removed from favorites"
+      });
+    } catch (error) {
+      // Revert selection on error
+      setSelectedModels(selectedModels);
+      toast({
+        title: "Error updating preferences",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Favorite Models</CardTitle>
+        <CardDescription>
+          Select your preferred AI models to use when interacting with documents.
+          Favorited models will appear at the top of model selection lists.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {llmModelsLoading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 mr-3 animate-spin text-primary" />
+            <p>Loading available models...</p>
+          </div>
+        )}
+
+        {isSaving && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/80">
+            <div className="flex items-center space-x-2">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <span>Saving preferences...</span>
+            </div>
+          </div>
+        )}
+
+        {!llmModelsLoading && llmModels?.length === 0 && (
+          <div className="py-8 text-center">
+            <p className="text-muted-foreground">No AI models are currently available.</p>
+          </div>
+        )}
+
+        {!llmModelsLoading && llmModels && llmModels.length > 0 && (
+          <div className="relative space-y-1">
+            {llmModels.map(model => (
+              <div
+                key={model.code}
+                className="flex items-center justify-between p-3 transition-colors rounded-lg hover:bg-accent/50"
+              >
+                <div className="flex items-center space-x-3">
+                  {model.logo ? (
+                    <img src={model.logo} alt={model.name} className="object-cover w-10 h-10 rounded-md" />
+                  ) : (
+                    <div className="flex items-center justify-center w-10 h-10 font-medium rounded-md bg-primary/10 text-primary">
+                      {model.name.charAt(0)}
+                    </div>
+                  )}
+                  <div>
+                    <div className="font-medium">{model.name}</div>
+                    <p className="text-sm text-muted-foreground line-clamp-1">{model.description}</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={selectedModels.includes(model.code)}
+                  onCheckedChange={checked => handleToggle(model.code, checked)}
+                  disabled={isSaving}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}

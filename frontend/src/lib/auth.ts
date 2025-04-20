@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { API_BASE_URL, api } from "./api";
+import { api } from "./api";
 
 // Types
 export interface User {
@@ -11,7 +11,7 @@ export interface User {
   username?: string;
   role: string;
   avatar?: string;
-  favorite_llm_models?: string;
+  favorite_llm_models?: string[];
 }
 
 export interface LoginCredentials {
@@ -188,20 +188,15 @@ export const useUpdateProfile = () => {
 
   return useMutation({
     mutationFn: (data: FormData | Partial<User>) => {
-      // If it's FormData, we need to use different content type
-      if (data instanceof FormData) {
-        return api
-          .patch<User>("/auth/profile", data, {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          })
-          .then((res) => res.data);
-      }
-      return authApi.updateProfile(data);
+      return api
+        .patch<User>("/auth/profile", data, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        })
+        .then((res) => res.data);
     },
     onSuccess: (updatedUser) => {
-      // Update user in localStorage and query cache
       const currentUserStr = localStorage.getItem("user");
       if (currentUserStr) {
         try {
