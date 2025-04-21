@@ -13,7 +13,9 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from ..models import Document, DocumentFullText
 from ..serializers import DocumentSerializer
 from ..tasks.tasks import (generate_document_summary_task,
-                          process_document_chunks_task)
+                          extract_text_task,
+                          chunk_and_embed_text_task,
+                          update_document_status)
 from ..utils.extractor import make_snippet
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsAdmin, IsSuperAdmin, IsOwnerOrAdmin
@@ -21,7 +23,7 @@ from ..services.vectorstore import vector_store
 
 from langgraph.graph import START, StateGraph, END
 from ..services.chat_agent import ChatState, retrieve, generate, grade_answer, format_output, ChatStates
-
+from ..models import DocumentStatus
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +89,9 @@ def upload_doc(request):
             document.save()
             
             task_chain = chain(
-                process_document_chunks_task.s(document.id),
-                generate_document_summary_task.s(),
+                extract_text_task.s(document.id),
+                chunk_and_embed_text_task.s(),
+                generate_document_summary_task.s()
             )
 
             result = task_chain.apply_async()
@@ -245,28 +248,6 @@ def get_doc_chunks(request, doc_id):
     
     return Response(chunk_data)
 
-@api_view(['PUT'])
-@permission_classes([IsOwnerOrAdmin])
-def update_doc_markdown(request, doc_id):
-    """
-    Update the markdown content of a document by its ID.
-    """
-    new_markdown = request.data.get("markdown")
-
-    # remove all existing chunks
-    vector_store.delete(filter={"doc_id": doc_id})
-
-    # update the document
-    document = DocumentFullText.objects.get(document=doc_id)
-    document.text = new_markdown
-    document.save()
-
-    # create new chunks
-    # implement chunking logic here just like in the upload_doc view
-
-    return Response(status=status.HTTP_200_OK)
-    
-
 @api_view(['DELETE'])
 @permission_classes([IsSuperAdmin])
 def delete_all_docs(request):
@@ -305,25 +286,35 @@ def delete_all_docs(request):
 
 
 @api_view(['PUT'])
-@permission_classes([IsAdmin])
-def update_doc(request, doc_id):
-    """
-    Update document metadata (title, description).
-    Only admins can update documents.
-    """
-    try:
-        document= Document.objects.get(id=doc_id)
-        serializer = DocumentSerializer(document, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            logger.info(f"Documentupdated successfully: {doc_id}")
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            logger.warning(f"Documentupdate failed: {serializer.errors}")
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    except Document.DoesNotExist:
-        logger.warning(f"Documentnot found: {doc_id}")
-        return Response({"status": "error", "message": "Documentnot found"}, status=status.HTTP_404_NOT_FOUND)
+@permission_classes([IsAuthenticated])
+def update_doc_markdown(request, doc_id):
+    new_md = request.data.get("markdown")
+    if new_md is None:
+        return Response(
+            {"detail": "No markdown provided"}, status=400
+        )
+
+    # 1) Delete old vectors
+    vector_store.delete(filter={"doc_id": doc_id})
+
+    # 2) Update the full‐text
+    fulltext, _ = DocumentFullText.objects.get_or_create(document_id=doc_id)
+    fulltext.text = new_md
+    fulltext.save()
+
+    # 3) Reset document status to "extracted" so chunk task can proceed
+    document = Document.objects.get(pk=doc_id)
+    update_document_status(document, DocumentStatus.TEXT_EXTRACTED)
+
+    # 4) Kick off re‐chunk & re‐summary
+    task_chain = chain(
+        chunk_and_embed_text_task.s(doc_id),
+        generate_document_summary_task.s()
+    )
+    task_chain.apply_async()
+
+    return Response(status=200)
+
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

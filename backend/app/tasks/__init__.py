@@ -1,4 +1,11 @@
 from .tasks import (
-    process_document_chunks_task,
+    extract_text_task,
+    chunk_and_embed_text_task,
     generate_document_summary_task
-)   
+)
+
+__all__ = [
+    "extract_text_task",
+    "chunk_and_embed_text_task",
+    "generate_document_summary_task"
+]
