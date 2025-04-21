@@ -1,15 +1,17 @@
 import { Layout } from "@/components/layout";
 import { Toaster } from "@/components/ui/toaster";
-import { Route, BrowserRouter as Router, Routes, Navigate } from "react-router-dom";
+import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/protected-route";
 import LoginPage from "./pages/auth/login";
 import RegisterPage from "./pages/auth/register";
 import ChatPage from "./pages/chat/chat";
 import ChatSessionPage from "./pages/chat/chat-session";
 import DashboardPage from "./pages/dashboard/dashboard";
-import DocumentsPage from "./pages/documents";
+import DocumentsPage from "./pages/documents/documents";
+import { DocumentViewPage } from "./pages/documents/view-document";
 import { SearchPage } from "./pages/search";
 import SettingsPage from "./pages/settings/settings";
+import { DocumentEditPage } from "./pages/documents/edit-viewer";
 
 export default function App() {
   return (
@@ -39,6 +41,29 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+            path="/documents/:id"
+            element={
+              <ProtectedRoute>
+                <div className="p-8">
+                  <DocumentViewPage />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/documents/:id/edit"
+            element={
+              <ProtectedRoute>
+                <div className="p-8">
+                  <DocumentEditPage />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/chat"
             element={

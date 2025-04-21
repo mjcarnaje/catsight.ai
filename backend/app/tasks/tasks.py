@@ -1,21 +1,19 @@
 import logging
 import os
-from typing import List, Tuple
 
 from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
-from langgraph.graph import START, StateGraph
-from langchain import hub
 from langchain.docstore.document import Document as LangchainDocument
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from typing_extensions import TypedDict
 from django.utils import timezone
 
 from ..constant import DocumentStatus, MarkdownConverter
-from ..models import Document, DocumentStatusHistory
-from ..services.ollama import OLLAMA_CHAT
+from ..models import Document, DocumentStatusHistory, DocumentFullText
 from ..services.vectorstore import vector_store
 from ..utils.doc_processor import DocumentProcessor
+from docling.document_converter import DocumentConverter
+
+converter = DocumentConverter()
 
 logger = logging.getLogger(__name__)
 
@@ -137,12 +135,14 @@ def convert_pdf_with_marker(file_path: str) -> str:
     from marker.models import create_model_dict
     from marker.output import text_from_rendered
 
-    os.environ['PYTORCH_MPS_HIGH_WATERMARK_RATIO'] = '0.0'
-
     config = {
         "output_format": "markdown",
         "disable_multiprocessing": False,
         "disable_image_extraction": True,
+        "ollama_base_url": os.getenv("OLLAMA_URL"),
+        "llm_service": "marker.services.ollama.OllamaService",
+        "ollama_model": "llama3.2:1b",
+        "force_ocr": True,
     }
     config_parser = ConfigParser(config)
 
@@ -150,7 +150,8 @@ def convert_pdf_with_marker(file_path: str) -> str:
         config=config_parser.generate_config_dict(),
         artifact_dict=create_model_dict(),
         processor_list=config_parser.get_processors(),
-        renderer=config_parser.get_renderer()
+        renderer=config_parser.get_renderer(),
+        llm_service=config_parser.get_llm_service()
     )
     rendered = pdf_converter(file_path)
     text, _, _ = text_from_rendered(rendered)
@@ -171,6 +172,19 @@ def convert_pdf_with_markitdown(file_path: str) -> str:
     md = MarkItDown()
     md_result = md.convert(file_path)
     return md_result.text_content
+
+def convert_pdf_with_docling(file_path: str) -> str:
+    """
+    Convert PDF to text using Docling library.
+    
+    Args:
+        file_path: Path to the PDF file
+        nag 
+    Returns:
+        Extracted text content
+    """
+    result = converter.convert(file_path)
+    return result.document.export_to_markdown()
 
 
 @shared_task(bind=True)
@@ -199,6 +213,8 @@ def process_document_chunks_task(self, document_id):
                 text = convert_pdf_with_marker(document.file)
             elif document.markdown_converter == MarkdownConverter.MARKITDOWN.value:
                 text = convert_pdf_with_markitdown(document.file)
+            elif document.markdown_converter == MarkdownConverter.DOCLING.value:
+                text = convert_pdf_with_docling(document.file)
             else:
                 raise ValueError(
                     f"Invalid markdown converter: {document.markdown_converter}"
@@ -211,6 +227,11 @@ def process_document_chunks_task(self, document_id):
         update_document_status(document, DocumentStatus.TEXT_EXTRACTED, update_fields=["status"])
         update_document_status(document, DocumentStatus.EMBEDDING_TEXT, update_fields=["status"])
         
+        DocumentFullText.objects.create(
+            document=document,
+            text=text,
+        )
+            
         # Split text into chunks
         try:
             text_splitter = RecursiveCharacterTextSplitter(
@@ -219,6 +240,8 @@ def process_document_chunks_task(self, document_id):
                 separators=["\n\n", "\n", " ", ""]
             )
             chunks = text_splitter.split_documents([LangchainDocument(page_content=text)])
+
+       
         except Exception as e:
             logger.error(f"Error splitting text into chunks for document {document_id}: {str(e)}")
             update_document_status(document, DocumentStatus.EMBEDDING_TEXT, failed=True)
@@ -254,7 +277,6 @@ def process_document_chunks_task(self, document_id):
             else:
                 update_document_status(document, DocumentStatus.PENDING, failed=True)
         raise
-
 
 @shared_task(bind=True)
 def generate_document_summary_task(self, document_id):

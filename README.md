@@ -1,6 +1,6 @@
-# IntelDocs Backend
+# CATSight.AI Backend
 
-The IntelDocs Backend is a comprehensive system designed to process, analyze, and facilitate interactive searching and chatting with documents, including scanned PDFs and non-searchable text files.
+The CATSight.AI Backend is a comprehensive system designed to process, analyze, and facilitate interactive searching and chatting with documents, including scanned PDFs and non-searchable text files.
 
 ## Table of Contents
 

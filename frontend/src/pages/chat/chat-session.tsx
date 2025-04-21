@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import type { ChatMessage } from "@/types"
-import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { ChatSidebar } from "@/components/chat/sidebar"
 import { ChatHeader } from "@/components/chat/chat-header"
-import { MessageList } from "@/components/chat/message-list"
 import { ChatInput } from "@/components/chat/chat-input"
+import { MessageList } from "@/components/chat/message-list"
+import { ChatSidebar } from "@/components/chat/sidebar"
+import type { ChatMessage } from "@/types"
+import { useEffect, useState } from "react"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 export default function ChatSessionPage() {
   const navigate = useNavigate()
@@ -15,23 +15,14 @@ export default function ChatSessionPage() {
   const initialPrompt = searchParams.get("prompt")
 
   const chatId = params.id
-  const isNewChat = chatId === "new"
 
-  const chatSession = isNewChat
-    ? {
-      id: "new",
-      title: "New Chat",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      messages: [] as ChatMessage[],
-    }
-    : {
-      id: chatId,
-      title: "Existing Chat",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      messages: [] as ChatMessage[],
-    }
+  const chatSession = {
+    id: chatId,
+    title: "Existing Chat",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages: [] as ChatMessage[],
+  }
 
   const [messages, setMessages] = useState<ChatMessage[]>(chatSession.messages)
   const [newMessage, setNewMessage] = useState(initialPrompt || "")

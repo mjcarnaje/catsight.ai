@@ -24,6 +24,7 @@ export interface Document {
   description: string;
   no_of_chunks: number;
   status: DocumentStatus;
+  markdown_converter: "marker" | "markitdown" | "docling";
   is_failed: boolean;
   created_at: string;
   updated_at: string;

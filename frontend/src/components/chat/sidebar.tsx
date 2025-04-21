@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
+import { useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { useState, useEffect } from "react"
 
 interface SidebarProps {
   currentChatId?: string;
@@ -22,14 +22,13 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
   }, [searchQuery])
 
   const handleNewChat = () => {
-    navigate("/chat/new")
+    navigate("/chat")
   }
 
   return (
     <div className="flex flex-col w-64 h-full border-r border-gray-200">
       <div className="p-4 border-b border-gray-200">
-        <h2 className="mb-4 text-xl font-bold text-gray-800">IntelDoc</h2>
-        <Button onClick={handleNewChat} className="w-full text-white bg-blue-600 hover:bg-blue-700">
+        <Button onClick={handleNewChat} className="w-full">
           New Chat
         </Button>
       </div>
@@ -56,8 +55,8 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
                   key={chat.id}
                   to={`/chat/${chat.id}`}
                   className={`block px-2 py-2 rounded text-sm truncate ${chat.id === currentChatId
-                      ? "bg-gray-100 text-gray-900"
-                      : "hover:bg-gray-100 text-gray-700"
+                    ? "bg-gray-100 text-gray-900"
+                    : "hover:bg-gray-100 text-gray-700"
                     }`}
                 >
                   {chat.title}

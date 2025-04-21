@@ -30,6 +30,9 @@ class ChatState(TypedDict):
     answer: str
     grade: Dict[str, Any]
 
+def assistant_chat(state: ChatState) -> Dict[str, Any]:
+    logger.info(f"Assistant chat: {state['question']}")
+    return {"answer": "I'm sorry, I don't know how to answer that."}
 
 def retrieve(state: ChatState) -> Dict[str, Any]:
     logger.info(f"Retrieving documents for query: {state['question']}")

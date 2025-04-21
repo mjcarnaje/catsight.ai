@@ -114,7 +114,8 @@ class Document(models.Model):
     title              = models.TextField(null=True, blank=True)
     description        = models.TextField(null=True, blank=True)
     file               = models.CharField(max_length=1000, null=True, blank=True)
-    ocr_file           = models.CharField(max_length=1000, null=True, blank=True)
+    file_name          = models.CharField(max_length=1000, null=True, blank=True)
+    file_type          = models.CharField(max_length=100, null=True, blank=True)
     status             = models.CharField(max_length=100, default=DocumentStatus.PENDING.value)
     is_failed          = models.BooleanField(default=False)
     task_id            = models.CharField(max_length=255, null=True, blank=True)
@@ -190,3 +191,12 @@ class DocumentStatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.document} → {self.status} at {self.changed_at.isoformat() if self.changed_at else 'not yet'}"
+
+class DocumentFullText(models.Model):
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name='full_text')
+    text     = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.document} → {self.text[:100]}"

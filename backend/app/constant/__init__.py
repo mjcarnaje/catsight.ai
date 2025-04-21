@@ -13,6 +13,7 @@ class DocumentStatus(Enum):
 class MarkdownConverter(Enum):
     MARKER = "marker"
     MARKITDOWN = "markitdown"
+    DOCLING = "docling"
 
 class UserRole(Enum):
     USER = "user"
