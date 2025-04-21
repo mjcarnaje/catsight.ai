@@ -116,10 +116,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center h-screen">
+    <div className="flex items-center justify-center w-full h-screen">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Intel Docs</CardTitle>
+          <CardTitle className="text-2xl font-bold">CATSight.AI</CardTitle>
           <CardDescription>Sign in to access the document management system</CardDescription>
         </CardHeader>
         <CardContent>

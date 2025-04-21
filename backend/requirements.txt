@@ -29,3 +29,4 @@ djangorestframework-simplejwt
 google-auth
 google-auth-oauthlib
 langgraph
+docling

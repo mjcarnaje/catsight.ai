@@ -1,5 +1,9 @@
-import { Markdown } from "@/components/markdown";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Pagination,
@@ -9,18 +13,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { documentsApi, SearchResult } from "@/lib/api";
+import { documentsApi } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import { FileText, Loader2, Search as SearchIcon, BookOpen } from "lucide-react";
+import { BookOpen, FileText, Loader2, Search as SearchIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -115,13 +110,13 @@ export function SearchPage() {
 
     // Create a regex that matches any of the words
     const regex = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
-    return text.replace(regex, '<mark class="bg-blue-500/30 px-1 rounded">$1</mark>');
+    return text.replace(regex, '<mark class="bg-primary/20 px-1 rounded">$1</mark>');
   };
 
   return (
     <div className="container max-w-6xl py-8 mx-auto">
       <div className="flex flex-col items-center mb-12">
-        <h1 className="mb-3 text-4xl font-bold text-center text-transparent bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text">
+        <h1 className="mb-3 text-4xl font-bold text-center">
           Document Search
         </h1>
         <p className="max-w-2xl text-center text-muted-foreground">
@@ -138,13 +133,13 @@ export function SearchPage() {
                 placeholder="Search documents..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="h-12 pl-10 transition-all focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="h-12 pl-10 transition-all focus-visible:ring-2 focus-visible:ring-primary"
                 autoFocus
               />
             </div>
             <Button
               type="submit"
-              className="h-12 px-6 transition-all shadow-md bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+              className="h-12 px-6 transition-all shadow-md"
             >
               <SearchIcon className="w-4 h-4 mr-2" />
               Search
@@ -164,7 +159,7 @@ export function SearchPage() {
         results && (
           <div className="transition-all">
             <div className="flex items-center mb-6">
-              <BookOpen className="w-5 h-5 mr-2 text-blue-600" />
+              <BookOpen className="w-5 h-5 mr-2 text-primary" />
               <h2 className="text-xl font-medium">
                 {results.data.count > 0
                   ? `Found ${results.data.count} results for "${query}"`
@@ -178,25 +173,25 @@ export function SearchPage() {
                 {results.data.results.map((result, idx) => (
                   <Card
                     key={`${idx}-${result.text.substring(0, 20)}`}
-                    className="overflow-hidden transition-all border hover:shadow-md hover:border-blue-200 group"
+                    className="overflow-hidden transition-all border hover:shadow-md hover:border-primary/20 group"
                   >
                     <CardContent className="p-0">
                       <div className="p-5">
                         <div className="flex items-start gap-4">
-                          <div className="p-2 mt-1 text-blue-700 transition-colors bg-blue-100 rounded-full group-hover:bg-blue-200">
+                          <div className="p-2 mt-1 transition-colors rounded-full text-primary bg-primary/10 group-hover:bg-primary/20">
                             <FileText className="w-5 h-5" />
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
-                              <h3 className="text-lg font-medium text-blue-800">
+                              <h3 className="text-lg font-medium">
                                 {result.source ? result.source.split('/').pop() : 'Document'}
                               </h3>
-                              <Badge className="text-blue-700 transition-colors bg-blue-100 shadow-sm hover:bg-blue-200">
+                              <Badge variant="outline" className="shadow-sm">
                                 Match: {(result.score * 100).toFixed(1)}%
                               </Badge>
                             </div>
 
-                            <div className="p-4 mt-3 border rounded-lg bg-slate-50/50">
+                            <div className="p-4 mt-3 border rounded-lg bg-muted/50">
                               <div className="flex items-center mb-2 text-xs text-slate-500">
                                 <span>Chunk #{result.chunk_index}</span>
                               </div>
@@ -235,7 +230,7 @@ export function SearchPage() {
                       onClick={() => handlePageChange(Math.max(1, page - 1))}
                       className={page === 1
                         ? "pointer-events-none opacity-50"
-                        : "cursor-pointer hover:bg-blue-50 transition-colors"}
+                        : "cursor-pointer hover:bg-muted transition-colors"}
                     />
                   </PaginationItem>
 
@@ -257,9 +252,6 @@ export function SearchPage() {
                         <PaginationLink
                           isActive={pageNum === page}
                           onClick={() => handlePageChange(pageNum)}
-                          className={pageNum === page
-                            ? "bg-blue-600 hover:bg-blue-700"
-                            : "hover:bg-blue-50 transition-colors"}
                         >
                           {pageNum}
                         </PaginationLink>
@@ -272,7 +264,7 @@ export function SearchPage() {
                       onClick={() => handlePageChange(Math.min(results.data.num_pages, page + 1))}
                       className={page === results.data.num_pages
                         ? "pointer-events-none opacity-50"
-                        : "cursor-pointer hover:bg-blue-50 transition-colors"}
+                        : "cursor-pointer hover:bg-muted transition-colors"}
                     />
                   </PaginationItem>
                 </PaginationContent>

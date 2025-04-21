@@ -2,7 +2,7 @@ import { documentsApi } from "@/lib/api";
 import { DocumentStatus, getStatusInfo, getDocumentStatusFromHistory } from "@/lib/document-status";
 import { Document, StatusHistory } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Clock, FileText, Loader2, Trash, User } from "lucide-react";
+import { FileText, Loader2, Trash, User } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
@@ -23,14 +23,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-
+import { useNavigate } from "react-router-dom";
+import { StatusHistoryPopover } from "./status-history-popover";
+import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
 interface DocumentCardProps {
   doc: Document;
 }
 
 export function DocumentCard({ doc }: DocumentCardProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const hasStatusHistory = doc.status_history && doc.status_history.length > 0;
 
   // Use status history if available, otherwise use the current status
@@ -77,6 +79,8 @@ export function DocumentCard({ doc }: DocumentCardProps) {
       })
     : [];
 
+  const ConverterIcon = MARKDOWN_CONVERTERS[doc.markdown_converter].icon
+
   return (
     <Card key={doc.id} className="transition-shadow hover:shadow-md">
       <CardHeader className="pb-2">
@@ -109,39 +113,10 @@ export function DocumentCard({ doc }: DocumentCardProps) {
           <div className="flex items-center gap-2">
             <Badge variant="default">{statusInfo.label}</Badge>
             {doc.status_history && doc.status_history.length > 0 && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="ml-2 h-7 w-7">
-                    <Clock className="w-4 h-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80">
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Status History</h4>
-                    <div className="space-y-1">
-                      {doc.status_history
-                        .filter(s => s.changed_at !== null)
-                        .sort((a, b) => {
-                          return new Date(b.changed_at!).getTime() - new Date(a.changed_at!).getTime();
-                        }).map((statusChange: StatusHistory) => (
-                          <div key={statusChange.id} className="flex items-center justify-between text-sm">
-                            <span>{getStatusInfo(statusChange.status).label}</span>
-                            <span className="text-muted-foreground">
-                              {statusChange.changed_at && formatDistanceToNow(new Date(statusChange.changed_at), { addSuffix: true })}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-                    <div className="pt-2 mt-2 border-t">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Progress</span>
-                        <span className="text-sm">{statusInfo.progress}%</span>
-                      </div>
-                      <Progress value={statusInfo.progress} className="h-2 mt-1" />
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <StatusHistoryPopover
+                statusHistory={doc.status_history}
+                progress={statusInfo.progress}
+              />
             )}
           </div>
         </div>
@@ -173,12 +148,16 @@ export function DocumentCard({ doc }: DocumentCardProps) {
         <div className="flex justify-between mt-2 text-xs text-muted-foreground">
           <span>{doc.no_of_chunks || 0} chunks</span>
         </div>
+        <div className="flex items-center gap-2">
+          <span>{ConverterIcon && <ConverterIcon className="w-4 h-4" />}</span>
+          <span>{MARKDOWN_CONVERTERS[doc.markdown_converter].label || "No converter selected"}</span>
+        </div>
       </CardContent>
       <CardFooter className="flex justify-between">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => (window.location.href = `/document/${doc.id}`)}
+          onClick={() => navigate(`/documents/${doc.id}`)}
         >
           <FileText className="w-4 h-4 mr-2" />
           View

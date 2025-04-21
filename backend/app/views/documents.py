@@ -10,11 +10,11 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
-from ..models import Document, User
+from ..models import Document, DocumentFullText
 from ..serializers import DocumentSerializer
 from ..tasks.tasks import (generate_document_summary_task,
                           process_document_chunks_task)
-from ..utils.extractor import combine_chunks, make_snippet
+from ..utils.extractor import make_snippet
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsAdmin, IsSuperAdmin, IsOwnerOrAdmin
 from ..services.vectorstore import vector_store
@@ -82,6 +82,8 @@ def upload_doc(request):
 
             document.file = UploadUtils.upload_document(file, str(document.id))
             document.markdown_converter = markdown_converter
+            document.file_name = file.name
+            document.file_type = file.content_type
             document.save()
             
             task_chain = chain(
@@ -135,27 +137,26 @@ def get_doc_raw(request, doc_id):
 def get_doc_markdown(request, doc_id):
     """
     Retrieve the markdown content of a document by its ID.
-    Handles overlapping chunks by removing duplicate content.
+    Prioritizes using the saved DocumentFullText, falling back to
+    reconstructing from chunks if necessary.
     """
     try:
         document = Document.objects.get(id=doc_id)
         
-        # Get chunks from vector store instead of DocumentChunk model
         chunks = vector_store.similarity_search(
             "", 
             k=document.no_of_chunks,
             filter={"doc_id": document.id}
         )
         
-        # Sort chunks by index
         chunks.sort(key=lambda x: x.metadata.get('index', 0))
+        chunks = [chunk.page_content for chunk in chunks]
         
-        # Extract page content
-        contents = [chunk.page_content for chunk in chunks]
+        logger.info(f"Chunks: {chunks}")
         
-        combined_text = combine_chunks(contents)
-       
-        return Response({"content": combined_text}, status=status.HTTP_200_OK)
+        markdown_text = DocumentFullText.objects.get(document=document).text
+           
+        return Response({"content": markdown_text, "chunks": chunks}, status=status.HTTP_200_OK)
     except Document.DoesNotExist:
         logger.warning(f"Document not found: {doc_id}")
         return Response(
@@ -243,6 +244,27 @@ def get_doc_chunks(request, doc_id):
         })
     
     return Response(chunk_data)
+
+@api_view(['PUT'])
+@permission_classes([IsOwnerOrAdmin])
+def update_doc_markdown(request, doc_id):
+    """
+    Update the markdown content of a document by its ID.
+    """
+    new_markdown = request.data.get("markdown")
+
+    # remove all existing chunks
+    vector_store.delete(filter={"doc_id": doc_id})
+
+    # update the document
+    document = DocumentFullText.objects.get(document=doc_id)
+    document.text = new_markdown
+    document.save()
+
+    # create new chunks
+    # implement chunking logic here just like in the upload_doc view
+
+    return Response(status=status.HTTP_200_OK)
     
 
 @api_view(['DELETE'])

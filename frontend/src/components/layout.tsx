@@ -13,7 +13,7 @@ export function Layout() {
     <QueryClientProvider client={queryClient}>
       <SidebarProvider defaultOpen={true}>
         {isAuthPage ? (
-          <main className="h-screen min-h-screen bg-gray-50">
+          <main className="w-full h-screen min-h-screen bg-gray-50">
             <Outlet />
           </main>
         ) : (

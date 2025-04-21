@@ -26,7 +26,7 @@ export function Navbar() {
       <div className="container flex items-center justify-between h-16 mx-auto">
         <div className="flex items-center gap-6">
           <Link to="/dashboard" className="text-xl font-bold">
-            Intel Docs
+            CATSight.AI
           </Link>
           <nav className="items-center hidden gap-6 md:flex">
             <Link

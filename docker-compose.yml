@@ -79,6 +79,7 @@ services:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
       - OLLAMA_URL=http://host.docker.internal:7869
+
     depends_on:
       - backend
     volumes:
