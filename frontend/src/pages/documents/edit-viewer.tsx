@@ -7,22 +7,50 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { Document } from "@/types";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Edit } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Edit, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
 
 export function DocumentEditPage() {
   const { id } = useParams();
+  const { toast } = useToast();
+
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { isLoading, error, data } = useQuery({
     queryKey: ["document", id],
     queryFn: () => api.get<Document>(`/documents/${id}`).then((res) => res.data),
   });
 
-  const handleEditClick = () => navigate(`/edit/${id}`);
+  const [markdown, setMarkdown] = useState("");
+
+  const updateMarkdown = useMutation({
+    mutationFn: (markdown: string) => api.put(`/documents/${id}/update`, { markdown }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["document", id] });
+      toast({
+        title: "Document updated",
+        description: "Document updated successfully",
+      });
+      navigate(`/documents/`);
+    },
+    onError: () => {
+      toast({
+        title: "Error updating document",
+        description: "Please try again",
+      });
+    },
+  });
+
+
   const handleBackClick = () => navigate("/");
+
+  const handleUpdateMarkdown = (markdown: string) => {
+    updateMarkdown.mutate(markdown);
+  };
 
   // Loading skeleton
   if (isLoading) {
@@ -54,8 +82,9 @@ export function DocumentEditPage() {
           </Button>
           <h1 className="text-3xl font-bold text-primary">{data.title}</h1>
         </div>
-        <Button onClick={handleEditClick} className="flex items-center gap-2">
-          <Edit className="w-5 h-5" /> Edit
+        <Button onClick={() => handleUpdateMarkdown(markdown)} className="flex items-center gap-2">
+          {updateMarkdown.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Edit className="w-5 h-5" />}
+          <span>Save</span>
         </Button>
       </div>
 
@@ -75,7 +104,7 @@ export function DocumentEditPage() {
           <div className="flex flex-col h-full bg-white">
             <div className="p-3 font-semibold border-b">Markdown Preview</div>
             <div className="flex-1 p-4 overflow-auto">
-              <DocMarkdownViewer id={data.id.toString()} />
+              <DocMarkdownViewer id={data.id.toString()} markdown={markdown} setMarkdown={setMarkdown} />
             </div>
           </div>
         </ResizablePanel>
@@ -107,9 +136,8 @@ export function DocPdfViewer({ id }: { id: string }) {
 }
 
 
-export function DocMarkdownViewer({ id }: { id: string }) {
+export function DocMarkdownViewer({ id, markdown, setMarkdown }: { id: string, markdown: string, setMarkdown: (markdown: string) => void }) {
   const [activeTab, setActiveTab] = useState("edit");
-  const [markdown, setMarkdown] = useState("")
 
   const { isLoading, error, data } = useQuery({
     queryKey: ["doc-md", id],
@@ -121,6 +149,7 @@ export function DocMarkdownViewer({ id }: { id: string }) {
       setMarkdown(data.content);
     }
   }, [data]);
+
 
   if (isLoading) {
     return <Skeleton className="w-full h-full" />;
