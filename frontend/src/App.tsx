@@ -1,22 +1,21 @@
 import { Layout } from "@/components/layout";
 import { Toaster } from "@/components/ui/toaster";
-import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/protected-route";
+import { SessionProvider } from "./lib/session";
 import LoginPage from "./pages/auth/login";
 import RegisterPage from "./pages/auth/register";
 import ChatPage from "./pages/chat/chat";
-import ChatSessionPage from "./pages/chat/chat-session";
 import DashboardPage from "./pages/dashboard/dashboard";
 import DocumentsPage from "./pages/documents/documents";
+import { DocumentEditPage } from "./pages/documents/edit-viewer";
 import { DocumentViewPage } from "./pages/documents/view-document";
+import { LandingPage } from "./pages/landing/landing";
+import { PrivacyPolicyPage } from "./pages/landing/privacy-policty";
+import { TermsAndConditionPage } from "./pages/landing/terms-and-condition";
 import { SearchPage } from "./pages/search";
 import SettingsPage from "./pages/settings/settings";
-import { DocumentEditPage } from "./pages/documents/edit-viewer";
-import { LandingPage } from "./pages/landing/landing";
-import { TermsAndConditionPage } from "./pages/landing/terms-and-condition";
-import { PrivacyPolicyPage } from "./pages/landing/privacy-policty";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { SessionProvider } from "./lib/session";
 
 const queryClient = new QueryClient();
 
@@ -26,10 +25,8 @@ export default function App() {
       <SessionProvider>
         <Router>
           <Routes>
-            <Route path="/" element={<Navigate to="/landing" replace />} />
-
             {/* Public Landing Pages - No Layout/Sidebar */}
-            <Route path="/landing" element={<LandingPage />} />
+            <Route path="/" element={<LandingPage />} />
             <Route path="/terms-and-conditions" element={<TermsAndConditionPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
 
@@ -85,14 +82,6 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <ChatPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/chat/:id"
-                element={
-                  <ProtectedRoute>
-                    <ChatSessionPage />
                   </ProtectedRoute>
                 }
               />

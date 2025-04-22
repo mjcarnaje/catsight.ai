@@ -169,7 +169,7 @@ export function SearchPage() {
             </div>
 
             {results.data.count > 0 ? (
-              <div className="grid gap-6 animate-fadeIn">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 animate-fadeIn">
                 {results.data.results.map((result, idx) => (
                   <Card
                     key={`${idx}-${result.text.substring(0, 20)}`}
@@ -184,7 +184,7 @@ export function SearchPage() {
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
                               <h3 className="text-lg font-medium">
-                                {result.source ? result.source.split('/').pop() : 'Document'}
+                                Document
                               </h3>
                               <Badge variant="outline" className="shadow-sm">
                                 Match: {(result.score * 100).toFixed(1)}%
@@ -201,6 +201,23 @@ export function SearchPage() {
                                   __html: highlightSearchTerm(result.snippet || result.text, query)
                                 }}
                               />
+                            </div>
+                            <div className="flex justify-end mt-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1 transition-colors hover:bg-primary hover:text-primary-foreground"
+                                onClick={() => {
+                                  if (result.document_id) {
+                                    navigate(`/documents/${result.document_id}?chunk_index=${result.chunk_index}&highlight=${query}`);
+                                  } else {
+                                    console.error("No document ID available for navigation");
+                                  }
+                                }}
+                              >
+                                <BookOpen className="w-4 h-4" />
+                                View Document
+                              </Button>
                             </div>
                           </div>
                         </div>

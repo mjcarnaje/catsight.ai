@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Document, LLMModel, DocumentStatusHistory
+from .models import User, Document, LLMModel, DocumentStatusHistory, Chat, ChatMessage
 import json
 import logging
 
@@ -77,3 +77,23 @@ class LLMModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = LLMModel
         fields = ['id', 'code', 'name', 'description', 'logo']
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        fields = ['id', 'content', 'is_user', 'created_at']
+
+
+class ChatSerializer(serializers.ModelSerializer):
+    messages_count = serializers.IntegerField(read_only=True)
+    document_title = serializers.SerializerMethodField()
+    
+    def get_document_title(self, obj):
+        if obj.document:
+            return obj.document.title
+        return None
+    
+    class Meta:
+        model = Chat
+        fields = ['id', 'title', 'created_at', 'updated_at', 'messages_count', 'document_id', 'document_title']
