@@ -21,6 +21,8 @@ export interface Document {
   id: number;
   title: string;
   file: string;
+  file_name: string;
+  file_type: string;
   description: string;
   no_of_chunks: number;
   status: DocumentStatus;

@@ -23,8 +23,8 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { toast } = useToast()
-  const [email, setEmail] = useState("michaeljames.carnaje@g.msuiit.edu.ph")
-  const [password, setPassword] = useState("javascript")
+  const [email, setEmail] = useState("michaeljamescarnaje1@g.msuiit.edu.ph")
+  const [password, setPassword] = useState("asdfasdf")
 
   // Handle Google OAuth redirect
   useEffect(() => {
@@ -98,7 +98,7 @@ export default function LoginPage() {
       await googleAuth.mutateAsync(code)
 
       // Clear the URL after successful login
-      window.history.replaceState({}, document.title, "/auth/login")
+      navigate("/login")
     } catch (error) {
       const errorMessage = error instanceof Error
         ? error.message
@@ -111,7 +111,7 @@ export default function LoginPage() {
       })
 
       // Clear the URL after failed login
-      window.history.replaceState({}, document.title, "/auth/login")
+      navigate("/login")
     }
   }
 
@@ -119,7 +119,18 @@ export default function LoginPage() {
     <div className="flex items-center justify-center w-full h-screen">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">CATSight.AI</CardTitle>
+          <CardTitle className="flex items-center justify-center">
+            <div className="flex items-center gap-2 transition-transform duration-75 hover:scale-[1.01]">
+              <img
+                src="/icon.png"
+                alt="CATSight.AI Logo"
+                className="w-auto h-8"
+              />
+              <span className="text-xl font-bold text-transparent bg-gradient-to-r from-primary to-accent bg-clip-text">
+                CATSight.AI
+              </span>
+            </div>
+          </CardTitle>
           <CardDescription>Sign in to access the document management system</CardDescription>
         </CardHeader>
         <CardContent>

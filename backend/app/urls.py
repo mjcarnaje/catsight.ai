@@ -18,6 +18,7 @@ from .views.documents import (
     search_docs,
     chat_with_docs,
     delete_all_docs,
+    get_graph,
 )
 from .views.llm import (
     get_llm_models,
@@ -48,4 +49,5 @@ urlpatterns = [
     path('documents/search', search_docs, name='search_docs'),
     path('documents/chat', chat_with_docs, name='chat_with_docs'),
     path('documents/delete_all', delete_all_docs, name='delete_all_docs'),
+    path('documents/graph', get_graph, name='get_graph'),
 ]

@@ -18,13 +18,16 @@ from ..tasks.tasks import (generate_document_summary_task,
                           update_document_status)
 from ..utils.extractor import make_snippet
 from ..utils.upload import UploadUtils
-from ..utils.permissions import IsAuthenticated, IsAdmin, IsSuperAdmin, IsOwnerOrAdmin
+from ..utils.permissions import IsAuthenticated, IsSuperAdmin, IsOwnerOrAdmin, AllowAny
 from ..services.vectorstore import vector_store
 
-from langgraph.graph import START, StateGraph, END
-from ..services.chat_agent import ChatState, retrieve, generate, grade_answer, format_output, ChatStates
+from ..services.chat_agent import graph
 from ..models import DocumentStatus
-
+import json
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.runnables.graph_mermaid import MermaidDrawMethod
+from langchain_core.documents import Document as LangchainDocument
+from IPython.display import Image
 logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
@@ -372,43 +375,131 @@ def search_docs(request):
             {"error": f"Search failed: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+def _serialize_document(doc: LangchainDocument) -> dict:
+    """Convert a Document object to a serializable dict."""
+    return {
+        "page_content": doc.page_content,
+        "metadata": doc.metadata,
+    }
 
+def _make_serializable(obj):
+    """Recursively convert objects to JSON-serializable types."""
+    if isinstance(obj, list):
+        return [_make_serializable(item) for item in obj]
+    if isinstance(obj, dict):
+        return {k: _make_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, LangchainDocument):
+        return _serialize_document(obj)
+    # fallback for any other Document‐like object
+    if hasattr(obj, "page_content") and hasattr(obj, "metadata"):
+        return {
+            "page_content": getattr(obj, "page_content", ""),
+            "metadata": getattr(obj, "metadata", {}),
+        }
+    return obj
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def chat_with_docs(request):
     query = request.data.get("query")
     if not query:
-        return Response(
-            {"error": "Query parameter is required"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "Query parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
 
+    inputs = {"messages": [HumanMessage(content=query)]}
+
+    def event_stream():
+        full_content = ""
+        response_context = None
+
+        print(f"Chat inputs: {inputs}")
+
+        for chunk in graph.stream(inputs, stream_mode='values'):
+            print(f"CHUNK: {chunk}")
+
+            # pull out the user’s content from either
+            #  • a top‐level AIMessage, or
+            #  • an AIMessage nested inside chunk["messages"]
+            part = ""
+            if isinstance(chunk, AIMessage):
+                part = chunk.content
+            elif isinstance(chunk, dict):
+                # check for an AIMessage embedded in chunk["messages"]
+                for msg in chunk.get("messages", []):
+                    if isinstance(msg, AIMessage):
+                        part = msg.content
+                        break
+
+                # if there was no embedded AIMessage, fall back to any chunk["content"]
+                if not part:
+                    part = chunk.get("content", "") or ""
+
+                # grab any context they sent
+                if "context" in chunk:
+                    response_context = chunk["context"]
+            else:
+                continue
+
+            full_content += part
+
+            payload = {"content": part}
+            if response_context:
+                try:
+                    serialized = _make_serializable(response_context)
+                    # cap at first 3 items
+                    if isinstance(serialized, list) and len(serialized) > 3:
+                        serialized = serialized[:3]
+                    payload["context"] = serialized
+                except Exception as e:
+                    print(f"Error serializing context: {e}")
+
+            try:
+                yield f"data: {json.dumps(payload)}\n\n"
+            except Exception as e:
+                print(f"Error serializing payload: {e}")
+                # fallback without context
+                yield f"data: {json.dumps({'content': part})}\n\n"
+
+        # final payload (in case context arrived only at the very end)
+        if not response_context and hasattr(graph, 'last_response'):
+            last = getattr(graph, 'last_response')
+            if hasattr(last, 'context'):
+                response_context = last.context
+
+        final = {'content': full_content, 'finished': True}
+        if response_context:
+            try:
+                serialized = _make_serializable(response_context)
+                if isinstance(serialized, list) and len(serialized) > 3:
+                    serialized = serialized[:3]
+                final['context'] = serialized
+            except Exception as e:
+                print(f"Error serializing final context: {e}")
+
+        try:
+            yield f"data: {json.dumps(final)}\n\n"
+        except Exception as e:
+            print(f"Error serializing final payload: {e}")
+            yield f"data: {json.dumps({'content': full_content, 'finished': True})}\n\n"
+
+    return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+
+# GET /api/documents/graph
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_graph(request):
     try:
-        graph = (
-            StateGraph(ChatState)
-            .add_node(ChatStates.RETRIEVE.value, retrieve)
-            .add_node(ChatStates.GENERATE.value, generate)
-            .add_node(ChatStates.GRADE.value, grade_answer)
-            .add_node(ChatStates.FORMAT.value, format_output)
-
-            .add_edge(START, ChatStates.RETRIEVE.value)
-            .add_edge(ChatStates.RETRIEVE.value, ChatStates.GENERATE.value)
-            .add_edge(ChatStates.GENERATE.value, ChatStates.GRADE.value)
-            .add_edge(ChatStates.GRADE.value, ChatStates.FORMAT.value)
-            .add_edge(ChatStates.FORMAT.value, END)
-
-            .compile()
-        )
-
-        result = graph.invoke({"question": query})
-        return Response(result, status=status.HTTP_200_OK)
-
+        # Get the Mermaid string directly instead of rendering to PNG
+        mermaid_text = graph.get_graph().draw_mermaid()
+        
+        # Return the Mermaid text in a JSON response
+        return Response({
+            "mermaid": mermaid_text,
+            "format": "mermaid",
+            "message": "Render this mermaid diagram on the client side for better compatibility"
+        })
     except Exception as e:
-        logger.error("Error in chat_with_docs", exc_info=True)
+        logger.error(f"Error getting graph: {str(e)}")
         return Response(
-            {"error": f"Failed to generate response: {str(e)}"},
+            {"error": f"Failed to get graph: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
-
