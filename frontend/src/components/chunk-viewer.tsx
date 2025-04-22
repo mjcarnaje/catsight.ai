@@ -5,8 +5,8 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import MarkdownPreview from "@/components/markdown-preview";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function ChunkViewer({ chunks }: { chunks: string[] }) {
-  const [current, setCurrent] = useState(0);
+export default function ChunkViewer({ chunks, chunk_index, highlight }: { chunks: string[], chunk_index?: string, highlight?: string }) {
+  const [current, setCurrent] = useState(chunk_index ? parseInt(chunk_index) : 0);
   if (!chunks) return <Skeleton className="w-full h-full" />;
   if (chunks.length === 0) {
     return <Card className="h-full"><CardContent><p className="text-muted-foreground">No chunks</p></CardContent></Card>;
@@ -17,7 +17,7 @@ export default function ChunkViewer({ chunks }: { chunks: string[] }) {
         <CardTitle className="text-sm">Chunk {current + 1} of {chunks.length}</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 overflow-auto">
-        <MarkdownPreview content={chunks[current]} />
+        <MarkdownPreview content={chunks[current]} highlight={highlight} />
       </CardContent>
       <CardFooter>
         <div className="flex justify-between w-full">

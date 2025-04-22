@@ -1,6 +1,6 @@
 import axios from "axios";
 import { DocumentStatus } from "./document-status";
-import { Document, PaginatedResponse } from "@/types";
+import { Document, PaginatedResponse, Chat } from "@/types";
 
 // Use environment variable for API URL with fallback
 export const API_BASE_URL =
@@ -99,12 +99,29 @@ export interface ChatResponse {
 }
 
 export interface SearchResult {
-  source: string;
+  document_id: number;
   chunk_index: number;
   text: string;
   score: number;
   snippet: string;
 }
+
+export const chatsApi = {
+  getRecent: (limit: number = 5) =>
+    api.get<Chat[]>("/chats/recent", { params: { limit } }),
+
+  getOne: (id: number) => api.get<Chat>(`/chats/${id}`),
+
+  getMessages: (chatId: number) => api.get(`/chats/${chatId}/messages`),
+
+  create: (data: { title: string; document_id?: number }) =>
+    api.post<Chat>("/chats", data),
+
+  update: (id: number, data: { title: string }) =>
+    api.patch<Chat>(`/chats/${id}/update`, data),
+
+  delete: (id: number) => api.delete(`/chats/${id}/delete`),
+};
 
 export const documentsApi = {
   getAll: (page: number = 1, pageSize: number = 9) =>
@@ -130,6 +147,7 @@ export const documentsApi = {
   },
   delete: (id: string) => api.delete(`/documents/${id}/delete`),
   chat: (query: string) => api.post<ChatResponse>("/documents/chat", { query }),
+  getRecentChats: (limit: number = 5) => chatsApi.getRecent(limit),
   search: (params: {
     query: string;
     title?: string;

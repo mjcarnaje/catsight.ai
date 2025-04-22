@@ -34,6 +34,16 @@ export interface Document {
   status_history?: StatusHistory[];
 }
 
+export interface Chat {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages_count?: number;
+  document_id?: number;
+  document_title?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";

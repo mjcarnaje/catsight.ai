@@ -10,7 +10,7 @@ import { Document } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Edit } from "lucide-react";
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 export function DocumentViewPage() {
   const { id } = useParams();
@@ -108,7 +108,11 @@ export function DocPdfViewer({ id }: { id: string }) {
 
 
 export function DocMarkdownViewer({ id }: { id: string }) {
-  const [activeTab, setActiveTab] = useState("full");
+  const [searchParams] = useSearchParams();
+  const chunk_index = searchParams.get("chunk_index");
+  const highlight = searchParams.get("highlight");
+
+  const [activeTab, setActiveTab] = useState(chunk_index ? "chunks" : "full");
   const { isLoading, error, data } = useQuery({
     queryKey: ["doc-md", id],
     queryFn: () => api.get<{ content: string; chunks: string[] }>(`/documents/${id}/markdown`).then((r) => r.data),
@@ -132,7 +136,7 @@ export function DocMarkdownViewer({ id }: { id: string }) {
           <MarkdownPreview content={data.content} />
         </TabsContent>
         <TabsContent value="chunks" className="h-full p-4 overflow-auto">
-          <ChunkViewer chunks={data.chunks} />
+          <ChunkViewer chunks={data.chunks} chunk_index={chunk_index} highlight={highlight} />
         </TabsContent>
       </Tabs>
     </div>

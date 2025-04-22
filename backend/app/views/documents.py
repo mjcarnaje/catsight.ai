@@ -340,9 +340,10 @@ def search_docs(request):
         # Build result list including score, chunk index, and snippet
         results = []
         for doc, score in docs_with_scores:
-            chunk_index = doc.metadata.get("chunk")
+            chunk_index = doc.metadata.get("index")
+            doc_id = doc.metadata.get("doc_id")
             results.append({
-                "source": doc.metadata.get("source"),
+                "document_id": doc_id,
                 "chunk_index": chunk_index,
                 "text": doc.page_content,
                 "score": score,
@@ -402,6 +403,7 @@ def _make_serializable(obj):
 @permission_classes([IsAuthenticated])
 def chat_with_docs(request):
     query = request.data.get("query")
+    
     if not query:
         return Response({"error": "Query parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -415,10 +417,7 @@ def chat_with_docs(request):
 
         for chunk in graph.stream(inputs, stream_mode='values'):
             print(f"CHUNK: {chunk}")
-
-            # pull out the user’s content from either
-            #  • a top‐level AIMessage, or
-            #  • an AIMessage nested inside chunk["messages"]
+            
             part = ""
             if isinstance(chunk, AIMessage):
                 part = chunk.content
@@ -465,21 +464,21 @@ def chat_with_docs(request):
             if hasattr(last, 'context'):
                 response_context = last.context
 
-        final = {'content': full_content, 'finished': True}
+        # Only send the final message if it contains more information
+        # Don't send duplicate content
         if response_context:
             try:
                 serialized = _make_serializable(response_context)
                 if isinstance(serialized, list) and len(serialized) > 3:
                     serialized = serialized[:3]
-                final['context'] = serialized
+                
+                # Send only the finished flag without repeating content
+                yield f"data: {json.dumps({'finished': True, 'context': serialized})}\n\n"
             except Exception as e:
                 print(f"Error serializing final context: {e}")
-
-        try:
-            yield f"data: {json.dumps(final)}\n\n"
-        except Exception as e:
-            print(f"Error serializing final payload: {e}")
-            yield f"data: {json.dumps({'content': full_content, 'finished': True})}\n\n"
+                yield f"data: {json.dumps({'finished': True})}\n\n"
+        else:
+            yield f"data: {json.dumps({'finished': True})}\n\n"
 
     return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
 

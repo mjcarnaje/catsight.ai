@@ -29,6 +29,12 @@ import { useEffect, useState } from "react"
 
 import "@mdxeditor/editor/style.css"
 
+// Function to sanitize HTML tags in markdown
+const sanitizeMarkdown = (markdown: string): string => {
+  // Convert <br> to <br />
+  return markdown.replace(/<br>/g, '<br />')
+}
+
 interface MDXEditorProps {
   markdown: string
   onChange: (markdown: string) => void
@@ -43,6 +49,13 @@ export default function MDXEditorComponent({ markdown, onChange }: MDXEditorProp
     setMounted(true)
   }, [])
 
+  // Apply sanitization before passing to editor
+  const sanitizedMarkdown = sanitizeMarkdown(markdown)
+
+  const handleChange = (newMarkdown: string) => {
+    onChange(newMarkdown)
+  }
+
   if (!mounted) {
     return (
       <div className="flex items-center justify-center w-full h-full">
@@ -54,8 +67,8 @@ export default function MDXEditorComponent({ markdown, onChange }: MDXEditorProp
   return (
     <div className="w-full h-full">
       <MDXEditor
-        markdown={markdown}
-        onChange={onChange}
+        markdown={sanitizedMarkdown}
+        onChange={handleChange}
         contentEditableClassName="prose prose-sm md:prose-base lg:prose-lg dark:prose-invert max-w-none min-h-[calc(100vh-12rem)] p-4"
         plugins={[
           headingsPlugin(),
