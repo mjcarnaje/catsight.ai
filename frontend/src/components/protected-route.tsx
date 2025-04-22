@@ -1,13 +1,13 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { authApi } from "@/lib/auth";
+import { useSession } from "@/lib/session";
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const isAuthenticated = authApi.isAuthenticated();
+  const { isAuthenticated } = useSession();
   const location = useLocation();
 
   // If not authenticated, redirect to login

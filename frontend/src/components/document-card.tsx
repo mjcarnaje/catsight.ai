@@ -1,8 +1,12 @@
 import { documentsApi } from "@/lib/api";
-import { DocumentStatus, getStatusInfo, getDocumentStatusFromHistory } from "@/lib/document-status";
-import { Document, StatusHistory } from "@/types";
+import { getDocumentStatusFromHistory, getStatusInfo } from "@/lib/document-status";
+import { Document } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Loader2, Trash, User } from "lucide-react";
+import { Calendar, ChevronRight, FileText, Layers, Loader2, Tag, Trash } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
+import { StatusHistoryPopover } from "./status-history-popover";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
@@ -13,19 +17,13 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import { Progress } from "./ui/progress";
-import { useToast } from "./ui/use-toast";
-import { formatDistanceToNow } from "date-fns";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "./ui/tooltip";
-import { useNavigate } from "react-router-dom";
-import { StatusHistoryPopover } from "./status-history-popover";
-import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
+import { useToast } from "./ui/use-toast";
 interface DocumentCardProps {
   doc: Document;
 }
@@ -82,37 +80,22 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   const ConverterIcon = MARKDOWN_CONVERTERS[doc.markdown_converter].icon
 
   return (
-    <Card key={doc.id} className="transition-shadow hover:shadow-md">
-      <CardHeader className="pb-2">
+    <Card key={doc.id} className="transition-all hover:shadow-md group">
+      <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-lg">{doc.title}</CardTitle>
-            {doc.uploaded_by && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Avatar className="w-6 h-6">
-                      <AvatarImage
-                        src={doc.uploaded_by.avatar || ''}
-                        alt={doc.uploaded_by.username || doc.uploaded_by.email}
-                      />
-                      <AvatarFallback>
-                        {getInitials(doc.uploaded_by.first_name && doc.uploaded_by.last_name
-                          ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
-                          : doc.uploaded_by.username)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Uploaded by {doc.uploaded_by.username || doc.uploaded_by.email}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
+            <CardTitle className="text-lg font-medium">{doc.title}</CardTitle>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="default">{statusInfo.label}</Badge>
-            {doc.status_history && doc.status_history.length > 0 && (
+            <Badge
+              variant="default"
+              className={`${statusInfo.label === 'Processing' ? 'bg-amber-500' :
+                statusInfo.label === 'Completed' ? 'bg-green-500' :
+                  statusInfo.label === 'Failed' ? 'bg-red-500' : ''}`}
+            >
+              {statusInfo.label}
+            </Badge>
+            {hasStatusHistory && (
               <StatusHistoryPopover
                 statusHistory={doc.status_history}
                 progress={statusInfo.progress}
@@ -120,62 +103,90 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             )}
           </div>
         </div>
-        <CardDescription>
-          {new Date(doc.created_at).toLocaleDateString()}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="mb-2 text-sm">
-          {doc.description || "No description available"}
-        </p>
-        {doc.status !== DocumentStatus.COMPLETED && !doc.is_failed && (
-          <div className="space-y-2">
-            <Progress value={statusInfo.progress} className="h-2" />
-            <div className="text-xs text-muted-foreground">
-              {completedStatuses.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {completedStatuses.map((statusChange: StatusHistory) => (
-                    <div key={statusChange.id} className="flex items-center justify-between">
-                      <span>{getStatusInfo(statusChange.status).label}</span>
-                      <span>{statusChange.changed_at && formatDistanceToNow(new Date(statusChange.changed_at), { addSuffix: true })}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-        <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-          <span>{doc.no_of_chunks || 0} chunks</span>
+        <div className="flex items-center justify-between mt-1">
+          <CardDescription className="flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5" />
+            {new Date(doc.created_at).toLocaleDateString()}
+          </CardDescription>
+          {doc.uploaded_by && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>By</span>
+                    <Avatar className="w-5 h-5">
+                      <AvatarImage
+                        src={doc.uploaded_by.avatar || ''}
+                        alt={doc.uploaded_by.username || doc.uploaded_by.email}
+                      />
+                      <AvatarFallback className="text-[10px]">
+                        {getInitials(doc.uploaded_by.first_name && doc.uploaded_by.last_name
+                          ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
+                          : doc.uploaded_by.username)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Uploaded by {doc.uploaded_by.username || doc.uploaded_by.email}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <span>{ConverterIcon && <ConverterIcon className="w-4 h-4" />}</span>
-          <span>{MARKDOWN_CONVERTERS[doc.markdown_converter].label || "No converter selected"}</span>
+      </CardHeader>
+      <CardContent className="pb-3">
+        {doc.description ? (
+          <p className="mb-3 text-sm text-muted-foreground">{doc.description}</p>
+        ) : (
+          <p className="mb-3 text-sm italic text-muted-foreground">No description available</p>
+        )}
+
+        <div className="grid grid-cols-2 text-xs gap-x-4 gap-y-2">
+          <div className="flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>{doc.no_of_chunks || 0} chunks</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {ConverterIcon && <ConverterIcon className="w-3.5 h-3.5 text-muted-foreground" />}
+            <span className="truncate">{MARKDOWN_CONVERTERS[doc.markdown_converter].label}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="truncate" title={doc.file_name}>{doc.file_name}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>{doc.file_type}</span>
+          </div>
         </div>
       </CardContent>
-      <CardFooter className="flex justify-between">
+      <CardFooter className="flex justify-between pt-2 border-t">
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
+          className="gap-1.5 group-hover:text-primary group-hover:font-medium transition-all"
           onClick={() => navigate(`/documents/${doc.id}`)}
         >
-          <FileText className="w-4 h-4 mr-2" />
-          View
+          View details
+          <ChevronRight className="w-4 h-4" />
         </Button>
-        <div className="flex space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-            onClick={() => handleDeleteMutation.mutate()}
-          >
-            {handleDeleteMutation.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Trash className="w-4 h-4" />
-            )}
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          onClick={() => handleDeleteMutation.mutate()}
+          disabled={handleDeleteMutation.isPending}
+        >
+          {handleDeleteMutation.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Trash className="w-4 h-4" />
+          )}
+        </Button>
       </CardFooter>
     </Card>
   );

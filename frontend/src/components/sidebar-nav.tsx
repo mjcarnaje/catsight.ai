@@ -57,11 +57,17 @@ export function SidebarNav() {
   return (
     <Sidebar className="border-r">
       <SidebarHeader className="flex items-center justify-between px-4 py-2">
-        <Link to="/dashboard" className="flex items-center gap-1">
-          <img src="/icon-transparent.png" alt="CATSight.AI" width={32} height={32} />
-          <span className="text-xl font-bold">
-            CATSight.AI
-          </span>
+        <Link to="/" className="flex items-center gap-1">
+          <div className="flex items-center gap-2 transition-transform duration-75 hover:scale-[1.01]">
+            <img
+              src="/icon.png"
+              alt="CATSight.AI Logo"
+              className="w-auto h-8"
+            />
+            <span className="text-xl font-bold text-transparent bg-gradient-to-r from-primary to-accent bg-clip-text">
+              CATSight.AI
+            </span>
+          </div>
         </Link>
       </SidebarHeader>
       <SidebarContent className="px-3 py-4">

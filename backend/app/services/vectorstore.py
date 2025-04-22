@@ -7,3 +7,5 @@ vector_store = PGVector(
     connection="postgresql+psycopg://postgres:postgres@db:5432/app_db",
     use_jsonb=True,
 )
+
+retriever = vector_store.as_retriever()
