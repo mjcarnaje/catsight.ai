@@ -200,3 +200,49 @@ class DocumentFullText(models.Model):
     
     def __str__(self):
         return f"{self.document} → {self.text[:100]}"
+
+class Chat(models.Model):
+    title = models.CharField(max_length=255)
+    document = models.ForeignKey(
+        Document, 
+        on_delete=models.CASCADE, 
+        related_name='chats',
+        null=True,
+        blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    user = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='chats'
+    )
+
+    class Meta:
+        ordering = ['-updated_at']
+        indexes = [models.Index(fields=['updated_at'])]
+
+    def __str__(self):
+        return f"{self.title} - {self.user.email}"
+    
+    @property
+    def messages_count(self):
+        return self.messages.count()
+
+
+class ChatMessage(models.Model):
+    chat = models.ForeignKey(
+        Chat,
+        on_delete=models.CASCADE,
+        related_name='messages'
+    )
+    content = models.TextField()
+    is_user = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['created_at']
+    
+    def __str__(self):
+        prefix = "User" if self.is_user else "AI"
+        return f"[{prefix}] {self.content[:50]}..."
