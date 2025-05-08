@@ -230,6 +230,9 @@ docker-compose down -v
 
 # Prune all containers
 docker system prune -a -f
+
+# Build and start all services
+docker-compose up -d --build
 ```
 
 ### Model Management
@@ -238,7 +241,8 @@ docker system prune -a -f
 
 ```bash
 docker-compose exec ollama ollama pull llama3.2:1b
-docker-compose exec ollama ollama pull deepseek-r1:1.5b
+docker-compose exec ollama ollama pull qwen3:1.7b
+docker-compose exec ollama ollama pull hermes3:3b
 docker-compose exec ollama ollama pull bge-m3
 ```
 
@@ -248,4 +252,18 @@ For air-gapped environments, you can prefetch Docling models:
 
 ```bash
 docling-tools models download
+```
+
+```bash
+docker-compose exec backend python manage.py makemigrations app --empty --name remove_deepseek_model
+```
+
+```bash
+docker-compose exec backend python manage.py migrate
+```
+
+To clean the database, run:
+
+```bash
+docker-compose exec backend python manage.py flush
 ```

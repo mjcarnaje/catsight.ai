@@ -31,3 +31,8 @@ google-auth-oauthlib
 langgraph
 docling
 ipython
+langgraph-supervisor
+langgraph-checkpoint
+langgraph-checkpoint-postgres
+langchain-community
+langchain-core

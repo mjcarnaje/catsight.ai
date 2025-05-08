@@ -2,7 +2,6 @@ import logging
 
 from celery import chain
 from celery.result import AsyncResult
-from django.db.models import F
 from django.http import FileResponse, StreamingHttpResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, parser_classes, permission_classes
@@ -10,8 +9,8 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
-from ..models import Document, DocumentFullText
-from ..serializers import DocumentSerializer
+from ..models import Document, DocumentFullText, Chat
+from ..serializers import DocumentSerializer, ChatSerializer
 from ..tasks.tasks import (generate_document_summary_task,
                           extract_text_task,
                           chunk_and_embed_text_task,
@@ -20,14 +19,15 @@ from ..utils.extractor import make_snippet
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsSuperAdmin, IsOwnerOrAdmin, AllowAny
 from ..services.vectorstore import vector_store
-
-from ..services.chat_agent import graph
+from ..services.chat_agent import catsight_agent
 from ..models import DocumentStatus
 import json
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.runnables.graph_mermaid import MermaidDrawMethod
 from langchain_core.documents import Document as LangchainDocument
 from IPython.display import Image
+from ..utils import pretty_print_messages
+
 logger = logging.getLogger(__name__)
 
 @api_view(['GET'])
@@ -391,6 +391,32 @@ def _make_serializable(obj):
         return {k: _make_serializable(v) for k, v in obj.items()}
     if isinstance(obj, LangchainDocument):
         return _serialize_document(obj)
+    print(obj)
+    if isinstance(obj, (HumanMessage, AIMessage, ToolMessage)):
+        message_type = "human"
+        content = getattr(obj, "content", "")
+
+        if isinstance(obj, AIMessage):
+            message_type = "ai"
+        elif isinstance(obj, ToolMessage):
+            message_type = "tool"
+            content = getattr(obj, "name", "")
+            
+        result = {
+            "role": message_type,
+            "content": content,
+            "id": getattr(obj, "id", None),
+            "additional_kwargs": getattr(obj, "additional_kwargs", {}),
+        }
+        
+        # Add tool-specific fields for ToolMessage
+        if isinstance(obj, ToolMessage):
+            result.update({
+                "name": getattr(obj, "name", ""),
+                "tool_call_id": getattr(obj, "tool_call_id", "")
+            })
+            
+        return result
     # fallback for any other Document‐like object
     if hasattr(obj, "page_content") and hasattr(obj, "metadata"):
         return {
@@ -402,85 +428,66 @@ def _make_serializable(obj):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def chat_with_docs(request):
-    query = request.data.get("query")
+    """
+    Chat with documents endpoint that uses LangGraph with PostgreSQL persistence.
+    Streams AI responses using Server-Sent Events (SSE) protocol.
+    """
+    body = request.data
+    if not body:
+        return Response({"error": "No body provided"}, status=400)
     
-    if not query:
-        return Response({"error": "Query parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-    inputs = {"messages": [HumanMessage(content=query)]}
-
+    query = body.get("query")
+    if not query or not isinstance(query, str) or not query.strip():
+        return Response({"error": "Valid query parameter is required"}, status=400)
+    
+    model_id = body.get("model_id", "llama3.2:1b")  # Default model if not specified
+    chat_id = body.get("chat_id")  # Get chat_id if continuing an existing chat
+        
     def event_stream():
-        full_content = ""
-        response_context = None
-
-        print(f"Chat inputs: {inputs}")
-
-        for chunk in graph.stream(inputs, stream_mode='values'):
-            print(f"CHUNK: {chunk}")
-            
-            part = ""
-            if isinstance(chunk, AIMessage):
-                part = chunk.content
-            elif isinstance(chunk, dict):
-                # check for an AIMessage embedded in chunk["messages"]
-                for msg in chunk.get("messages", []):
-                    if isinstance(msg, AIMessage):
-                        part = msg.content
-                        break
-
-                # if there was no embedded AIMessage, fall back to any chunk["content"]
-                if not part:
-                    part = chunk.get("content", "") or ""
-
-                # grab any context they sent
-                if "context" in chunk:
-                    response_context = chunk["context"]
-            else:
-                continue
-
-            full_content += part
-
-            payload = {"content": part}
-            if response_context:
-                try:
-                    serialized = _make_serializable(response_context)
-                    # cap at first 3 items
-                    if isinstance(serialized, list) and len(serialized) > 3:
-                        serialized = serialized[:3]
-                    payload["context"] = serialized
-                except Exception as e:
-                    print(f"Error serializing context: {e}")
-
-            try:
-                yield f"data: {json.dumps(payload)}\n\n"
-            except Exception as e:
-                print(f"Error serializing payload: {e}")
-                # fallback without context
-                yield f"data: {json.dumps({'content': part})}\n\n"
-
-        # final payload (in case context arrived only at the very end)
-        if not response_context and hasattr(graph, 'last_response'):
-            last = getattr(graph, 'last_response')
-            if hasattr(last, 'context'):
-                response_context = last.context
-
-        # Only send the final message if it contains more information
-        # Don't send duplicate content
-        if response_context:
-            try:
-                serialized = _make_serializable(response_context)
-                if isinstance(serialized, list) and len(serialized) > 3:
-                    serialized = serialized[:3]
-                
-                # Send only the finished flag without repeating content
-                yield f"data: {json.dumps({'finished': True, 'context': serialized})}\n\n"
-            except Exception as e:
-                print(f"Error serializing final context: {e}")
-                yield f"data: {json.dumps({'finished': True})}\n\n"
+        nonlocal chat_id
+        # Initialize or retrieve chat record
+        if not chat_id:
+            chat = Chat.objects.create(user=request.user, title="Untitled")
+            chat_id = str(chat.id)
         else:
-            yield f"data: {json.dumps({'finished': True})}\n\n"
+            chat = Chat.objects.filter(id=chat_id, user=request.user).first()
+            if not chat:
+                yield f"event: error\ndata: {{\"error\": \"Chat not found: {chat_id}\"}}\n\n"
+                return
 
-    return StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+        yield f"event: start\ndata: {{\"chat_id\": \"{chat_id}\"}}\n\n"
+
+        thread_id = f"thread_{chat_id}"
+        config = {"configurable": {"model": model_id, "thread_id": thread_id}}
+
+        # Build initial input messages list
+        human_msg = HumanMessage(content=query)
+        input_messages = [human_msg]
+        input_state = {"current_query": query, "messages": input_messages}
+
+        try:
+            for state in catsight_agent.stream(
+                input=input_state,
+                config=config,
+                stream_mode="values"
+            ):
+                serializable_state = _make_serializable(state)
+                                    
+                # Send update event
+                yield f"event: update\ndata: {json.dumps({'delta': serializable_state})}\n\n"
+        
+        except Exception as e:
+            logger.error(f"Error streaming response: {str(e)}", exc_info=True)
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+        
+        # 9) End of stream
+        yield "event: done\ndata: {}\n\n"
+    
+    # Return streaming response
+    return StreamingHttpResponse(
+        event_stream(),
+        content_type="text/event-stream"
+    )
 
 # GET /api/documents/graph
 @api_view(['GET'])
@@ -488,7 +495,7 @@ def chat_with_docs(request):
 def get_graph(request):
     try:
         # Get the Mermaid string directly instead of rendering to PNG
-        mermaid_text = graph.get_graph().draw_mermaid()
+        mermaid_text = catsight_agent.get_graph().draw_mermaid()
         
         # Return the Mermaid text in a JSON response
         return Response({
@@ -500,5 +507,67 @@ def get_graph(request):
         logger.error(f"Error getting graph: {str(e)}")
         return Response(
             {"error": f"Failed to get graph: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_chat_history(request, chat_id):
+    """
+    Retrieve chat history for a specific chat_id using LangGraph's state.
+    """
+    try:
+        # Configure thread_id based on chat_id
+        thread_id = f"thread_{chat_id}"
+        config = {"configurable": {"thread_id": thread_id}}
+        
+        # Get the state from LangGraph
+        try:
+            saved_state = catsight_agent.get_state(config)
+            messages = saved_state.values["messages"]
+            
+            # Get the model ID from the config if available
+            model_id = config.get("configurable", {}).get("model", "llama3.2:1b")
+                        
+            # Filter out tool messages and format for frontend
+            formatted_messages = []
+            is_previous_tool_message = False
+            sources = []
+            for msg in messages:
+                msg.pretty_print()
+                role = "user" if isinstance(msg, HumanMessage) else "tool" if isinstance(msg, ToolMessage) else "assistant"
+
+                content = getattr(msg, "content", "")
+                
+                if isinstance(msg, ToolMessage):
+                    is_previous_tool_message = True
+                    sources = json.loads(content)
+                    print(sources)
+                    continue
+
+                formatted_messages.append({
+                    "id": getattr(msg, "id", f"{role}-{len(formatted_messages)}"),
+                    "role": role,
+                    "content": content,
+                    "timestamp": getattr(msg, "additional_kwargs", {}).get("timestamp", ""),
+                    "sources": sources if is_previous_tool_message else []
+                })
+
+                is_previous_tool_message = False
+
+            return Response({
+                "messages": formatted_messages,
+                "model_id": model_id,
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error retrieving chat history: {str(e)}")
+            return Response(
+                {"error": f"Failed to retrieve chat history: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    except Exception as e:
+        logger.error(f"Error in get_chat_history: {str(e)}")
+        return Response(
+            {"error": f"Error: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

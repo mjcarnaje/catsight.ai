@@ -1,6 +1,6 @@
 ---
-description:
-globs:
+description: 
+globs: 
 alwaysApply: true
 ---
 
@@ -8,3 +8,4 @@ alwaysApply: true
 
 - You can @ files here
 - You can use markdown but dont have to
+- Use always react-query with [api.ts](mdc:frontend/src/lib/api.ts) and make to include the typings, just refer to the [models.py](mdc:backend/app/models.py) and put it in /frontend/src/types if not yet in the folder.

@@ -127,14 +127,17 @@ export const useGoogleAuth = (options?: { onSuccess?: () => void }) => {
     mutationFn: (code: string) => authApi.googleAuth(code),
     onSuccess: (data) => {
       // Handle token format from Google auth response
-      const { tokens, user } = data;
-      if (tokens) {
-        // Backend returns tokens object
-        localStorage.setItem("access_token", tokens.access);
-        localStorage.setItem("refresh_token", tokens.refresh);
+      if (data.tokens) {
+        // Store tokens in localStorage
+        localStorage.setItem("access_token", data.tokens.access);
+        localStorage.setItem("refresh_token", data.tokens.refresh);
       }
-      localStorage.setItem("user", JSON.stringify(user || data.user));
-      queryClient.setQueryData(["user"], user || data.user);
+
+      // Store user data
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+        queryClient.setQueryData(["user"], data.user);
+      }
 
       if (options?.onSuccess) {
         options.onSuccess();

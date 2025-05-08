@@ -1,11 +1,13 @@
-FROM python:3.11
+FROM python:3.11-slim AS builder
 
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on
 
 WORKDIR /usr/src/app
 
-# Install common build dependencies and Chromium dependencies for Pyppeteer
+# Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     python3-dev \
@@ -14,6 +16,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     libssl-dev \
     curl \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+COPY requirements.txt .
+RUN pip install --upgrade pip
+RUN pip install --user --upgrade pip setuptools wheel \
+    && pip install --user -r requirements.txt
+
+# Final stage
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /usr/src/app
+
+# Copy installed packages from builder stage
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
+
+# Install runtime dependencies including Chromium dependencies for Pyppeteer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libyaml-0-2 \
     # Chromium dependencies
     gconf-service \
     libasound2 \
@@ -34,17 +61,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-
-# Upgrade pip and friends before installing packages
-RUN pip install --upgrade pip setuptools wheel
-
-# Install dependencies with binary preference
-RUN pip install --prefer-binary -r requirements.txt
-# Install Pyppeteer
-RUN pip install pyppeteer
-
+# Copy application code
 COPY . .
 
-# Default command if none is provided in docker-compose
+# Default command
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]

@@ -19,56 +19,25 @@ export type Model = {
   isFavorite?: boolean
 }
 
-// Fallback models in case API fails
-const fallbackModels: Model[] = [
-  {
-    id: "gpt-4o",
-    name: "GPT-4o",
-    description: "Most capable model for complex tasks"
-  },
-  {
-    id: "gemini-2.5-flash",
-    name: "Gemini 2.5 Flash",
-    description: "Fast responses with good quality"
-  },
-  {
-    id: "claude-3.5-sonnet",
-    name: "Claude 3.5 Sonnet",
-    description: "Balanced performance and speed"
-  },
-  {
-    id: "gpt-3.5-turbo",
-    name: "GPT-3.5 Turbo",
-    description: "Fast and efficient for simple tasks"
-  }
-]
-
 interface ModelSelectorProps {
-  models?: Model[]
-  defaultModelId?: string
+  modelId?: string | null
   onModelChange: (model: Model) => void
 }
 
 export function ModelSelector({
-  models: propModels,
-  defaultModelId = "gemini-2.5-flash",
+  modelId,
   onModelChange
 }: ModelSelectorProps) {
   const { data: user } = useUser();
   const [loading, setLoading] = useState(false);
-  const [models, setModels] = useState<Model[]>(propModels || []);
+  const [error, setError] = useState<string | null>(null);
+  const [models, setModels] = useState<Model[]>([]);
   const [selectedModel, setSelectedModel] = useState<Model | null>(null);
 
   useEffect(() => {
-    // If models are provided via props, use them
-    if (propModels?.length) {
-      setModels(propModels);
-      return;
-    }
-
-    // Otherwise fetch models from API
     const fetchModels = async () => {
       setLoading(true);
+      setError(null);
       try {
         const apiModels = await llmApi.getAll();
 
@@ -90,26 +59,37 @@ export function ModelSelector({
         setModels(transformedModels);
       } catch (error) {
         console.error("Failed to fetch models:", error);
-        setModels(fallbackModels);
+        setError("Failed to load models. Please try again.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchModels();
-  }, [user, propModels]);
+  }, [user]);
 
   // Set initial selected model when models are loaded
   useEffect(() => {
     if (models.length && !selectedModel) {
-      // First try to find default model
-      const defaultModel = models.find(model => model.id === defaultModelId);
-      // If default not found, prefer first favorite model or first model
-      const initialModel = defaultModel || models.find(m => m.isFavorite) || models[0];
-      setSelectedModel(initialModel);
-      onModelChange(initialModel);
+      let initialModel: Model | undefined;
+
+      // If modelId is provided, try to find it in the models list
+      if (modelId) {
+        initialModel = models.find(model => model.id === modelId);
+      }
+
+      // If no model with modelId was found or no modelId was provided
+      if (!initialModel) {
+        // Try to find a favorite model or use the first model
+        initialModel = models.find(m => m.isFavorite) || models[0];
+      }
+
+      if (initialModel) {
+        setSelectedModel(initialModel);
+        onModelChange(initialModel);
+      }
     }
-  }, [models, defaultModelId, selectedModel, onModelChange]);
+  }, [models, modelId, selectedModel, onModelChange]);
 
   const handleModelSelect = (model: Model) => {
     setSelectedModel(model);
@@ -125,12 +105,20 @@ export function ModelSelector({
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-red-700">
+        <span>Error: {error}</span>
+      </div>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus:outline-none">
+        <button className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">
           {selectedModel.name}
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className="w-4 h-4 ml-1" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[180px]">

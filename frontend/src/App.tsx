@@ -9,13 +9,16 @@ import RegisterPage from "./pages/auth/register";
 import ChatPage from "./pages/chat/chat";
 import DashboardPage from "./pages/dashboard/dashboard";
 import DocumentsPage from "./pages/documents/documents";
-import { DocumentEditPage } from "./pages/documents/edit-viewer";
-import { DocumentViewPage } from "./pages/documents/view-document";
+import { EditDocumentPage } from "./pages/documents/edit-document-page";
+import { DocumentPdfPage } from "./pages/documents/document-pdf";
+import { DocumentMarkdownPage } from "./pages/documents/document-markdown";
+import { DocumentComparisonPage } from "./pages/documents/document-comparison";
 import { LandingPage } from "./pages/landing/landing";
 import { PrivacyPolicyPage } from "./pages/landing/privacy-policty";
 import { TermsAndConditionPage } from "./pages/landing/terms-and-condition";
 import { SearchPage } from "./pages/search";
 import SettingsPage from "./pages/settings/settings";
+import { DocumentViewPage } from "./pages/documents/view-document";
 
 const queryClient = new QueryClient();
 
@@ -59,7 +62,7 @@ export default function App() {
                 path="/documents/:id"
                 element={
                   <ProtectedRoute>
-                    <div className="p-8">
+                    <div className="w-full max-w-6xl p-8 mx-auto">
                       <DocumentViewPage />
                     </div>
                   </ProtectedRoute>
@@ -71,7 +74,40 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <div className="p-8">
-                      <DocumentEditPage />
+                      <EditDocumentPage />
+                    </div>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/documents/:id/pdf"
+                element={
+                  <ProtectedRoute>
+                    <div className="w-full max-w-6xl p-8 mx-auto">
+                      <DocumentPdfPage />
+                    </div>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/documents/:id/markdown"
+                element={
+                  <ProtectedRoute>
+                    <div className="w-full max-w-6xl p-8 mx-auto">
+                      <DocumentMarkdownPage />
+                    </div>
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/documents/:id/comparison"
+                element={
+                  <ProtectedRoute>
+                    <div className="p-8">
+                      <DocumentComparisonPage />
                     </div>
                   </ProtectedRoute>
                 }
@@ -79,6 +115,14 @@ export default function App() {
 
               <Route
                 path="/chat"
+                element={
+                  <ProtectedRoute>
+                    <ChatPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chat/:id"
                 element={
                   <ProtectedRoute>
                     <ChatPage />
