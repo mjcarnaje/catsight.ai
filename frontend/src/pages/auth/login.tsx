@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { authApi, LoginCredentials, useGoogleAuth } from "@/lib/auth"
-import { useMutation } from "@tanstack/react-query"
+import { authApi, LoginCredentials, useGoogleAuth, useLogin } from "@/lib/auth"
 import { useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import axios from "axios"
 
 // Google OAuth Client ID from environment variables
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
@@ -23,8 +23,14 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { toast } = useToast()
-  const [email, setEmail] = useState("michaeljamescarnaje1@g.msuiit.edu.ph")
+  const [email, setEmail] = useState("michealjamescarnaje1@g.msuiit.edu.ph")
   const [password, setPassword] = useState("asdfasdf")
+  const [loginError, setLoginError] = useState("")
+
+  // Clear any previous errors when form changes
+  useEffect(() => {
+    setLoginError("")
+  }, [email, password])
 
   // Handle Google OAuth redirect
   useEffect(() => {
@@ -34,22 +40,7 @@ export default function LoginPage() {
     }
   }, [])
 
-  const login = useMutation({
-    mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
-    onSuccess: (data) => {
-      localStorage.setItem("access_token", data.tokens.access);
-      localStorage.setItem("refresh_token", data.tokens.refresh);
-      localStorage.setItem("user", JSON.stringify(data.user));
-      navigate("/dashboard");
-    },
-    onError: (error) => {
-      toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive",
-      })
-    }
-  });
+  const login = useLogin();
 
   const googleAuth = useGoogleAuth({
     onSuccess: () => {
@@ -59,9 +50,11 @@ export default function LoginPage() {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoginError("")
 
     // Check if email has the required domain
     if (!email.endsWith("@g.msuiit.edu.ph")) {
+      setLoginError("Only @g.msuiit.edu.ph email addresses are allowed.")
       toast({
         title: "Invalid email",
         description: "Only @g.msuiit.edu.ph email addresses are allowed.",
@@ -71,12 +64,44 @@ export default function LoginPage() {
     }
 
     try {
-      await login.mutateAsync({ email, password })
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error
-        ? error.message
-        : (error as { response?: { data?: { message?: string } } })?.response?.data?.message || "An error occurred during login"
+      console.log("Attempting login with:", { email, password: "********" })
 
+      // Try direct API call first to see the raw response
+      try {
+        const response = await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/auth/login`,
+          { email, password },
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+        console.log("Direct API response:", response.data)
+      } catch (directError) {
+        console.error("Direct API error:", directError)
+        if (axios.isAxiosError(directError)) {
+          console.error("Response data:", directError.response?.data)
+        }
+      }
+
+      // Now use the hook
+      await login.mutateAsync({ email, password })
+      navigate("/dashboard");
+    } catch (error: unknown) {
+      console.error("Login error:", error)
+
+      let errorMessage = "Authentication failed. Please check your credentials."
+
+      if (axios.isAxiosError(error)) {
+        // Get detailed error message from the axios error
+        errorMessage = error.response?.data?.detail ||
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          "Authentication failed. Please check your credentials."
+
+        console.error("Response status:", error.response?.status)
+        console.error("Response data:", error.response?.data)
+      } else if (error instanceof Error) {
+        errorMessage = error.message
+      }
+
+      setLoginError(errorMessage)
       toast({
         title: "Login failed",
         description: errorMessage,
@@ -96,9 +121,7 @@ export default function LoginPage() {
   const handleGoogleCallback = async (code: string) => {
     try {
       await googleAuth.mutateAsync(code)
-
-      // Clear the URL after successful login
-      navigate("/login")
+      // Navigation is handled in the onSuccess callback of useGoogleAuth
     } catch (error) {
       const errorMessage = error instanceof Error
         ? error.message
@@ -167,6 +190,11 @@ export default function LoginPage() {
                     required
                   />
                 </div>
+                {loginError && (
+                  <div className="text-sm text-destructive">
+                    {loginError}
+                  </div>
+                )}
                 <Button type="submit" className="w-full" disabled={login.isPending}>
                   {login.isPending ? "Signing in..." : "Sign In"}
                 </Button>

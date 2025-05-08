@@ -22,6 +22,7 @@ The CATSight.AI Backend is a comprehensive system designed to process, analyze, 
 - **Interactive Chat Interface**: Engage with the document collection through a chat interface powered by Llama 3.2, supporting contextual conversations.
 - **Enhanced Search Workflow**: Incorporate query embeddings, similarity search, and result re-ranking to provide highly relevant search results.
 - **Context-Aware Chat Responses**: Retrieve relevant context vectors for user messages and generate informed responses using Llama 3.2.
+- **Persistent Chat History**: Store chat interactions in PostgreSQL using LangGraph's checkpointing system, enabling continuous conversations across sessions.
 
 ## Prerequisites
 
@@ -87,7 +88,7 @@ flowchart TB
     ReRank --> SearchResults[Return search results]
 
     User --> Chat[Interact via chat interface powered by Llama 3.2]
-    Chat --> ChatHistory[Manage conversation history]
+    Chat --> ChatHistory[Manage conversation history with PostgreSQL persistence]
     ChatHistory --> ChatEmbedding[Generate message embedding with bge-m3]
     ChatEmbedding --> ContextRetrieval[Retrieve relevant vectors from Storage]
     ContextRetrieval --> Storage

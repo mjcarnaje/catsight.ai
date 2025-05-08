@@ -29,6 +29,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    console.log(`API error:`, {
+      url: originalRequest?.url,
+      status: error.response?.status,
+      message: error.message,
+    });
+
     // Only try to refresh token if:
     // 1. Response is a 401 (unauthorized)
     // 2. We haven't tried to refresh for this request yet
@@ -38,11 +44,13 @@ api.interceptors.response.use(
       !originalRequest._retry &&
       !originalRequest.url?.includes("/auth/token/refresh")
     ) {
+      console.log("Token appears to be expired, attempting to refresh...");
       originalRequest._retry = true;
 
       try {
         const refreshToken = localStorage.getItem("refresh_token");
         if (!refreshToken) {
+          console.error("No refresh token available");
           throw new Error("No refresh token available");
         }
 
@@ -56,6 +64,7 @@ api.interceptors.response.use(
 
         // Check if we received the expected response format
         if (tokenResponse.data.access) {
+          console.log("Token refreshed successfully");
           // Store the new tokens
           localStorage.setItem("access_token", tokenResponse.data.access);
 
@@ -63,9 +72,11 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${tokenResponse.data.access}`;
           return axios(originalRequest);
         } else {
+          console.error("Invalid token response format", tokenResponse.data);
           throw new Error("Invalid token response format");
         }
       } catch (error) {
+        console.error("Token refresh failed:", error);
         // If refresh fails, logout user
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
@@ -107,15 +118,51 @@ export interface SearchResult {
 }
 
 export const chatsApi = {
-  getRecent: (limit: number = 5) =>
-    api.get<Chat[]>("/chats/recent", { params: { limit } }),
+  getRecent: (limit: number = 5) => {
+    console.log(`Fetching recent chats with limit: ${limit}`);
+    return api
+      .get<Chat[]>("/chats/recent", {
+        params: { limit },
+      })
+      .then((response) => {
+        console.log(`Received ${response.data.length} chats`);
+        return response;
+      })
+      .catch((error) => {
+        console.error("Error fetching recent chats:", error);
+        throw error;
+      });
+  },
 
-  getOne: (id: number) => api.get<Chat>(`/chats/${id}`),
+  getOne: (id: number) => {
+    console.log(`Fetching chat with ID: ${id}`);
+    return api
+      .get<Chat>(`/chats/${id}`)
+      .then((response) => {
+        console.log(`Retrieved chat ${id} successfully`);
+        return response;
+      })
+      .catch((error) => {
+        console.error(`Error fetching chat ${id}:`, error);
+        throw error;
+      });
+  },
+
+  getHistory: (chatId: number) => {
+    console.log(`Fetching chat history from LangGraph for chat ID: ${chatId}`);
+    return api
+      .get(`/chats/${chatId}/history`)
+      .then((response) => response)
+      .catch((error) => {
+        console.error(`Error fetching chat history for ${chatId}:`, error);
+        throw error;
+      });
+  },
 
   getMessages: (chatId: number) => api.get(`/chats/${chatId}/messages`),
 
   create: (data: { title: string; document_id?: number }) =>
-    api.post<Chat>("/chats", data),
+    api.post<Chat>("/chats/create", data),
 
   update: (id: number, data: { title: string }) =>
     api.patch<Chat>(`/chats/${id}/update`, data),

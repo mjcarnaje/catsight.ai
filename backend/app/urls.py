@@ -19,22 +19,22 @@ from .views.documents import (
     chat_with_docs,
     delete_all_docs,
     get_graph,
+    get_chat_history,
 )
 from .views.llm import (
     get_llm_models,
     get_llm_model,
 )
 from .views.chats import (
+    get_chats,
     get_recent_chats,
     get_chat,
-    get_chat_messages,
     create_chat,
-    update_chat,
     delete_chat,
 )
 
 urlpatterns = [
-    # Authentication URLs
+    # Authentication U RLs
     path('auth/register', RegisterView.as_view(), name='register'),
     path('auth/login', LoginView.as_view(), name='login'),
     path('auth/google', GoogleAuthView.as_view(), name='google_auth'),
@@ -58,12 +58,12 @@ urlpatterns = [
     path('documents/chat', chat_with_docs, name='chat_with_docs'),
     path('documents/delete_all', delete_all_docs, name='delete_all_docs'),
     path('documents/graph', get_graph, name='get_graph'),
+    path('chats/<str:chat_id>/history', get_chat_history, name='get_chat_history'),
     
     # Chat URLs
+    path('chats', get_chats, name='get_chats'),
     path('chats/recent', get_recent_chats, name='get_recent_chats'),
     path('chats/<int:chat_id>', get_chat, name='get_chat'),
-    path('chats/<int:chat_id>/messages', get_chat_messages, name='get_chat_messages'),
-    path('chats', create_chat, name='create_chat'),
-    path('chats/<int:chat_id>/update', update_chat, name='update_chat'),
+    path('chats/create', create_chat, name='create_chat'),
     path('chats/<int:chat_id>/delete', delete_chat, name='delete_chat'),
 ]

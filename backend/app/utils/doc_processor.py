@@ -2,7 +2,7 @@ import logging
 from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
-from ..services.ollama import OLLAMA_CHAT
+from ..services.ollama import LLAMA_CHAT
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class DocumentProcessor:
             "Your task: Generate a title and summary for the given input text below."
         )
 
-        llm = OLLAMA_CHAT
+        llm = LLAMA_CHAT
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=f"Text: {text}\n\nProvide the title and summary below:")
