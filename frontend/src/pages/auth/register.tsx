@@ -85,48 +85,51 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex items-center justify-center h-screen">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
-          <CardDescription>Sign up to access the document management system</CardDescription>
+    <div className="flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
+      <Card className="w-full max-w-sm shadow-lg sm:max-w-md lg:max-w-lg">
+        <CardHeader className="pb-4 space-y-1 text-center">
+          <CardTitle className="text-xl font-bold sm:text-2xl">Create an Account</CardTitle>
+          <CardDescription className="text-sm">Sign up to access the document management system</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleRegister} className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
+          <form onSubmit={handleRegister} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="firstName" className="text-sm">First Name</Label>
                 <Input
                   id="firstName"
                   placeholder="First Name"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   required
+                  className="h-9"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="lastName" className="text-sm">Last Name</Label>
                 <Input
                   id="lastName"
                   placeholder="Last Name"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   required
+                  className="h-9"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="username" className="text-sm">Username</Label>
               <Input
                 id="username"
                 placeholder="Username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
+                className="h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-sm">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -134,41 +137,44 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-sm">Password</Label>
               <Input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="confirmPassword" className="text-sm">Confirm Password</Label>
               <Input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                className="h-9"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={register.isPending}>
+            <Button type="submit" className="w-full mt-2 h-9" disabled={register.isPending}>
               {register.isPending ? "Creating Account..." : "Create Account"}
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex flex-col">
-          <div className="mt-4 text-sm text-center">
+        <CardFooter className="flex flex-col pb-6">
+          <div className="text-sm text-center">
             Already have an account?{" "}
             <Link to="/login" className="text-primary hover:underline">
               Sign in
             </Link>
           </div>
-          <p className="mt-4 text-xs text-center text-muted-foreground">
+          <p className="mt-3 text-xs text-center text-muted-foreground">
             Only users with @g.msuiit.edu.ph email addresses are allowed access.
           </p>
         </CardFooter>

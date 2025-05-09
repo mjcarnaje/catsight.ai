@@ -306,7 +306,7 @@ export function DocPdfViewer({ id }: { id: string }) {
   const { isLoading, data: blobUrl } = useQuery({
     queryKey: ["pdf", id],
     queryFn: async () => {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/documents/${id}/raw`, {
+      const res = await fetch(`/api/documents/${id}/raw`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },

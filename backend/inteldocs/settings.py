@@ -31,6 +31,9 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
+    "backend:8000",
+    "backend",
+    "192.168.254.113"
 ]
 
 
@@ -176,7 +179,6 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=False
 CORS_ALLOW_ALL_ORIGINS = True 
 CORS_ALLOW_CREDENTIALS = True
-ALLOWED_HOSTS = ['192.168.254.113']
 CORS_ALLOWED_ORIGINS = []
 
 # Logging Configuration

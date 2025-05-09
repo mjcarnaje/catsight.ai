@@ -1,8 +1,8 @@
 // hooks/useChatStream.ts
-import { generateId } from "@/lib/utils";
-import { useRef, useCallback, useState, useEffect } from "react";
 import { useChatContext } from "@/contexts/ChatContext";
+import { generateId } from "@/lib/utils";
 import { Chat } from "@/types";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Delta {
   chat_id?: string;
@@ -78,7 +78,7 @@ export function useChatStream(
       currentMessagesRef.current = [...currentMessagesRef.current, userMessage];
 
       // select endpoint
-      const url = `${import.meta.env.VITE_API_URL}/api/documents/chat`;
+      const url = `/api/documents/chat`;
 
       fetch(url, {
         method: "POST",

@@ -14,10 +14,8 @@ import axios from "axios"
 import { useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
-// Google OAuth Client ID from environment variables
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
-// Must match exactly with what's configured in Google Cloud Console
-const REDIRECT_URI = import.meta.env.VITE_REDIRECT_URL || "http://localhost:3000/auth/login";
+const GOOGLE_CLIENT_ID = "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
+const REDIRECT_URI = "https://catsightai.ngrok.app/auth/login"
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -68,7 +66,7 @@ export default function LoginPage() {
 
       // Try direct API call first to see the raw response
       try {
-        const response = await axios.post(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/auth/login`,
+        const response = await axios.post("/api/auth/login",
           { email, password },
           { headers: { 'Content-Type': 'application/json' } }
         )
@@ -139,22 +137,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center w-full h-screen">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
+    <div className="flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
+      <Card className="w-full max-w-sm shadow-lg sm:max-w-md lg:max-w-lg">
+        <CardHeader className="pb-4 space-y-1 text-center">
           <CardTitle className="flex items-center justify-center">
             <div className="flex items-center gap-2 transition-transform duration-75 hover:scale-[1.01]">
               <img
                 src="/icon.png"
                 alt="CATSight.AI Logo"
-                className="w-auto h-8"
+                className="w-auto h-7 sm:h-8"
               />
-              <span className="text-xl font-bold text-transparent bg-gradient-to-r from-primary to-accent bg-clip-text">
+              <span className="text-lg font-bold text-transparent sm:text-xl bg-gradient-to-r from-primary to-accent bg-clip-text">
                 CATSight.AI
               </span>
             </div>
           </CardTitle>
-          <CardDescription>Sign in to access the document management system</CardDescription>
+          <CardDescription className="text-sm">Sign in to access the document management system</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="email" className="w-full">
@@ -163,9 +161,9 @@ export default function LoginPage() {
               <TabsTrigger value="google">Google</TabsTrigger>
             </TabsList>
             <TabsContent value="email">
-              <form onSubmit={handleEmailLogin} className="mt-4 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+              <form onSubmit={handleEmailLogin} className="mt-3 space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-sm">Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -173,12 +171,13 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className="h-9"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <Button variant="link" className="px-0 text-xs">
+                    <Label htmlFor="password" className="text-sm">Password</Label>
+                    <Button variant="link" className="h-auto px-0 py-0 text-xs">
                       Forgot password?
                     </Button>
                   </div>
@@ -188,6 +187,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    className="h-9"
                   />
                 </div>
                 {loginError && (
@@ -195,34 +195,33 @@ export default function LoginPage() {
                     {loginError}
                   </div>
                 )}
-                <Button type="submit" className="w-full" disabled={login.isPending}>
+                <Button type="submit" className="w-full mt-2 h-9" disabled={login.isPending}>
                   {login.isPending ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
             </TabsContent>
             <TabsContent value="google">
-              <div className="mt-4 space-y-4">
+              <div className="mt-3 space-y-4">
                 <p className="text-sm text-center text-muted-foreground">Sign in with your MSU-IIT Google account</p>
-                <Button onClick={handleGoogleLogin} className="w-full" variant="outline" disabled={googleAuth.isPending}>
+                <Button onClick={handleGoogleLogin} className="w-full h-9" variant="outline" disabled={googleAuth.isPending}>
                   {googleAuth.isPending ? "Signing in..." : "Sign in with Google"}
                 </Button>
               </div>
             </TabsContent>
           </Tabs>
         </CardContent>
-        <CardFooter className="flex flex-col">
-          <div className="mt-4 text-sm text-center">
+        <CardFooter className="flex flex-col pb-6">
+          <div className="text-sm text-center">
             Don't have an account?{" "}
             <Link to="/register" className="text-primary hover:underline">
               Sign up
             </Link>
           </div>
-          <p className="mt-4 text-xs text-center text-muted-foreground">
+          <p className="mt-3 text-xs text-center text-muted-foreground">
             Only users with @g.msuiit.edu.ph email addresses are allowed access.
           </p>
         </CardFooter>
       </Card>
     </div>
-
   )
 }

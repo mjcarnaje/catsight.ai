@@ -719,3 +719,19 @@ def regenerate_preview(request, doc_id):
             {"status": "error", "message": f"Error regenerating preview: {str(e)}"}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_docs_count(request):
+    """
+    Return the total count of documents in the system.
+    """
+    try:
+        count = Document.objects.count()
+        return Response({"count": count}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error getting document count: {str(e)}")
+        return Response(
+            {"status": "error", "message": f"Error getting document count: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

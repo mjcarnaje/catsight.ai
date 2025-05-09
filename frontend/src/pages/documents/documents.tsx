@@ -9,7 +9,7 @@ import { DocumentStatus, getStatusInfo } from "@/lib/document-status"
 import { Document, PaginatedResponse, ViewMode } from "@/types"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { FileText, Grid, List, Search, Upload, Filter, LayoutGrid } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Select,
   SelectContent,
@@ -27,7 +27,7 @@ import {
   PaginationPrevious
 } from "@/components/ui/pagination"
 import { DocumentTable } from "@/components/document-table"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { DocumentCardSkeleton } from "@/components/document-card-skeleton"
@@ -38,18 +38,79 @@ const PAGE_SIZE = 9
 export default function DocumentsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('card')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(PAGE_SIZE)
-  const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">("all")
   const [searchQuery, setSearchQuery] = useState("")
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Get search params from URL
+  const searchParams = new URLSearchParams(location.search)
+  const pageParam = searchParams.get('page')
+  const statusParam = searchParams.get('status')
+
+  // Set initial values from URL or defaults
+  const [currentPage, setCurrentPage] = useState(pageParam ? parseInt(pageParam) : 1)
+  const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">(
+    statusParam as DocumentStatus || "all"
+  )
+  const [pageSize] = useState(PAGE_SIZE)
+
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams()
+
+    if (currentPage > 1) {
+      params.set('page', currentPage.toString())
+    }
+
+    if (statusFilter !== "all") {
+      params.set('status', statusFilter)
+    }
+
+    const newSearch = params.toString()
+    const newPath = newSearch ? `${location.pathname}?${newSearch}` : location.pathname
+
+    // Only update if the URL would change
+    if (location.search !== `?${newSearch}`) {
+      navigate(newPath, { replace: true })
+    }
+  }, [currentPage, statusFilter, location.pathname, navigate])
+
+  // Update state when URL changes
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const pageParam = params.get('page')
+    const statusParam = params.get('status')
+
+    if (pageParam) {
+      setCurrentPage(parseInt(pageParam))
+    } else if (currentPage !== 1) {
+      setCurrentPage(1)
+    }
+
+    if (statusParam && Object.values(DocumentStatus).includes(statusParam as DocumentStatus)) {
+      setStatusFilter(statusParam as DocumentStatus)
+    } else if (statusFilter !== "all") {
+      setStatusFilter("all")
+    }
+  }, [location.search])
 
   const { data: paginatedDocuments, isLoading: isDocumentsLoading } = useQuery({
-    queryKey: ["documents", currentPage, pageSize],
-    queryFn: () => documentsApi.getAll(currentPage, pageSize).then((res) => res.data),
+    queryKey: ["documents", currentPage, pageSize, statusFilter],
+    queryFn: () => {
+      const params: Record<string, string | number> = {
+        page: currentPage,
+        page_size: pageSize
+      }
+
+      if (statusFilter !== "all") {
+        params.status = statusFilter
+      }
+
+      return documentsApi.getAll(currentPage, pageSize, params).then((res) => res.data)
+    },
     refetchInterval: 5000,
   })
 
@@ -79,11 +140,13 @@ export default function DocumentsPage() {
   // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    // Reset any filters when changing pages
-    if (statusFilter !== "all" || searchQuery !== "") {
-      setStatusFilter("all");
-      setSearchQuery("");
-    }
+  };
+
+  // Handle status filter change
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value as DocumentStatus | "all");
+    // Reset to page 1 when changing filters
+    setCurrentPage(1);
   };
 
   // Handle search
@@ -149,7 +212,7 @@ export default function DocumentsPage() {
               <Filter className="w-4 h-4 text-muted-foreground" />
               <Select
                 value={statusFilter}
-                onValueChange={(value) => setStatusFilter(value as DocumentStatus | "all")}
+                onValueChange={handleStatusFilterChange}
               >
                 <SelectTrigger className="w-full md:w-[180px] h-9 rounded-full">
                   <SelectValue placeholder="Filter by status" />
