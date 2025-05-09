@@ -59,6 +59,7 @@ class User(AbstractUser):
     )
     avatar              = models.CharField(max_length=255, null=True, blank=True)
     google_id           = models.CharField(max_length=255, null=True, blank=True)
+    is_onboarded        = models.BooleanField(default=False, help_text="Whether the user has completed the onboarding process")
     favorite_llm_models = models.ManyToManyField(
         LLMModel,
         blank=True,
@@ -116,6 +117,8 @@ class Document(models.Model):
     file               = models.CharField(max_length=1000, null=True, blank=True)
     file_name          = models.CharField(max_length=1000, null=True, blank=True)
     file_type          = models.CharField(max_length=100, null=True, blank=True)
+    preview_image      = models.CharField(max_length=1000, null=True, blank=True)
+    blurhash           = models.CharField(max_length=100, null=True, blank=True)
     status             = models.CharField(max_length=100, default=DocumentStatus.PENDING.value)
     is_failed          = models.BooleanField(default=False)
     task_id            = models.CharField(max_length=255, null=True, blank=True)

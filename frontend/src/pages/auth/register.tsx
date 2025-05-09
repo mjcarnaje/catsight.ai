@@ -14,7 +14,9 @@ import { useToast } from "@/components/ui/use-toast"
 export default function RegisterPage() {
   const navigate = useNavigate()
   const { toast } = useToast()
-  const [name, setName] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -27,6 +29,15 @@ export default function RegisterPage() {
       navigate("/dashboard", { replace: true })
     }
   }, [navigate])
+
+  // Auto-generate username from email when email changes
+  useEffect(() => {
+    if (email && !username) {
+      // Get the part before @ in the email
+      const emailUsername = email.split('@')[0]
+      setUsername(emailUsername)
+    }
+  }, [email, username])
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,8 +62,15 @@ export default function RegisterPage() {
     }
 
     try {
-      await register.mutateAsync({ name, email, password })
-      navigate("/dashboard", { replace: true })
+      await register.mutateAsync({
+        first_name: firstName,
+        last_name: lastName,
+        username,
+        email,
+        password,
+        password_confirm: confirmPassword
+      })
+      navigate("/onboarding", { replace: true })
     } catch (error: unknown) {
       const errorMessage = error instanceof Error
         ? error.message
@@ -75,13 +93,35 @@ export default function RegisterPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleRegister} className="mt-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input
+                  id="firstName"
+                  placeholder="First Name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input
+                  id="lastName"
+                  placeholder="Last Name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="name"
-                placeholder="Your Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                id="username"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
               />
             </div>

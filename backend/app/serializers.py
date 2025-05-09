@@ -14,12 +14,14 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'username', 'role', 'avatar', 'favorite_llm_models']
+        fields = ['id', 'email', 'first_name', 'last_name', 'username', 'role', 'avatar', 'is_onboarded', 'favorite_llm_models']
         read_only_fields = ['id', 'role']
     
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
     password_confirm = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    first_name = serializers.CharField(required=True)
+    last_name = serializers.CharField(required=True)
     
     class Meta:
         model = User
@@ -68,7 +70,10 @@ class DocumentSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Document
-        fields = '__all__'
+        fields = ['id', 'title', 'description', 'file', 'file_name', 'file_type', 
+                 'preview_image', 'blurhash', 'status', 'is_failed', 'task_id', 
+                 'markdown_converter', 'no_of_chunks', 'created_at', 'updated_at', 
+                 'uploaded_by', 'status_history']
 
 
 class LLMModelSerializer(serializers.ModelSerializer):

@@ -1,6 +1,6 @@
 import logging
 import json
-from typing import List, Optional, Dict, Any, Annotated
+from typing import List, Optional, Dict, Annotated, Any
 from typing_extensions import TypedDict
 
 from django.conf import settings
@@ -68,17 +68,30 @@ You answer queries about MSU-IIT based primarily on retrieved documents and info
 Your primary role is to retrieve and present information from MSU-IIT's document repository. You should prioritize responding based on the specific documents and context retrieved rather than general knowledge.
 </about_your_function>
 
+<formatting>
+Always format your responses using Markdown to improve readability:
+- Use **bold** for emphasis on important terms or headers
+- Use *italics* for document titles or subtle emphasis
+- Use `code blocks` for specific technical information or course codes
+- Use > blockquotes for direct quotations from documents
+- Use bullet points or numbered lists for organized information
+- Use ### headings to structure your response into clear sections
+- Use --- horizontal rules to separate different document sources
+- Use [hyperlinks](URL) if relevant URLs are provided in documents
+</formatting>
+
+
 <instructions>
 1. ALWAYS prioritize information from retrieved documents over general knowledge.
-2. When documents are retrieved, indicate this with: "Based on the documents I've found..." and then provide the information.
-3. If documents are retrieved but don't fully answer the query, state: "The documents I have access to provide this information: [summary of document content]. However, they don't completely address your question."
-4. If no relevant documents are found, clearly state: "I couldn't find any documents specifically addressing that. If you'd like more information, please contact [relevant department] at MSU-IIT."
-5. Do not make up or infer information not present in the retrieved documents.
-6. When quoting from documents, clearly indicate which parts are direct quotes using quotation marks.
-7. If documents contain dates, note when the document was created/updated if that information is available.
-8. For complex queries, break down your response by document source if multiple documents are retrieved.
-9. If documents contain conflicting information, present both perspectives and note the conflict.
-10. Suggest related queries that might yield better document results if the current search doesn't fully address the user's needs.
+2. CRITICAL: Carefully evaluate each retrieved document for relevance to the user's specific query:
+   - If a document appears unrelated to the query, DO NOT include it in your response
+   - For documents with low relevance scores (below 0.5), be extra critical when evaluating their usefulness
+   - Focus only on the most relevant information that directly addresses the user query
+3. When relevant documents are retrieved, indicate this with: "**Based on the documents I've found:**" and then provide the information.
+4. If documents are retrieved but don't fully answer the query, state: "**The documents I have access to provide this information:**\n\n[summary of document content]\n\n
+But I don't have complete information about [missing information]. You may want to check [suggest appropriate source or approach]."
+5. If no relevant documents are found or if the retrieved documents are completely unrelated to the query, clearly state: "**I don't have specific document information about this topic.**" Then provide a general response based on common knowledge, clearly marking it as not document-based.
+6. Always maintain academic integrity and factual accuracy - only state what is supported by the documents or is widely accepted knowledge.
 </instructions>
 """
 
@@ -98,34 +111,64 @@ class ConfigSchema(TypedDict):
 # --- Tool Definitions ------------------------------------------------------
 @tool
 def retrieve_context(query: str) -> list[object]:
-    """Search for relevant documents about MSU-IIT based on the query."""
-    docs = vector_store.similarity_search(query) if query else []
+    """
+    Search for relevant documents about MSU-IIT based on the query.
     
-    if not docs:
-        return "No relevant documents found."
+    Only returns sources whose similarity score is >= score_threshold.
+    Returns a JSON string of source-dicts or a message if none found.
+    """
+    score_threshold = 0.4
+    top_k = 10
+    
+    if not query:
+        return "No query provided."
 
-    sources = []
+    # 1) fetch (doc, score) pairs
+    docs_with_scores = vector_store.similarity_search_with_score(query, k=top_k)
 
-    for doc in docs:
-        print(doc.metadata)
-        try:
-            d = Document.objects.get(id=doc.metadata.get("doc_id"))
-            source = {
-                "id": d.id,
-                "title": d.title,
-                "description": d.description,
-                "file_name": d.file_name,
-                "file_type": d.file_type,
-                "created_at": d.created_at.isoformat(),
-                "updated_at": d.updated_at.isoformat(),
-                "content": doc.page_content
-            }
-            sources.append(source)
-        except Document.DoesNotExist:
-            print(f"Document {doc.metadata.get('doc_id')} does not exist")
+    # 2) filter out low-score chunks
+    filtered = [(doc, score) for doc, score in docs_with_scores if score >= score_threshold]
+    if not filtered:
+        return json.dumps({"error": "No relevant documents found above score threshold."})
+
+    # 3) group by document
+    sources_map: Dict[Any, Dict[str, Any]] = {}
+    
+    for doc, score in filtered:
+        doc_id = doc.metadata.get("doc_id")
+        chunk_index = doc.metadata.get("index")
+        snippet = doc.page_content
+
+        if doc_id is None:
             continue
-    
-    return json.dumps(sources)
+
+        if doc_id not in sources_map:
+            try:
+                d = Document.objects.get(id=doc_id)
+            except Document.DoesNotExist:
+                continue
+
+            sources_map[doc_id] = {
+                "id":           d.id,
+                "title":        d.title,
+                "description":  d.description,
+                "file_name":    d.file_name,
+                "blurhash":     d.blurhash,
+                "preview_image":  d.preview_image,
+                "file_type":    d.file_type,
+                "created_at":   d.created_at.isoformat(),
+                "updated_at":   d.updated_at.isoformat(),
+                "contents":     [],
+            }
+
+        sources_map[doc_id]["contents"].append({
+            "snippet":     snippet,
+            "score":       score,
+            "chunk_index": chunk_index,
+        })
+
+    # 4) dump to JSON and return
+    return json.dumps(list(sources_map.values()))
 
 @tool
 def grade_relevance(query: str, context: list[object]) -> str:

@@ -3,8 +3,14 @@ export interface Source {
   title: string;
   description: string;
   file_name: string;
+  blurhash: string;
+  preview_image: string;
   file_type: string;
   created_at: string;
   updated_at: string;
-  content: string;
+  contents: {
+    snippet: string;
+    score: number;
+    chunk_index: number;
+  }[];
 }

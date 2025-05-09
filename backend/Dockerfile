@@ -41,6 +41,8 @@ ENV PATH=/root/.local/bin:$PATH
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libyaml-0-2 \
+    # PDF processing dependencies
+    poppler-utils \
     # Chromium dependencies
     gconf-service \
     libasound2 \

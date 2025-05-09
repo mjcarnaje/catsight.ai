@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Message } from "./chat-reducer";
 import { Loader2, Copy, Check, RefreshCw } from "lucide-react";
 import { SourcesButton } from "./sources-button";
+import { Markdown } from "@/components/markdown";
 
 interface ChatListProps {
   messages: Message[];
@@ -102,12 +103,18 @@ export function ChatList({
                   : "text-gray-800"
               )}
             >
-              <p className={cn(
-                "whitespace-pre-wrap",
-                msg.role === "user" ? "" : "pl-1"
-              )}>
-                {msg.content || "..."}
-              </p>
+              {isAssistant ? (
+                <div className={cn("", msg.role === "user" ? "" : "pl-1")}>
+                  <Markdown content={msg.content || "..."} />
+                </div>
+              ) : (
+                <p className={cn(
+                  "whitespace-pre-wrap",
+                  msg.role === "user" ? "" : "pl-1"
+                )}>
+                  {msg.content || "..."}
+                </p>
+              )}
 
               <div className="flex items-center gap-2 mt-3">
                 {hasSources && isAssistant && (
@@ -150,7 +157,7 @@ export function ChatList({
               </div>
             </div>
           </div>
-        )
+        );
       })}
 
       {isStreaming && messages.length > 0 && messages[messages.length - 1].role !== "assistant" && (

@@ -1,8 +1,10 @@
-import { documentsApi } from "@/lib/api";
+import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
 import { getDocumentStatusFromHistory, getStatusInfo } from "@/lib/document-status";
 import { Document } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, ChevronRight, FileText, Layers, Loader2, Tag, Trash } from "lucide-react";
+import { Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, RotateCw, Tag, Trash } from "lucide-react";
+import { useState } from "react";
+import { Blurhash } from "react-blurhash";
 import { useNavigate } from "react-router-dom";
 import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
 import { StatusHistoryPopover } from "./status-history-popover";
@@ -11,11 +13,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
   Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
+  CardDescription
 } from "./ui/card";
 import {
   Tooltip,
@@ -24,6 +22,7 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import { useToast } from "./ui/use-toast";
+
 interface DocumentCardProps {
   doc: Document;
 }
@@ -32,13 +31,13 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const hasStatusHistory = doc.status_history && doc.status_history.length > 0;
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const queryClient = useQueryClient();
 
   // Use status history if available, otherwise use the current status
   const statusInfo = hasStatusHistory
     ? getDocumentStatusFromHistory(doc.status_history)
     : { ...getStatusInfo(doc.status), progress: 0, currentStatus: doc.status };
-
-  const queryClient = useQueryClient();
 
   const handleDeleteMutation = useMutation({
     mutationFn: () => documentsApi.delete(doc.id.toString()),
@@ -53,6 +52,26 @@ export function DocumentCard({ doc }: DocumentCardProps) {
       toast({
         title: "Error",
         description: "Failed to delete document. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const regeneratePreviewMutation = useMutation({
+    mutationFn: () => documentsApi.regeneratePreview(doc.id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Success",
+        description: "Preview image regenerated successfully.",
+      });
+      // Force reload the current page to see the new preview
+      window.location.reload();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to regenerate preview image. Please try again.",
         variant: "destructive",
       });
     },
@@ -78,20 +97,79 @@ export function DocumentCard({ doc }: DocumentCardProps) {
     : [];
 
   const ConverterIcon = MARKDOWN_CONVERTERS[doc.markdown_converter].icon
+  const previewImageUrl = getDocumentPreviewUrl(doc.preview_image);
+
+  const statusColors = {
+    'Processing': 'bg-amber-500/10 text-amber-600 border-amber-200',
+    'Completed': 'bg-green-500/10 text-green-600 border-green-200',
+    'Failed': 'bg-red-500/10 text-red-600 border-red-200',
+    'default': 'bg-sky-500/10 text-sky-600 border-sky-200'
+  };
+
+  const statusColor = statusColors[statusInfo.label as keyof typeof statusColors] || statusColors.default;
 
   return (
-    <Card key={doc.id} className="transition-all hover:shadow-md group">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <CardTitle className="text-lg font-medium">{doc.title}</CardTitle>
-          </div>
-          <div className="flex items-center gap-2">
+    <Card
+      key={doc.id}
+      className="flex flex-col h-full overflow-hidden transition-all duration-300 border group hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+    >
+      {/* Top Section with Image and Basic Info */}
+      <div className="flex">
+        {/* Preview Image */}
+        <div className="relative w-[100px] h-[120px] sm:w-[120px] sm:h-[140px] flex-shrink-0">
+          {doc.preview_image && doc.blurhash ? (
+            <>
+              {!imageLoaded && doc.blurhash && (
+                <div className="absolute inset-0">
+                  <Blurhash
+                    hash={doc.blurhash}
+                    width="100%"
+                    height="100%"
+                    resolutionX={32}
+                    resolutionY={32}
+                    punch={1}
+                  />
+                </div>
+              )}
+              <img
+                src={previewImageUrl}
+                alt={doc.title}
+                className={`w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'} group-hover:scale-105 transition-transform duration-700`}
+                onLoad={() => setImageLoaded(true)}
+              />
+              <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-r from-black/40 to-transparent group-hover:opacity-100"></div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center w-full h-full bg-muted/30">
+              <ImageIcon className="w-8 h-8 mb-2 text-muted-foreground/50" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  regeneratePreviewMutation.mutate();
+                }}
+                disabled={regeneratePreviewMutation.isPending}
+              >
+                {regeneratePreviewMutation.isPending ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RotateCw className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden xs:inline">Generate</span>
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Basic Info */}
+        <div className="flex-1 p-3 pl-4 overflow-hidden">
+          {/* Status Badge - Positioned at top right */}
+          <div className="flex justify-end mb-1.5">
             <Badge
-              variant="default"
-              className={`${statusInfo.label === 'Processing' ? 'bg-amber-500' :
-                statusInfo.label === 'Completed' ? 'bg-green-500' :
-                  statusInfo.label === 'Failed' ? 'bg-red-500' : ''}`}
+              variant="outline"
+              className={`rounded-full px-2 py-0.5 font-medium text-xs ${statusColor} transition-colors whitespace-nowrap`}
             >
               {statusInfo.label}
             </Badge>
@@ -102,83 +180,100 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               />
             )}
           </div>
+
+          {/* Title */}
+          <h2 className="text-base font-medium transition-colors sm:text-lg group-hover:text-primary line-clamp-2">
+            {doc.title}
+          </h2>
+
+          {/* Creation Date and Uploader */}
+          <div className="flex items-center justify-between mt-2">
+            <CardDescription className="flex items-center gap-1 text-xs">
+              <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+              {new Date(doc.created_at).toLocaleDateString()}
+            </CardDescription>
+            {doc.uploaded_by && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="hidden sm:inline">By</span>
+                      <Avatar className="w-5 h-5 border-[1px] border-primary/10">
+                        <AvatarImage
+                          src={doc.uploaded_by.avatar || ''}
+                          alt={doc.uploaded_by.username || doc.uploaded_by.email}
+                        />
+                        <AvatarFallback className="text-[10px] bg-primary/5 text-primary">
+                          {getInitials(doc.uploaded_by.first_name && doc.uploaded_by.last_name
+                            ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
+                            : doc.uploaded_by.username)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Uploaded by {doc.uploaded_by.username || doc.uploaded_by.email}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
         </div>
-        <div className="flex items-center justify-between mt-1">
-          <CardDescription className="flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5" />
-            {new Date(doc.created_at).toLocaleDateString()}
-          </CardDescription>
-          {doc.uploaded_by && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>By</span>
-                    <Avatar className="w-5 h-5">
-                      <AvatarImage
-                        src={doc.uploaded_by.avatar || ''}
-                        alt={doc.uploaded_by.username || doc.uploaded_by.email}
-                      />
-                      <AvatarFallback className="text-[10px]">
-                        {getInitials(doc.uploaded_by.first_name && doc.uploaded_by.last_name
-                          ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
-                          : doc.uploaded_by.username)}
-                      </AvatarFallback>
-                    </Avatar>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Uploaded by {doc.uploaded_by.username || doc.uploaded_by.email}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="pb-3">
+      </div>
+
+      {/* Description */}
+      <div className="flex-grow px-4 pt-2 pb-1">
         {doc.description ? (
-          <p className="mb-3 text-sm text-muted-foreground">{doc.description}</p>
+          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{doc.description}</p>
         ) : (
-          <p className="mb-3 text-sm italic text-muted-foreground">No description available</p>
+          <p className="text-xs italic sm:text-sm text-muted-foreground">No description available</p>
         )}
+      </div>
 
-        <div className="grid grid-cols-2 text-xs gap-x-4 gap-y-2">
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>{doc.no_of_chunks || 0} chunks</span>
+      {/* Document Metadata */}
+      <div className="px-4 pb-3">
+        <div className="grid grid-cols-2 mt-2 text-xs gap-x-2 gap-y-2">
+          <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
+            <Layers className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="font-medium truncate">{doc.no_of_chunks || 0} chunks</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {ConverterIcon && <ConverterIcon className="w-3.5 h-3.5 text-muted-foreground" />}
-            <span className="truncate">{MARKDOWN_CONVERTERS[doc.markdown_converter].label}</span>
+          <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
+            {ConverterIcon && <ConverterIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+            <span className="font-medium truncate">{MARKDOWN_CONVERTERS[doc.markdown_converter].label}</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="truncate" title={doc.file_name}>{doc.file_name}</span>
+          <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
+            <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="font-medium truncate" title={doc.file_name}>{doc.file_name}</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <Tag className="w-3.5 h-3.5 text-muted-foreground" />
-            <span>{doc.file_type}</span>
+          <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
+            <Tag className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            <span className="font-medium truncate">{doc.file_type}</span>
           </div>
         </div>
-      </CardContent>
-      <CardFooter className="flex justify-between pt-2 border-t">
+      </div>
+
+      {/* Footer - Fixed at bottom, always visible */}
+      <div className="flex items-center justify-between p-3 mt-auto border-t">
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 group-hover:text-primary group-hover:font-medium transition-all"
+          className="gap-1.5 text-muted-foreground group-hover:text-primary group-hover:font-medium transition-all rounded-full px-3 text-xs sm:text-sm"
           onClick={() => navigate(`/documents/${doc.id}`)}
         >
-          View details
-          <ChevronRight className="w-4 h-4" />
+          <span>View details</span>
+          <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
         </Button>
         <Button
           variant="ghost"
-          size="sm"
-          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-          onClick={() => handleDeleteMutation.mutate()}
+          size="icon"
+          className="w-8 h-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteMutation.mutate();
+          }}
           disabled={handleDeleteMutation.isPending}
         >
           {handleDeleteMutation.isPending ? (
@@ -187,7 +282,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             <Trash className="w-4 h-4" />
           )}
         </Button>
-      </CardFooter>
+      </div>
     </Card>
   );
 }

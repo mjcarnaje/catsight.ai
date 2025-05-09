@@ -1,27 +1,29 @@
 'use client'
 
 import { useEffect, useState } from "react"
-import { Check, ChevronDown, Loader2 } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Sparkles } from 'lucide-react'
 import { cn } from "@/lib/utils"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Button } from "@/components/ui/button"
 import { llmApi } from "@/lib/api"
 import { useUser } from "@/lib/auth"
-
-export type Model = {
-  id: string
-  name: string
-  description?: string
-  isFavorite?: boolean
-}
+import { ModelInfo } from "@/types"
 
 interface ModelSelectorProps {
   modelId?: string | null
-  onModelChange: (model: Model) => void
+  onModelChange: (model: ModelInfo) => void
 }
 
 export function ModelSelector({
@@ -31,8 +33,9 @@ export function ModelSelector({
   const { data: user } = useUser();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [models, setModels] = useState<Model[]>([]);
-  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -41,11 +44,12 @@ export function ModelSelector({
       try {
         const apiModels = await llmApi.getAll();
 
-        // Transform API models to our Model type and mark favorites
-        const transformedModels: Model[] = apiModels.map(model => ({
+        // Transform API models to our ModelInfo type and mark favorites
+        const transformedModels: ModelInfo[] = apiModels.map(model => ({
           id: model.code,
           name: model.name,
           description: model.description,
+          logo: model.logo,
           isFavorite: user?.favorite_llm_models?.includes(model.code) || false
         }));
 
@@ -71,7 +75,7 @@ export function ModelSelector({
   // Set initial selected model when models are loaded
   useEffect(() => {
     if (models.length && !selectedModel) {
-      let initialModel: Model | undefined;
+      let initialModel: ModelInfo | undefined;
 
       // If modelId is provided, try to find it in the models list
       if (modelId) {
@@ -91,14 +95,15 @@ export function ModelSelector({
     }
   }, [models, modelId, selectedModel, onModelChange]);
 
-  const handleModelSelect = (model: Model) => {
+  const handleModelSelect = (model: ModelInfo) => {
     setSelectedModel(model);
     onModelChange(model);
+    setOpen(false);
   };
 
   if (loading || !selectedModel) {
     return (
-      <div className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-gray-700">
+      <div className="flex items-center gap-1.5 h-10 px-4 py-2 text-sm font-medium bg-gray-100 rounded-md text-gray-700">
         <Loader2 className="w-4 h-4 animate-spin" />
         <span>Loading models...</span>
       </div>
@@ -107,45 +112,61 @@ export function ModelSelector({
 
   if (error) {
     return (
-      <div className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-red-700">
+      <div className="flex items-center gap-1.5 h-10 px-4 py-2 text-sm font-medium bg-red-50 rounded-md text-red-700">
         <span>Error: {error}</span>
       </div>
     );
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none">
-          {selectedModel.name}
-          <ChevronDown className="w-4 h-4 ml-1" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[180px]">
-        {models.map(model => (
-          <DropdownMenuItem
-            key={model.id}
-            className={cn(
-              "flex cursor-pointer items-center justify-between py-2",
-              selectedModel.id === model.id && "bg-gray-100"
-            )}
-            onClick={() => handleModelSelect(model)}
-          >
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center">
-                <span className="text-sm font-medium">{model.name}</span>
-                {model.isFavorite && (
-                  <span className="ml-2 text-xs text-yellow-500">★</span>
-                )}
-              </div>
-              {model.description && (
-                <span className="text-xs text-gray-500 line-clamp-3">{model.description}</span>
-              )}
-            </div>
-            {selectedModel.id === model.id && <Check className="w-4 h-4 text-blue-500" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="justify-between w-[180px] bg-white border-gray-200 text-gray-800 hover:bg-gray-50"
+        >
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-pink-500" />
+            <span className="truncate">{selectedModel.name}</span>
+          </div>
+          <ChevronDown className="w-4 h-4 ml-1 text-gray-400 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search models..." className="h-9" />
+          <CommandList>
+            <CommandEmpty>No model found.</CommandEmpty>
+            <CommandGroup>
+              {models.map((model) => (
+                <CommandItem
+                  key={model.id}
+                  value={model.name}
+                  onSelect={() => handleModelSelect(model)}
+                  className="flex items-start justify-between py-2 cursor-pointer"
+                >
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium">{model.name}</span>
+                      {model.isFavorite && (
+                        <span className="ml-2 text-xs text-yellow-500">★</span>
+                      )}
+                    </div>
+                    {model.description && (
+                      <span className="text-xs text-gray-500 line-clamp-2">{model.description}</span>
+                    )}
+                  </div>
+                  {selectedModel.id === model.id && (
+                    <Check className="w-4 h-4 text-pink-500" />
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
