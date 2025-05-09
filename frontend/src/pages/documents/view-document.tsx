@@ -1,17 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api";
+import { api, getDocumentPreviewUrl } from "@/lib/api";
 import { getStatusInfo } from "@/lib/document-status";
 import { Document } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowLeft, Calendar, Edit, Eye, FileText, FilePlus2, Grid3X3, User } from "lucide-react";
+import { ArrowLeft, Calendar, ChevronRight, Edit, Eye, FileText, FilePlus2, Grid3X3, Layers, Tag, User } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Blurhash } from "react-blurhash";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
+import { cn } from "@/lib/utils";
 
 export function DocumentViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const { isLoading, error, data } = useQuery({
     queryKey: ["document", id],
@@ -27,15 +34,24 @@ export function DocumentViewPage() {
   // Loading skeleton
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="container py-8 mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <Skeleton className="w-3/4 h-8" />
-          <Skeleton className="w-24 h-10" />
+          <div className="space-y-2">
+            <Skeleton className="w-12 h-12 rounded-full" />
+            <Skeleton className="w-48 h-8" />
+          </div>
+          <Skeleton className="w-32 h-10 rounded-full" />
         </div>
-        <Skeleton className="w-full h-64 rounded-lg" />
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <Skeleton className="w-full h-32 rounded-lg" />
-          <Skeleton className="w-full h-32 rounded-lg" />
+        <div className="grid gap-8 md:grid-cols-[1fr_2fr]">
+          <Skeleton className="w-full h-[400px] rounded-xl" />
+          <div className="space-y-4">
+            <Skeleton className="w-3/4 h-10" />
+            <Skeleton className="w-full h-32" />
+            <div className="grid grid-cols-2 gap-4">
+              <Skeleton className="w-full h-24 rounded-lg" />
+              <Skeleton className="w-full h-24 rounded-lg" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -43,22 +59,44 @@ export function DocumentViewPage() {
 
   if (error) {
     return (
-      <div className="p-6 text-center text-destructive">
-        <FileText className="w-12 h-12 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold">Error Loading Document</h3>
-        <p className="mb-4">There was a problem loading this document.</p>
-        <Button variant="outline" onClick={handleBackClick}>Back to Documents</Button>
+      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+        <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
+          <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-destructive/10">
+            <FileText className="w-12 h-12 text-destructive" />
+          </div>
+          <h3 className="mb-2 text-2xl font-semibold">Error Loading Document</h3>
+          <p className="mb-6 text-muted-foreground">There was a problem loading this document.</p>
+          <Button
+            variant="outline"
+            onClick={handleBackClick}
+            className="gap-2 rounded-full"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Documents
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="p-6 text-center text-muted-foreground">
-        <FileText className="w-12 h-12 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold">Document Not Found</h3>
-        <p className="mb-4">The document you're looking for doesn't exist or has been deleted.</p>
-        <Button variant="outline" onClick={handleBackClick}>Back to Documents</Button>
+      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+        <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
+          <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-muted">
+            <FileText className="w-12 h-12 text-muted-foreground" />
+          </div>
+          <h3 className="mb-2 text-2xl font-semibold">Document Not Found</h3>
+          <p className="mb-6 text-muted-foreground">The document you're looking for doesn't exist or has been deleted.</p>
+          <Button
+            variant="outline"
+            onClick={handleBackClick}
+            className="gap-2 rounded-full"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Documents
+          </Button>
+        </div>
       </div>
     );
   }
@@ -66,131 +104,244 @@ export function DocumentViewPage() {
   const statusInfo = getStatusInfo(data.status);
   const formattedCreatedDate = format(new Date(data.created_at), "PPP");
   const formattedUpdatedDate = format(new Date(data.updated_at), "PPP");
+  const previewImageUrl = getDocumentPreviewUrl(data.preview_image);
+
+  const ConverterIcon = data.markdown_converter ? MARKDOWN_CONVERTERS[data.markdown_converter].icon : null;
+
+  const statusColors = {
+    'Processing': 'bg-amber-500/10 text-amber-600 border-amber-200',
+    'Completed': 'bg-green-500/10 text-green-600 border-green-200',
+    'Failed': 'bg-red-500/10 text-red-600 border-red-200',
+    'default': 'bg-sky-500/10 text-sky-600 border-sky-200'
+  };
+
+  const statusColor = statusColors[statusInfo.label as keyof typeof statusColors] || statusColors.default;
 
   return (
-    <div className="space-y-6">
-      {/* Document Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={handleBackClick} className="flex-shrink-0">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-primary">{data.title}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <div className={`w-2 h-2 rounded-full ${statusInfo.color.bg}`}></div>
-              <span className="text-sm text-muted-foreground">{statusInfo.label}</span>
+    <div className="min-h-screen">
+      {/* Hero Header */}
+      <div className="relative py-8 overflow-hidden border-b">
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0 bg-grid-primary/[0.1]" style={{ backgroundSize: '30px 30px' }}></div>
+        </div>
+        <div className="container relative z-10 mx-auto">
+          <div className="flex items-center gap-3 mb-6">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleBackClick}
+              className="flex-shrink-0 rounded-full hover:bg-primary/5"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <Badge
+              variant="outline"
+              className={`rounded-full px-3 py-0.5 font-medium text-xs ${statusColor}`}
+            >
+              {statusInfo.label}
+            </Badge>
+          </div>
+
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{data.title}</h1>
+              <p className="mt-2 text-muted-foreground">
+                {data.description || "No description provided for this document."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={handleEditClick}
+                className="gap-2 rounded-full shadow-sm"
+              >
+                <Edit className="w-4 h-4" />
+                Edit Document
+              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handlePdfViewClick}
+                      className="rounded-full"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View PDF</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         </div>
-        <Button onClick={handleEditClick} className="flex items-center gap-2 sm:self-start">
-          <Edit className="w-4 h-4" />
-          Edit Document
-        </Button>
       </div>
 
-      {/* Document Info Card */}
-      <Card className="overflow-hidden border-0 shadow-sm bg-card/50">
-        <CardHeader className="pb-4 bg-muted/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              <h2 className="text-xl font-semibold">{data.file_name}</h2>
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {data.description || "No description provided for this document."}
-          </p>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid gap-6 md:grid-cols-3">
-            {/* File Information */}
-            <div className="space-y-4 md:col-span-2">
-              <h3 className="font-medium text-muted-foreground">Document Information</h3>
-              <div className="grid grid-cols-2 gap-y-4">
-                <div className="text-sm font-medium">File Type</div>
-                <div className="text-sm">{data.file_type}</div>
-
-                <div className="text-sm font-medium">Created</div>
-                <div className="flex items-center gap-1 text-sm">
-                  <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                  {formattedCreatedDate}
-                </div>
-
-                <div className="text-sm font-medium">Updated</div>
-                <div className="flex items-center gap-1 text-sm">
-                  <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                  {formattedUpdatedDate}
-                </div>
-
-                <div className="text-sm font-medium">Chunks</div>
-                <div className="text-sm">{data.no_of_chunks}</div>
-
-                {data.uploaded_by && (
+      <div className="container py-8 mx-auto">
+        <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+          {/* Document Preview */}
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold">Document Preview</h2>
+            <Card className="overflow-hidden border shadow">
+              <div className="relative flex items-center justify-center overflow-hidden bg-muted/30 aspect-[210/297] w-full">
+                {data.preview_image ? (
                   <>
-                    <div className="text-sm font-medium">Uploaded By</div>
-                    <div className="flex items-center gap-1 text-sm">
-                      <User className="w-3.5 h-3.5 text-muted-foreground" />
-                      {data.uploaded_by.name || data.uploaded_by.email}
-                    </div>
+                    {!imageLoaded && data.blurhash && (
+                      <div className="absolute inset-0">
+                        <Blurhash
+                          hash={data.blurhash}
+                          width="100%"
+                          height="100%"
+                          resolutionX={32}
+                          resolutionY={32}
+                          punch={1}
+                        />
+                      </div>
+                    )}
+                    <img
+                      src={previewImageUrl}
+                      alt={data.title}
+                      className={`w-full h-full object-contain transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                      onLoad={() => setImageLoaded(true)}
+                    />
                   </>
+                ) : (
+                  <FileText className="w-16 h-16 text-muted-foreground/40" />
                 )}
               </div>
+              <div className="p-4 text-center border-t bg-card">
+                <p className="font-medium">{data.file_name}</p>
+                <p className="text-sm text-muted-foreground">{data.file_type}</p>
+              </div>
+            </Card>
+          </div>
+
+          {/* Document Details */}
+          <div className="space-y-8">
+            {/* File Information */}
+            <div>
+              <h2 className="mb-4 text-xl font-semibold">Document Information</h2>
+              <Card className="overflow-hidden shadow-sm">
+                <CardContent className="p-0">
+                  <div className="grid grid-cols-1 lg:grid-cols-2">
+                    <div className="p-5 border-b lg:border-r lg:border-b-0">
+                      <h3 className="mb-4 text-sm font-medium text-muted-foreground">Basic Information</h3>
+                      <div className="grid grid-cols-[120px_1fr] gap-y-3 text-sm">
+                        <div className="font-medium">File Type</div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="font-normal">
+                            {data.file_type}
+                          </Badge>
+                        </div>
+
+                        <div className="font-medium">Created</div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                          {formattedCreatedDate}
+                        </div>
+
+                        <div className="font-medium">Updated</div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                          {formattedUpdatedDate}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-5 border-t lg:border-t-0">
+                      <h3 className="mb-4 text-sm font-medium text-muted-foreground">Processing Information</h3>
+                      <div className="grid grid-cols-[120px_1fr] gap-y-3 text-sm">
+                        <div className="font-medium">Chunks</div>
+                        <div className="flex items-center gap-2">
+                          <div className="px-2.5 py-1 rounded-full bg-muted w-fit text-xs font-medium">
+                            <span className="flex items-center gap-1">
+                              <Layers className="w-3 h-3" />
+                              {data.no_of_chunks || 0}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="font-medium">Converter</div>
+                        <div className="flex items-center gap-1">
+                          {ConverterIcon && <ConverterIcon className="w-3.5 h-3.5 text-muted-foreground" />}
+                          <span>{data.markdown_converter && MARKDOWN_CONVERTERS[data.markdown_converter].label}</span>
+                        </div>
+
+                        {data.uploaded_by && (
+                          <>
+                            <div className="font-medium">Uploaded By</div>
+                            <div className="flex items-center gap-1">
+                              <User className="w-3.5 h-3.5 text-muted-foreground" />
+                              {data.uploaded_by.name || data.uploaded_by.email}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
-            {/* Document Preview */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-muted-foreground">Document Preview</h3>
-              <div className="overflow-hidden border rounded-lg aspect-[210/297] h-72 bg-muted/30 flex items-center justify-center">
-                <FileText className="w-12 h-12 text-muted-foreground/40" />
+            {/* Document Actions */}
+            <div>
+              <h2 className="mb-4 text-xl font-semibold">Document Actions</h2>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Card
+                  className="overflow-hidden transition-all shadow-sm hover:shadow-md hover:border-primary/30"
+                  onClick={handlePdfViewClick}
+                >
+                  <CardContent className="p-5 cursor-pointer">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 rounded-lg bg-primary/5">
+                        <Eye className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium">View PDF</h3>
+                        <p className="text-xs text-muted-foreground">Original document</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card
+                  className="overflow-hidden transition-all shadow-sm hover:shadow-md hover:border-primary/30"
+                  onClick={handleMarkdownViewClick}
+                >
+                  <CardContent className="p-5 cursor-pointer">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 rounded-lg bg-primary/5">
+                        <FilePlus2 className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium">View Markdown</h3>
+                        <p className="text-xs text-muted-foreground">Extracted content</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card
+                  className="overflow-hidden transition-all shadow-sm hover:shadow-md hover:border-primary/30"
+                  onClick={handleComparisonViewClick}
+                >
+                  <CardContent className="p-5 cursor-pointer">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 rounded-lg bg-primary/5">
+                        <Grid3X3 className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium">Side-by-Side View</h3>
+                        <p className="text-xs text-muted-foreground">Compare documents</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Document Actions */}
-      <Card className="overflow-hidden border-0 shadow-sm">
-        <CardHeader className="pb-4 bg-muted/50">
-          <h2 className="text-xl font-semibold">Document Actions</h2>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-            <Card className="transition-all hover:shadow-md hover:border-primary/50">
-              <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
-                <Eye className="w-10 h-10 text-primary/70" />
-                <div>
-                  <h3 className="font-medium">View PDF</h3>
-                  <p className="text-sm text-muted-foreground">View the original PDF document</p>
-                </div>
-                <Button onClick={handlePdfViewClick} variant="ghost" className="mt-auto">View PDF</Button>
-              </CardContent>
-            </Card>
-
-            <Card className="transition-all hover:shadow-md hover:border-primary/50">
-              <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
-                <FilePlus2 className="w-10 h-10 text-primary/70" />
-                <div>
-                  <h3 className="font-medium">View Markdown</h3>
-                  <p className="text-sm text-muted-foreground">View the extracted markdown content</p>
-                </div>
-                <Button onClick={handleMarkdownViewClick} variant="ghost" className="mt-auto">View Markdown</Button>
-              </CardContent>
-            </Card>
-
-            <Card className="transition-all hover:shadow-md hover:border-primary/50">
-              <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
-                <Grid3X3 className="w-10 h-10 text-primary/70" />
-                <div>
-                  <h3 className="font-medium">Side-by-Side View</h3>
-                  <p className="text-sm text-muted-foreground">Compare PDF and markdown side by side</p>
-                </div>
-                <Button onClick={handleComparisonViewClick} variant="ghost" className="mt-auto">View Comparison</Button>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 } 

@@ -1,4 +1,6 @@
 import logging
+import os
+from django.conf import settings
 
 from celery import chain
 from celery.result import AsyncResult
@@ -79,32 +81,46 @@ def upload_doc(request):
     response_data = []
 
     for file in uploaded_files:
-        
-        serializer = DocumentSerializer(data={'title': file.name})
-        
-        if serializer.is_valid():
-            document = serializer.save(file=None, uploaded_by=request.user)
-
-            document.file = UploadUtils.upload_document(file, str(document.id))
-            document.markdown_converter = markdown_converter
-            document.file_name = file.name
-            document.file_type = file.content_type
-            document.save()
+        try:
+            serializer = DocumentSerializer(data={'title': file.name})
             
-            task_chain = chain(
-                extract_text_task.s(document.id),
-                chunk_and_embed_text_task.s(),
-                generate_document_summary_task.s()
-            )
+            if serializer.is_valid():
+                document = serializer.save(file=None, uploaded_by=request.user)
 
-            result = task_chain.apply_async()
-            document.task_id = result.id
-            document.save()
+                try:
+                    file_path, preview_path, blurhash_string = UploadUtils.upload_document(file, str(document.id))
+                    logger.info(f"Document {document.id} upload results: file_path={file_path}, preview_path={preview_path}, blurhash={blurhash_string is not None}")
+                    
+                    document.file = file_path
+                    document.preview_image = preview_path
+                    document.blurhash = blurhash_string
+                    document.markdown_converter = markdown_converter
+                    document.file_name = file.name
+                    document.file_type = file.content_type
+                    document.save()
+                    
+                    task_chain = chain(
+                        extract_text_task.s(document.id),
+                        chunk_and_embed_text_task.s(),
+                        generate_document_summary_task.s()
+                    )
 
-            response_data.append({"status": "success", "id": document.id, "filename": file.name})
-        else:
-            logger.error(f"Document upload failed for {file.name}: {serializer.errors}")
-            response_data.append({"status": "error", "filename": file.name, "errors": serializer.errors})
+                    result = task_chain.apply_async()
+                    document.task_id = result.id
+                    document.save()
+
+                    response_data.append({"status": "success", "id": document.id, "filename": file.name})
+                except Exception as e:
+                    # If file upload process fails, clean up and log error
+                    logger.error(f"Error in document upload process for {file.name}: {str(e)}", exc_info=True)
+                    document.delete()  # Clean up the document record
+                    response_data.append({"status": "error", "filename": file.name, "errors": str(e)})
+            else:
+                logger.error(f"Document upload failed for {file.name}: {serializer.errors}")
+                response_data.append({"status": "error", "filename": file.name, "errors": serializer.errors})
+        except Exception as e:
+            logger.error(f"Unexpected error during upload of {file.name}: {str(e)}", exc_info=True)
+            response_data.append({"status": "error", "filename": file.name, "errors": str(e)})
 
     if all(item["status"] == "success" for item in response_data):
         return Response(response_data, status=status.HTTP_201_CREATED)
@@ -336,23 +352,58 @@ def search_docs(request):
     try:
         # Perform similarity search with scores
         docs_with_scores = vector_store.similarity_search_with_score(query, k=50)  # Get more results for pagination
-
-        # Build result list including score, chunk index, and snippet
-        results = []
+        
+        # Group results by document
+        documents_map = {}
+        
         for doc, score in docs_with_scores:
-            chunk_index = doc.metadata.get("index")
             doc_id = doc.metadata.get("doc_id")
-            results.append({
-                "document_id": doc_id,
+            chunk_index = doc.metadata.get("index")
+            
+            if not doc_id:
+                continue
+                
+            if doc_id not in documents_map:
+                try:
+                    document = Document.objects.get(id=doc_id)
+                    documents_map[doc_id] = {
+                        "document_id": doc_id,
+                        "title": document.title,
+                        "description": document.description,
+                        "file_name": document.file_name,
+                        "file_type": document.file_type,
+                        "created_at": document.created_at.isoformat(),
+                        "updated_at": document.updated_at.isoformat(),
+                        "blurhash": document.blurhash,
+                        "preview_image": document.preview_image,
+                        "no_of_chunks": document.no_of_chunks,
+                        "uploaded_by": {
+                            "username": document.uploaded_by.username if document.uploaded_by else None,
+                            "email": document.uploaded_by.email if document.uploaded_by else None,
+                        },
+                        "markdown_converter": document.markdown_converter,
+                        "results": [],
+                        "max_score": 0  # Track highest score for sorting
+                    }
+                except Document.DoesNotExist:
+                    continue
+            
+            documents_map[doc_id]["results"].append({
                 "chunk_index": chunk_index,
                 "text": doc.page_content,
                 "score": score,
                 "snippet": make_snippet(doc.page_content, query)
             })
-
-        # Paginate the results
-        paginator = Paginator(results, page_size)
+            
+            # Update max score if this chunk has a higher score
+            documents_map[doc_id]["max_score"] = max(documents_map[doc_id]["max_score"], score)
         
+        # Convert to list and sort by max score
+        grouped_results = list(documents_map.values())
+        grouped_results.sort(key=lambda x: x["max_score"], reverse=True)
+        
+        # Paginate the grouped results
+        paginator = Paginator(grouped_results, page_size)
         
         try:
             page = paginator.page(page_number)
@@ -376,6 +427,7 @@ def search_docs(request):
             {"error": f"Search failed: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
 def _serialize_document(doc: LangchainDocument) -> dict:
     """Convert a Document object to a serializable dict."""
     return {
@@ -391,7 +443,6 @@ def _make_serializable(obj):
         return {k: _make_serializable(v) for k, v in obj.items()}
     if isinstance(obj, LangchainDocument):
         return _serialize_document(obj)
-    print(obj)
     if isinstance(obj, (HumanMessage, AIMessage, ToolMessage)):
         message_type = "human"
         content = getattr(obj, "content", "")
@@ -400,7 +451,6 @@ def _make_serializable(obj):
             message_type = "ai"
         elif isinstance(obj, ToolMessage):
             message_type = "tool"
-            content = getattr(obj, "name", "")
             
         result = {
             "role": message_type,
@@ -465,14 +515,59 @@ def chat_with_docs(request):
         input_messages = [human_msg]
         input_state = {"current_query": query, "messages": input_messages}
 
+        # Keep track of the latest sources from tool messages
+        latest_sources = []
+        has_sent_ai_message = False
+        ai_message_id = None
+
         try:
             for state in catsight_agent.stream(
                 input=input_state,
                 config=config,
                 stream_mode="values"
-            ):
+            ):               
+                # Check if title has been generated
+                if "title" in state and state.get("should_generate_title") is False and state["title"]:
+                    # Update chat title in the database
+                    chat.title = state["title"]
+                    chat.save()
+                    
+                    # Send title event to frontend
+                    yield f"event: title\ndata: {{\"title\": \"{state['title']}\"}}\n\n"
+                
+                # First, extract any tool message with sources
+                if "messages" in state:
+                    for message in state["messages"]:
+                        if isinstance(message, ToolMessage) and message.name == "retrieve_context":
+                            try:
+                                source_content = message.content
+                                if isinstance(source_content, str):
+                                    sources = json.loads(source_content)
+                                    if isinstance(sources, list) and len(sources) > 0:
+                                        latest_sources = sources
+                                        # If we've already sent an AI message, send an update with the sources
+                                        if has_sent_ai_message and ai_message_id:
+                                            yield f"event: sources\ndata: {json.dumps({'message_id': ai_message_id, 'sources': latest_sources})}\n\n"
+                            except Exception as e:
+                                logger.error(f"Error processing tool message content: {str(e)}")
+                
+                # Process AI messages and attach sources
+                if "messages" in state:
+                    for message in state["messages"]:
+                        if isinstance(message, AIMessage) and message.content and not message.tool_calls:
+                            # This is a main AI response message
+                            has_sent_ai_message = True
+                            ai_message_id = getattr(message, "id", f"ai-{hash(message.content)}")
+                
+                # Make the state serializable
                 serializable_state = _make_serializable(state)
-                                    
+                
+                # Add sources to the delta if there's an AI message
+                if has_sent_ai_message and latest_sources and "messages" in serializable_state:
+                    for msg in serializable_state["messages"]:
+                        if msg["role"] == "ai" and "content" in msg and msg["content"] and "tool_calls" not in msg:
+                            msg["sources"] = latest_sources
+                
                 # Send update event
                 yield f"event: update\ndata: {json.dumps({'delta': serializable_state})}\n\n"
         
@@ -480,7 +575,7 @@ def chat_with_docs(request):
             logger.error(f"Error streaming response: {str(e)}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
         
-        # 9) End of stream
+        # End of stream
         yield "event: done\ndata: {}\n\n"
     
     # Return streaming response
@@ -569,5 +664,58 @@ def get_chat_history(request, chat_id):
         logger.error(f"Error in get_chat_history: {str(e)}")
         return Response(
             {"error": f"Error: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def regenerate_preview(request, doc_id):
+    """
+    Regenerate the preview image and blurhash for a document.
+    """
+    try:
+        document = Document.objects.get(id=doc_id)
+        
+        # Get the original file path
+        file_path = os.path.join(settings.MEDIA_ROOT, document.file)
+        
+        if not os.path.exists(file_path):
+            return Response(
+                {"status": "error", "message": "Original document file not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Generate preview image and blurhash
+        preview_path, blurhash_string = UploadUtils.generate_preview_and_blurhash(
+            doc_id, file_path
+        )
+        
+        if not preview_path:
+            return Response(
+                {"status": "error", "message": "Failed to generate preview image"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Update document with new preview and blurhash
+        document.preview_image = preview_path
+        document.blurhash = blurhash_string
+        document.save()
+        
+        return Response({
+            "status": "success", 
+            "message": "Preview regenerated successfully",
+            "preview_image": preview_path,
+            "blurhash": blurhash_string
+        }, status=status.HTTP_200_OK)
+        
+    except Document.DoesNotExist:
+        return Response(
+            {"status": "error", "message": "Document not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error regenerating preview for document {doc_id}: {str(e)}", exc_info=True)
+        return Response(
+            {"status": "error", "message": f"Error regenerating preview: {str(e)}"}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

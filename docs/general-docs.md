@@ -251,7 +251,7 @@ docker-compose exec ollama ollama pull bge-m3
 For air-gapped environments, you can prefetch Docling models:
 
 ```bash
-docling-tools models download
+docker-compose exec backend docling-tools models download
 ```
 
 ```bash

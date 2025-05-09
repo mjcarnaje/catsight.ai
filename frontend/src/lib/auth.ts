@@ -11,6 +11,7 @@ export interface User {
   username?: string;
   role: string;
   avatar?: string;
+  is_onboarded?: boolean;
   favorite_llm_models?: string[];
 }
 
@@ -22,7 +23,10 @@ export interface LoginCredentials {
 export interface RegisterCredentials {
   email: string;
   password: string;
-  name: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+  password_confirm: string;
 }
 
 export interface AuthResponse {

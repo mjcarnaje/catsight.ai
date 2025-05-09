@@ -2,13 +2,14 @@
 import { ChatInput } from "@/components/chat/chat-input";
 import { ChatList } from "@/components/chat/chat-list";
 import { chatReducer, Message } from "@/components/chat/chat-reducer";
-import { Model } from "@/components/chat/model-selector";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { useToast } from "@/components/ui/use-toast";
 import { useChatStream } from "@/hooks/useChatStream";
 import React, { useEffect, useReducer, useState, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { llmApi, chatsApi } from "@/lib/api";
+import { Loader2 } from "lucide-react";
+import { ModelInfo } from "@/types";
 
 export default function ChatPage() {
   const { toast } = useToast();
@@ -16,7 +17,7 @@ export default function ChatPage() {
   const location = useLocation();
   const { id: chatId } = useParams<{ id: string }>();
   const [messages, dispatch] = useReducer(chatReducer, [] as Message[]);
-  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState<boolean>(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   // Ref to store the last user message during navigation
@@ -69,6 +70,7 @@ export default function ChatPage() {
               id: models[0].code,
               name: models[0].name,
               description: models[0].description,
+              logo: models[0].logo
             });
           }
         }
@@ -209,6 +211,7 @@ export default function ChatPage() {
               id: historyData.model_id,
               name: historyData.model_id, // Use the ID as name until we get full model details
               description: "",
+              logo: ""
             });
 
             // Get the model details (optional)
@@ -223,6 +226,7 @@ export default function ChatPage() {
                     id: foundModel.code,
                     name: foundModel.name,
                     description: foundModel.description,
+                    logo: foundModel.logo
                   });
                 }
               })
@@ -261,28 +265,33 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen">
-      <ChatSidebar />
+    <div className="flex h-screen bg-white">
+      <ChatSidebar
+        currentChatId={chatId}
+      />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="flex flex-col h-full">
+        {isLoadingHistory ? (
+          <div className="flex items-center justify-center flex-1">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+              <p className="text-sm text-gray-500">Loading conversation...</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto bg-gray-50">
             <ChatList
               messages={messages}
               isStreaming={isStreaming}
               onRegenerateMessage={handleRegenerateMessage}
             />
           </div>
-        </div>
-        <div className="px-4 py-2 bg-gray-50">
-          <div className="w-full max-w-4xl mx-auto">
-            <ChatInput
-              modelId={selectedModel?.id}
-              onModelChange={setSelectedModel}
-              onSend={handleSend}
-              disabled={isStreaming || isLoadingModels}
-            />
-          </div>
-        </div>
+        )}
+        <ChatInput
+          modelId={selectedModel?.id}
+          onModelChange={setSelectedModel}
+          onSend={handleSend}
+          disabled={isStreaming || isLoadingModels}
+        />
       </div>
     </div>
   );

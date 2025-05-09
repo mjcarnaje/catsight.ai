@@ -20,6 +20,7 @@ from .views.documents import (
     delete_all_docs,
     get_graph,
     get_chat_history,
+    regenerate_preview,
 )
 from .views.llm import (
     get_llm_models,
@@ -54,6 +55,7 @@ urlpatterns = [
     path('documents/<int:doc_id>/chunks', get_doc_chunks, name='get_doc_chunks'),
     path('documents/<int:doc_id>/delete', delete_doc, name='delete_doc'),
     path('documents/<int:doc_id>/update', update_doc_markdown, name='update_doc_markdown'),
+    path('documents/<int:doc_id>/regenerate-preview', regenerate_preview, name='regenerate_preview'),
     path('documents/search', search_docs, name='search_docs'),
     path('documents/chat', chat_with_docs, name='chat_with_docs'),
     path('documents/delete_all', delete_all_docs, name='delete_all_docs'),

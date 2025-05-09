@@ -10,10 +10,16 @@ export interface Message {
     title: string;
     description: string;
     file_name: string;
+    blurhash: string;
+    preview_image: string;
     file_type: string;
     created_at: string;
     updated_at: string;
-    content: string;
+    contents: {
+      snippet: string;
+      score: number;
+      chunk_index: number;
+    }[];
   }[];
 }
 
@@ -21,7 +27,10 @@ export type Action =
   | { type: "ADD_USER"; payload: Message }
   | { type: "START_ASSISTANT"; payload: Message }
   | { type: "APPEND_ASSISTANT"; content: string }
-  | { type: "REPLACE_ASSISTANT"; payload: { id: string; content: string } }
+  | {
+      type: "REPLACE_ASSISTANT";
+      payload: { id: string; content: string; sources?: Message["sources"] };
+    }
   | { type: "SET_ERROR"; error: string }
   | { type: "SET_CLEAR_MESSAGES"; payload: Message[] }
   | {
@@ -47,7 +56,11 @@ export function chatReducer(state: Message[], action: Action): Message[] {
     case "REPLACE_ASSISTANT":
       return state.map((msg) =>
         msg.id === action.payload.id
-          ? { ...msg, content: action.payload.content }
+          ? {
+              ...msg,
+              content: action.payload.content,
+              sources: action.payload.sources || msg.sources,
+            }
           : msg
       );
 

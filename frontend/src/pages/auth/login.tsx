@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { authApi, LoginCredentials, useGoogleAuth, useLogin } from "@/lib/auth"
+import { useGoogleAuth, useLogin } from "@/lib/auth"
+import axios from "axios"
 import { useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import axios from "axios"
 
 // Google OAuth Client ID from environment variables
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
@@ -23,8 +23,8 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { toast } = useToast()
-  const [email, setEmail] = useState("michealjamescarnaje1@g.msuiit.edu.ph")
-  const [password, setPassword] = useState("asdfasdf")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
   const [loginError, setLoginError] = useState("")
 
   // Clear any previous errors when form changes

@@ -11,7 +11,7 @@ export function Markdown({
 }) {
   return (
     <ReactMarkdown
-      className={cn("prose prose-invert prose-slate !max-w-none", className)}
+      className={cn("prose !max-w-none", className)}
       remarkPlugins={[remarkGfm]}
     >
       {content}

@@ -8,6 +8,20 @@ export const API_BASE_URL =
 // API endpoint prefix
 const API_PREFIX = "/api";
 
+// Utility function to get the full URL for document preview images
+export const getDocumentPreviewUrl = (
+  previewPath: string | undefined
+): string => {
+  if (!previewPath) return "";
+  // Check if the path is already a full URL
+  if (previewPath.startsWith("http")) return previewPath;
+  // Otherwise, construct the URL from the base URL
+  const fullUrl = `${API_BASE_URL}/media/${previewPath}`;
+  console.log("Preview image path:", previewPath);
+  console.log("Constructed full URL:", fullUrl);
+  return fullUrl;
+};
+
 export const api = axios.create({
   baseURL: `${API_BASE_URL}${API_PREFIX}`,
   headers: {
@@ -110,11 +124,28 @@ export interface ChatResponse {
 }
 
 export interface SearchResult {
-  document_id: number;
-  chunk_index: number;
-  text: string;
-  score: number;
-  snippet: string;
+  document_id: string | number;
+  title: string;
+  description: string;
+  file_name: string;
+  file_type: string;
+  created_at: string;
+  updated_at: string;
+  blurhash: string;
+  preview_image: string;
+  no_of_chunks: number;
+  markdown_converter: string;
+  uploaded_by: {
+    username: string | null;
+    email: string | null;
+  };
+  results: {
+    chunk_index: number;
+    text: string;
+    score: number;
+    snippet: string;
+  }[];
+  max_score: number;
 }
 
 export const chatsApi = {
@@ -182,6 +213,13 @@ export const documentsApi = {
   getRaw: (id: number) => api.get<Document>(`/documents/${id}/raw`),
   getMarkdown: (id: number) => api.get<Document>(`/documents/${id}/markdown`),
   retry: (id: number) => api.post(`/documents/${id}/retry/`),
+  regeneratePreview: (id: number) =>
+    api.post<{
+      status: string;
+      message: string;
+      preview_image: string;
+      blurhash: string | null;
+    }>(`/documents/${id}/regenerate-preview`),
   upload: (files: File[], markdown_converter: string) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));

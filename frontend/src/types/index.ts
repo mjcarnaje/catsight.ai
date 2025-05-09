@@ -1,4 +1,6 @@
 import { DocumentStatus } from "@/lib/document-status";
+export * from "./llm";
+export * from "./source";
 
 export interface User {
   id: string | number;
@@ -9,6 +11,8 @@ export interface User {
   username?: string;
   first_name?: string;
   last_name?: string;
+  is_onboarded?: boolean;
+  favorite_llm_models?: string[];
 }
 
 export interface StatusHistory {
@@ -32,6 +36,8 @@ export interface Document {
   updated_at: string;
   uploaded_by?: User;
   status_history?: StatusHistory[];
+  preview_image?: string;
+  blurhash?: string;
 }
 
 export interface Chat {

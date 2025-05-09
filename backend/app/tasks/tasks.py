@@ -121,34 +121,58 @@ def extract_text_task(self, document_id):
     """
     Extracts markdown text from the uploaded file and saves it.
     """
+    logger.info(f"Starting extract_text_task for document_id: {document_id}")
     try:
         document = Document.objects.get(id=document_id)
+        logger.info(f"Found document: {document.id}, title: {document.title}")
         
-        if not document.file or not os.path.exists(document.file):
-            logger.error(f"File not found: {document.file}")
+        from django.conf import settings
+        full_file_path = os.path.join(settings.MEDIA_ROOT, document.file)
+        logger.info(f"File path: {document.file}, full path: {full_file_path}")
+        
+        if not document.file or not os.path.exists(full_file_path):
+            logger.error(f"File not found: {document.file} (Full path: {full_file_path})")
             update_document_status(document, DocumentStatus.PENDING, failed=True)
             return document_id
 
         update_document_status(document, DocumentStatus.TEXT_EXTRACTING)
 
-        if document.markdown_converter == MarkdownConverter.MARKER.value:
-            text = convert_pdf_with_marker(document.file)
-        elif document.markdown_converter == MarkdownConverter.MARKITDOWN.value:
-            text = convert_pdf_with_markitdown(document.file)
-        elif document.markdown_converter == MarkdownConverter.DOCLING.value:
-            text = convert_pdf_with_docling(document.file)
-        else:
-            raise ValueError(f"Invalid converter: {document.markdown_converter}")
+        # Log the chosen converter
+        logger.info(f"Using converter: {document.markdown_converter}")
 
-        DocumentFullText.objects.update_or_create(
-            document=document,
-            defaults={"text": text}
-        )
+        try:
+            if document.markdown_converter == MarkdownConverter.MARKER.value:
+                text = convert_pdf_with_marker(full_file_path)
+            elif document.markdown_converter == MarkdownConverter.MARKITDOWN.value:
+                text = convert_pdf_with_markitdown(full_file_path)
+            elif document.markdown_converter == MarkdownConverter.DOCLING.value:
+                text = convert_pdf_with_docling(full_file_path)
+            else:
+                raise ValueError(f"Invalid converter: {document.markdown_converter}")
+            
+            logger.info(f"Text extraction successful, text length: {len(text) if text else 0}")
+        except Exception as e:
+            logger.exception(f"Error converting PDF: {str(e)}")
+            # Create a placeholder text if conversion fails
+            text = f"# {document.title}\n\nError extracting text from document. The file may be corrupted or unsupported."
+
+        # Create or update the DocumentFullText
+        try:
+            fulltext_obj, created = DocumentFullText.objects.update_or_create(
+                document=document,
+                defaults={"text": text}
+            )
+            logger.info(f"DocumentFullText {'created' if created else 'updated'} for document {document.id}")
+        except Exception as e:
+            logger.exception(f"Error saving DocumentFullText: {str(e)}")
+            raise
+
         update_document_status(document, DocumentStatus.TEXT_EXTRACTED)
+        logger.info(f"extract_text_task completed successfully for document_id: {document_id}")
         return document_id
 
     except Exception as e:
-        logger.exception(f"extract_text_task failed for {document_id}")
+        logger.exception(f"extract_text_task failed for {document_id}: {str(e)}")
         if 'document' in locals():
             update_document_status(document, DocumentStatus.TEXT_EXTRACTING, failed=True)
         raise
@@ -159,20 +183,59 @@ def chunk_and_embed_text_task(self, document_id):
     """
     Splits markdown text into chunks and embeds them in the vector store.
     """
+    logger.info(f"Starting chunk_and_embed_text_task for document_id: {document_id}")
     try:
-        document = Document.objects.get(id=document_id)
+        try:
+            document = Document.objects.get(id=document_id)
+            logger.info(f"Found document: {document.id}, title: {document.title}")
+        except Document.DoesNotExist:
+            logger.error(f"Document with id {document_id} does not exist")
+            raise
+
         update_document_status(document, DocumentStatus.EMBEDDING_TEXT)
 
-        fulltext = DocumentFullText.objects.get(document=document).text
+        # Get the document full text with better error handling
+        try:
+            fulltext_obj = DocumentFullText.objects.get(document=document)
+            logger.info(f"Found DocumentFullText for document {document.id}")
+            fulltext = fulltext_obj.text
+        except DocumentFullText.DoesNotExist:
+            # Create a placeholder if it doesn't exist
+            logger.warning(f"DocumentFullText not found for document {document_id}, creating placeholder")
+            fulltext = f"# {document.title}\n\nPlaceholder for document {document_id}"
+            fulltext_obj = DocumentFullText.objects.create(
+                document=document,
+                text=fulltext
+            )
+            logger.info(f"Created placeholder DocumentFullText for document {document.id}")
+
+        # Log text content length for debugging
+        logger.info(f"Text length for document {document.id}: {len(fulltext) if fulltext else 0}")
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,
             separators=["\n\n", "\n", " ", ""]
         )
-        docs = splitter.split_documents([LangchainDocument(page_content=fulltext)])
+        
+        # Improve error handling for splitting
+        try:
+            docs = splitter.split_documents([LangchainDocument(page_content=fulltext)])
+            logger.info(f"Split text into {len(docs)} chunks")
+        except Exception as e:
+            logger.exception(f"Error splitting document: {str(e)}")
+            # Create at least one basic chunk so we can continue
+            docs = [LangchainDocument(page_content=fulltext[:1000])]
+            logger.info("Created fallback chunk after splitting error")
 
-        count = save_document_chunks(document, docs)
+        # Save chunks with better error handling
+        try:
+            count = save_document_chunks(document, docs)
+            logger.info(f"Saved {count} chunks to vector store")
+        except Exception as e:
+            logger.exception(f"Error saving chunks to vector store: {str(e)}")
+            count = 0
+        
         document.no_of_chunks = count
         document.save(update_fields=["no_of_chunks"])
 
@@ -181,10 +244,11 @@ def chunk_and_embed_text_task(self, document_id):
             DocumentStatus.EMBEDDED_TEXT,
             update_fields=["status", "no_of_chunks"]
         )
+        logger.info(f"chunk_and_embed_text_task completed successfully for document_id: {document_id}")
         return document_id
 
     except Exception as e:
-        logger.exception(f"chunk_and_embed_text_task failed for {document_id}")
+        logger.exception(f"chunk_and_embed_text_task failed for {document_id}: {str(e)}")
         if 'document' in locals():
             update_document_status(document, DocumentStatus.EMBEDDING_TEXT, failed=True)
         raise

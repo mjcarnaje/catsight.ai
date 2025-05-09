@@ -9,10 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { Document } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronLeft, Edit, FileText, Loader2, Save } from "lucide-react";
+import { ArrowLeft, ChevronLeft, Edit, FileText, LayoutPanelTop, Loader2, Maximize2, Minimize2, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 export function EditDocumentPage() {
   const { id } = useParams();
@@ -58,52 +59,91 @@ export function EditDocumentPage() {
   // Loading skeleton
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="container py-8 mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <Skeleton className="w-64 h-8" />
-          <Skeleton className="w-24 h-10" />
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-10 h-10 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="w-48 h-7" />
+              <Skeleton className="w-32 h-4" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="w-24 h-9 rounded-full" />
+            <Skeleton className="w-24 h-9 rounded-full" />
+          </div>
         </div>
-        <Skeleton className="w-full h-[calc(100vh-200px)] rounded-lg" />
+        <Skeleton className="w-full h-[calc(100vh-180px)] rounded-lg" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center text-destructive">
-        <FileText className="w-12 h-12 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold">Error Loading Document</h3>
-        <p className="mb-4">There was a problem loading this document.</p>
-        <Button variant="outline" onClick={() => navigate("/documents")}>Back to Documents</Button>
+      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+        <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
+          <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-destructive/10">
+            <FileText className="w-12 h-12 text-destructive" />
+          </div>
+          <h3 className="mb-2 text-2xl font-semibold">Error Loading Document</h3>
+          <p className="mb-6 text-muted-foreground">There was a problem loading this document.</p>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/documents")}
+            className="gap-2 rounded-full"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Documents
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="text-center text-muted-foreground">
-        <FileText className="w-12 h-12 mx-auto mb-4" />
-        <h3 className="text-xl font-semibold">Document Not Found</h3>
-        <p className="mb-4">The document you're looking for doesn't exist or has been deleted.</p>
-        <Button variant="outline" onClick={() => navigate("/documents")}>Back to Documents</Button>
+      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+        <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
+          <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-muted">
+            <FileText className="w-12 h-12 text-muted-foreground" />
+          </div>
+          <h3 className="mb-2 text-2xl font-semibold">Document Not Found</h3>
+          <p className="mb-6 text-muted-foreground">The document you're looking for doesn't exist or has been deleted.</p>
+          <Button
+            variant="outline"
+            onClick={() => navigate("/documents")}
+            className="gap-2 rounded-full"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Documents
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-background p-6' : ''}`}>
+    <div className={`container mx-auto py-8 space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-background p-6' : ''}`}>
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={handleBackClick}>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleBackClick}
+            className="rounded-full hover:bg-primary/5"
+          >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-primary">{data.title}</h1>
-              <span className="px-2 py-1 text-xs font-medium rounded-full bg-secondary text-secondary-foreground">
-                Edit
-              </span>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{data.title}</h1>
+              <Badge
+                variant="outline"
+                className="rounded-full px-3 py-0.5 font-medium text-xs bg-amber-500/10 text-amber-600 border-amber-200"
+              >
+                Editing
+              </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
               Editing document content
@@ -111,12 +151,12 @@ export function EditDocumentPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={handlePdfViewClick}
-            className="flex items-center gap-1"
+            className="flex items-center gap-1.5 rounded-full"
           >
             <FileText className="w-4 h-4" />
             <span className="hidden sm:inline">View</span> PDF
@@ -125,14 +165,14 @@ export function EditDocumentPage() {
             variant="outline"
             size="sm"
             onClick={handleComparisonViewClick}
-            className="flex items-center gap-1"
+            className="flex items-center gap-1.5 rounded-full"
           >
-            <Edit className="w-4 h-4" />
-            <span className="hidden sm:inline">View</span> Comparison
+            <LayoutPanelTop className="w-4 h-4" />
+            <span className="hidden sm:inline">Side-by-side</span> View
           </Button>
           <Button
             onClick={() => handleUpdateMarkdown(markdown)}
-            className="flex items-center gap-1"
+            className="flex items-center gap-1.5 rounded-full shadow-sm"
             size="sm"
             disabled={updateMarkdown.isPending}
           >
@@ -147,25 +187,46 @@ export function EditDocumentPage() {
       </div>
 
       {/* Edit Interface */}
-      <Card className="overflow-hidden border-0 shadow-sm">
+      <Card className="overflow-hidden border shadow-sm">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-            <TabsList>
-              <TabsTrigger value="edit" className="px-3 text-xs">Edit Markdown</TabsTrigger>
-              <TabsTrigger value="preview" className="px-3 text-xs">Preview</TabsTrigger>
-              <TabsTrigger value="comparison" className="px-3 text-xs">Side by Side</TabsTrigger>
+            <TabsList className="h-9">
+              <TabsTrigger value="edit" className="px-4 text-xs rounded-full">
+                Edit Markdown
+              </TabsTrigger>
+              <TabsTrigger value="preview" className="px-4 text-xs rounded-full">
+                Preview
+              </TabsTrigger>
+              <TabsTrigger value="comparison" className="px-4 text-xs rounded-full">
+                Side by Side
+              </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className="px-2 text-xs h-7"
+                className="flex items-center gap-1.5 px-2.5 text-xs h-8 rounded-full"
               >
-                {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 className="w-3.5 h-3.5" />
+                    Exit Fullscreen
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    Fullscreen
+                  </>
+                )}
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleBackClick} className="flex items-center gap-1 px-2 text-xs h-7">
-                <ChevronLeft className="w-3 h-3" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackClick}
+                className="flex items-center gap-1.5 px-2.5 text-xs h-8 rounded-full"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
                 Back
               </Button>
             </div>
@@ -215,28 +276,26 @@ export function EditDocumentPage() {
           </TabsContent>
         </Tabs>
 
-        <CardContent className="p-3 border-t bg-muted/10">
-          <div className="flex items-center justify-between">
-            <div className="text-xs text-muted-foreground">
-              {activeTab === "edit" ? "Editing markdown content" :
-                activeTab === "preview" ? "Previewing rendered markdown" :
-                  "Side-by-side editing and preview"}
-            </div>
-            <Button
-              onClick={() => handleUpdateMarkdown(markdown)}
-              variant="default"
-              size="sm"
-              disabled={updateMarkdown.isPending}
-              className="h-8"
-            >
-              {updateMarkdown.isPending ? (
-                <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-              ) : (
-                <Save className="w-3.5 h-3.5 mr-2" />
-              )}
-              Save Document
-            </Button>
+        <CardContent className="flex items-center justify-between p-3 border-t bg-muted/10">
+          <div className="text-xs text-muted-foreground">
+            {activeTab === "edit" ? "Editing markdown content" :
+              activeTab === "preview" ? "Previewing rendered markdown" :
+                "Side-by-side editing and preview"}
           </div>
+          <Button
+            onClick={() => handleUpdateMarkdown(markdown)}
+            variant="default"
+            size="sm"
+            disabled={updateMarkdown.isPending}
+            className="h-8 gap-1.5 rounded-full shadow-sm"
+          >
+            {updateMarkdown.isPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Save className="w-3.5 h-3.5" />
+            )}
+            Save Document
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -259,7 +318,14 @@ export function DocPdfViewer({ id }: { id: string }) {
   });
 
   if (isLoading) {
-    return <Skeleton className="w-full h-full rounded" />;
+    return (
+      <div className="flex items-center justify-center w-full h-full">
+        <div className="relative w-12 h-12">
+          <div className="absolute w-12 h-12 rounded-full opacity-25 animate-ping bg-primary"></div>
+          <div className="w-12 h-12 border-4 rounded-full animate-spin border-primary border-t-transparent"></div>
+        </div>
+      </div>
+    );
   }
 
   return <PDFViewer url={blobUrl!} />;
@@ -280,16 +346,21 @@ export function DocMarkdownEditor({ id, markdown, setMarkdown }: { id: string; m
   if (isLoading) {
     return (
       <div className="flex items-center justify-center w-full h-full">
-        <div className="w-8 h-8 border-4 rounded-full animate-spin border-primary border-t-transparent"></div>
+        <div className="relative w-12 h-12">
+          <div className="absolute w-12 h-12 rounded-full opacity-25 animate-ping bg-primary"></div>
+          <div className="w-12 h-12 border-4 rounded-full animate-spin border-primary border-t-transparent"></div>
+        </div>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="flex flex-col items-center justify-center w-full h-full text-destructive">
-        <FileText className="w-12 h-12 mb-2 text-muted-foreground/50" />
-        <p>Error loading markdown content</p>
+      <div className="flex flex-col items-center justify-center w-full h-full">
+        <div className="p-4 mx-auto mb-4 rounded-full w-fit bg-destructive/10">
+          <FileText className="w-8 h-8 text-destructive" />
+        </div>
+        <p className="text-sm text-destructive">Error loading markdown content</p>
       </div>
     );
   }
