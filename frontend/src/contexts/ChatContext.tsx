@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Chat } from "@/types";
 import { chatsApi } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { useUser } from "@/lib/auth";
 
 interface ChatContextType {
   recentChats: Chat[];
@@ -16,6 +17,7 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const { data: user } = useUser();
   const { toast } = useToast();
   const [recentChats, setRecentChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -86,8 +88,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Fetch chats on initial load
   useEffect(() => {
-    fetchRecentChats();
-  }, []);
+    if (user) {
+      fetchRecentChats();
+    }
+  }, [user]);
 
   return (
     <ChatContext.Provider

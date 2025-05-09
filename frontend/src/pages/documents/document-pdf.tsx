@@ -21,7 +21,7 @@ export function DocumentPdfPage() {
   const { isLoading: isPdfLoading, data: blobUrl } = useQuery({
     queryKey: ["pdf", id],
     queryFn: async () => {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/documents/${id}/raw`, {
+      const res = await fetch(`/api/documents/${id}/raw`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
@@ -49,8 +49,8 @@ export function DocumentPdfPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Skeleton className="w-24 h-9 rounded-full" />
-            <Skeleton className="w-24 h-9 rounded-full" />
+            <Skeleton className="w-24 rounded-full h-9" />
+            <Skeleton className="w-24 rounded-full h-9" />
           </div>
         </div>
         <Skeleton className="w-full h-[calc(100vh-180px)] rounded-lg" />

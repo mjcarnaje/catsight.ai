@@ -18,7 +18,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg_pool import ConnectionPool
 
 from ..services.vectorstore import vector_store, DB_URI
-from ..services.ollama import LLAMA_CHAT
+from ..services.ollama import LLAMA_CHAT, QWEN_CHAT, HERMES_CHAT
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,8 @@ def get_connection_pool():
 # Supported models
 MODELS = {
     "llama3.2:1b": LLAMA_CHAT,
+    "qwen3:1.7b": QWEN_CHAT,
+    "hermes3:3b": HERMES_CHAT,
 }
 
 # --- Prompt Constants -------------------------------------------------------
@@ -93,6 +95,11 @@ But I don't have complete information about [missing information]. You may want 
 5. If no relevant documents are found or if the retrieved documents are completely unrelated to the query, clearly state: "**I don't have specific document information about this topic.**" Then provide a general response based on common knowledge, clearly marking it as not document-based.
 6. Always maintain academic integrity and factual accuracy - only state what is supported by the documents or is widely accepted knowledge.
 </instructions>
+
+<tools>
+- retrieve_context: Retrieve documents from the database
+- grade_relevance: Grade the relevance of a document to a query
+</tools>
 """
 
 # --- State Definition -------------------------------------------------------
@@ -230,15 +237,16 @@ def should_continue_tools(state: AgentState) -> str:
 def generate_title(state: AgentState) -> str:   
     """Generate a title for the query."""
     system_prompt = """
-    You are tasked with generating a concise, descriptive title for a conversation between a user and an AI assistant. The title should capture the main topic or purpose of the conversation.
-    Guidelines for title generation:
-    - Keep titles extremely short (ideally 2-5 words)
-    - Focus on the main topic or goal of the conversation
-    - Use natural, readable language
-    - Avoid unnecessary articles (a, an, the) when possible
-    - Do not include quotes or special characters
-    - Capitalize important words
-    - Just return the title, no other text
+    You are tasked with generating a concise, descriptive title for this conversation between a user and CATSight.AI (MSU-IIT's AI assistant).
+    
+    TITLE REQUIREMENTS:
+    - EXTREMELY brief: 3-6 words only
+    - Descriptive of the main topic/question
+    - Relevant to MSU-IIT university context when applicable
+    - NO articles (a, an, the) unless absolutely necessary
+    - NO special characters or quotes
+    - Title case format (Capitalize Important Words)
+    - NO explanatory text, ONLY return the title itself
 
     Here is the conversation:
     """ + "\n".join([m.content for m in state["messages"]]) 

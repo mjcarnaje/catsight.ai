@@ -85,11 +85,8 @@ class GoogleAuthView(APIView):
             code = serializer.validated_data.get('token')
             
             try:
-                # Exchange auth code for tokens
                 token_endpoint = "https://oauth2.googleapis.com/token"
-                # Must match what's configured in Google Cloud Console and frontend
-                logger.info(os.getenv('GOOGLE_REDIRECT_URI'))
-                redirect_uri = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:3000/auth/login')
+                redirect_uri = "https://catsigthai.ngrok.app/auth/login"
                 
                 token_data = {
                     'code': code,

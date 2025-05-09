@@ -31,6 +31,16 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
     host: "0.0.0.0",
+    proxy: {
+      "/api": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+      },
+      "/media": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+      },
+    },
     watch: {
       usePolling: true,
     },

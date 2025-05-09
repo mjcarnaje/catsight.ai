@@ -21,6 +21,7 @@ from .views.documents import (
     get_graph,
     get_chat_history,
     regenerate_preview,
+    get_docs_count,
 )
 from .views.llm import (
     get_llm_models,
@@ -32,6 +33,7 @@ from .views.chats import (
     get_chat,
     create_chat,
     delete_chat,
+    get_chats_count,
 )
 
 urlpatterns = [
@@ -48,6 +50,7 @@ urlpatterns = [
     
     # Document URLs
     path('documents', get_docs, name='get_docs'),
+    path('documents/count', get_docs_count, name='get_docs_count'),
     path('documents/upload', upload_doc, name='upload_doc'),
     path('documents/<int:doc_id>', get_doc, name='get_doc'),
     path('documents/<int:doc_id>/raw', get_doc_raw, name='get_doc_raw'),
@@ -64,6 +67,7 @@ urlpatterns = [
     
     # Chat URLs
     path('chats', get_chats, name='get_chats'),
+    path('chats/count', get_chats_count, name='get_chats_count'),
     path('chats/recent', get_recent_chats, name='get_recent_chats'),
     path('chats/<int:chat_id>', get_chat, name='get_chat'),
     path('chats/create', create_chat, name='create_chat'),

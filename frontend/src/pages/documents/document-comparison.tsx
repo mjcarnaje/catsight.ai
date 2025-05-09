@@ -36,7 +36,7 @@ export function DocumentComparisonPage() {
   const { isLoading: isPdfLoading, data: blobUrl } = useQuery({
     queryKey: ["pdf", id],
     queryFn: async () => {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/documents/${id}/raw`, {
+      const res = await fetch(`/api/documents/${id}/raw`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
@@ -64,8 +64,8 @@ export function DocumentComparisonPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Skeleton className="w-24 h-9 rounded-full" />
-            <Skeleton className="w-24 h-9 rounded-full" />
+            <Skeleton className="w-24 rounded-full h-9" />
+            <Skeleton className="w-24 rounded-full h-9" />
           </div>
         </div>
         <Skeleton className="w-full h-[calc(100vh-180px)] rounded-lg" />
@@ -198,7 +198,7 @@ export function DocumentComparisonPage() {
           <ResizablePanelGroup direction="horizontal" className="min-h-[calc(100vh-220px)]">
             <ResizablePanel defaultSize={50} minSize={30}>
               <div className="flex flex-col h-full border-r">
-                <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
+                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
                   <h3 className="text-sm font-medium">Original PDF</h3>
                 </div>
                 <div className="flex-1 overflow-hidden">
@@ -231,8 +231,8 @@ export function DocumentComparisonPage() {
                   <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <div className="flex items-center justify-between">
                       <TabsList className="h-8">
-                        <TabsTrigger value="full" className="text-xs px-3 rounded-full">Full Document</TabsTrigger>
-                        <TabsTrigger value="chunks" className="text-xs px-3 rounded-full">
+                        <TabsTrigger value="full" className="px-3 text-xs rounded-full">Full Document</TabsTrigger>
+                        <TabsTrigger value="chunks" className="px-3 text-xs rounded-full">
                           Chunks
                           <span className="ml-1.5 px-1.5 py-0.5 text-[10px] rounded-full bg-primary/10">
                             {markdownData.chunks.length}

@@ -2,9 +2,6 @@ import axios from "axios";
 import { DocumentStatus } from "./document-status";
 import { Document, PaginatedResponse, Chat } from "@/types";
 
-// Use environment variable for API URL with fallback
-export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8000";
 // API endpoint prefix
 const API_PREFIX = "/api";
 
@@ -13,17 +10,18 @@ export const getDocumentPreviewUrl = (
   previewPath: string | undefined
 ): string => {
   if (!previewPath) return "";
-  // Check if the path is already a full URL
+
   if (previewPath.startsWith("http")) return previewPath;
-  // Otherwise, construct the URL from the base URL
-  const fullUrl = `${API_BASE_URL}/media/${previewPath}`;
+
+  // Just return the relative path, proxy handles it
+  const fullUrl = `/media/${previewPath}`;
   console.log("Preview image path:", previewPath);
-  console.log("Constructed full URL:", fullUrl);
+  console.log("Constructed proxy URL:", fullUrl);
   return fullUrl;
 };
 
 export const api = axios.create({
-  baseURL: `${API_BASE_URL}${API_PREFIX}`,
+  baseURL: `${API_PREFIX}`,
   headers: {
     "Content-Type": "application/json",
   },
@@ -69,12 +67,9 @@ api.interceptors.response.use(
         }
 
         // Use axios directly to avoid triggering the interceptor again
-        const tokenResponse = await axios.post(
-          `${API_BASE_URL}/api/auth/token/refresh`,
-          {
-            refresh: refreshToken,
-          }
-        );
+        const tokenResponse = await axios.post(`/api/auth/token/refresh`, {
+          refresh: refreshToken,
+        });
 
         // Check if we received the expected response format
         if (tokenResponse.data.access) {
@@ -165,6 +160,18 @@ export const chatsApi = {
       });
   },
 
+  getCount: () => {
+    return api
+      .get<{ count: number }>("/chats/count")
+      .then((response) => {
+        return response.data.count;
+      })
+      .catch((error) => {
+        console.error("Error fetching chat count:", error);
+        throw error;
+      });
+  },
+
   getOne: (id: number) => {
     console.log(`Fetching chat with ID: ${id}`);
     return api
@@ -202,13 +209,18 @@ export const chatsApi = {
 };
 
 export const documentsApi = {
-  getAll: (page: number = 1, pageSize: number = 9) =>
-    api.get<PaginatedResponse<Document>>("/documents", {
-      params: {
-        page,
-        page_size: pageSize,
-      },
-    }),
+  getAll: (
+    page: number = 1,
+    pageSize: number = 9,
+    additionalParams: Record<string, string | number> = {}
+  ) => {
+    const params = {
+      page,
+      page_size: pageSize,
+      ...additionalParams,
+    };
+    return api.get<PaginatedResponse<Document>>("/documents", { params });
+  },
   getOne: (id: number) => api.get<Document>(`/documents/${id}`),
   getRaw: (id: number) => api.get<Document>(`/documents/${id}/raw`),
   getMarkdown: (id: number) => api.get<Document>(`/documents/${id}/markdown`),
@@ -241,6 +253,17 @@ export const documentsApi = {
     page_size?: number;
   }) =>
     api.get<PaginatedResponse<SearchResult>>("/documents/search", { params }),
+  getCount: () => {
+    return api
+      .get<{ count: number }>("/documents/count")
+      .then((response) => {
+        return response.data.count;
+      })
+      .catch((error) => {
+        console.error("Error fetching document count:", error);
+        throw error;
+      });
+  },
 };
 
 interface LLMModel {

@@ -6,12 +6,25 @@ import { useUser } from "@/lib/auth"
 import { useEffect, useState } from "react"
 import { documentsApi, chatsApi } from "@/lib/api"
 import { Document, Chat } from "@/types"
+import { useQuery } from "@tanstack/react-query"
 
 export default function DashboardPage() {
   const { data: user } = useUser();
   const [isLoading, setIsLoading] = useState(true);
   const [recentDocuments, setRecentDocuments] = useState<Document[]>([]);
   const [recentChats, setRecentChats] = useState<Chat[]>([]);
+
+  const { data: documentsCount = 0, isLoading: isDocumentsCountLoading } = useQuery({
+    queryKey: ['documentsCount'],
+    queryFn: () => documentsApi.getCount(),
+    staleTime: 60000 // 1 minute
+  });
+
+  const { data: chatsCount = 0, isLoading: isChatsCountLoading } = useQuery({
+    queryKey: ['chatsCount'],
+    queryFn: () => chatsApi.getCount(),
+    staleTime: 60000 // 1 minute
+  });
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -48,7 +61,7 @@ export default function DashboardPage() {
             <FileText className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{recentDocuments.length}</div>
+            <div className="text-2xl font-bold">{isDocumentsCountLoading ? "..." : String(documentsCount)}</div>
             <p className="text-xs text-muted-foreground">Total documents in the system</p>
           </CardContent>
         </Card>
@@ -58,7 +71,7 @@ export default function DashboardPage() {
             <MessageSquare className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{recentChats.length}</div>
+            <div className="text-2xl font-bold">{isChatsCountLoading ? "..." : String(chatsCount)}</div>
             <p className="text-xs text-muted-foreground">Active chat sessions</p>
           </CardContent>
         </Card>

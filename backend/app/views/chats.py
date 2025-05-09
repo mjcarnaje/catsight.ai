@@ -102,4 +102,20 @@ def delete_chat(request, chat_id):
         chat.delete()
         return Response({"status": "success", "message": "Chat deleted successfully"}, status=status.HTTP_200_OK)
     except Chat.DoesNotExist:
-        return Response({"status": "error", "message": "Chat not found"}, status=status.HTTP_404_NOT_FOUND) 
+        return Response({"status": "error", "message": "Chat not found"}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_chats_count(request):
+    """
+    Return the total count of chats in the system.
+    """
+    try:
+        count = Chat.objects.count()
+        return Response({"count": count}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error getting chat count: {str(e)}", exc_info=True)
+        return Response(
+            {"status": "error", "message": f"Failed to get chat count: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        ) 
