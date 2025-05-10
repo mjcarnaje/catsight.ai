@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Message } from "./chat-reducer";
-import { Loader2, Copy, Check, RefreshCw, FileText, CalendarDays, Landmark, Users, Scroll, Megaphone } from "lucide-react";
+import { Loader2, Copy, Check, RefreshCw, FileText, CalendarDays, Landmark, Users, Scroll, Megaphone, Eye, EyeOff } from "lucide-react";
 import { SourcesButton } from "./sources-button";
 import { Markdown } from "@/components/markdown";
 
@@ -84,6 +84,7 @@ export function ChatList({
 }: ChatListProps) {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [thinkingVisibility, setThinkingVisibility] = useState<Record<string, boolean>>({});
 
   // Debug logging
   useEffect(() => {
@@ -142,6 +143,35 @@ export function ChatList({
     }
   }, [messages]);
 
+  // Extract thinking content from message
+  const extractThinking = (content: string) => {
+    const thinkRegex = /<think>([\s\S]*?)<\/think>/;
+    const match = content.match(thinkRegex);
+
+    if (match && match[1]) {
+      // Return the content without the thinking part and the thinking part separately
+      const cleanContent = content.replace(thinkRegex, '').trim();
+      return {
+        hasThinking: true,
+        content: cleanContent || "",
+        thinking: match[1].trim()
+      };
+    }
+
+    return {
+      hasThinking: false,
+      content,
+      thinking: ""
+    };
+  };
+
+  const toggleThinking = (messageId: string) => {
+    setThinkingVisibility(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
+    }));
+  };
+
   // Only show suggestions when there are no messages
   if (!messages || messages.length === 0) {
     return (
@@ -183,6 +213,13 @@ export function ChatList({
         const isCopied = copiedId === msg.id;
         const hasSources = msg.sources && msg.sources.length > 0;
 
+        // Process thinking content only for assistant messages
+        const processedContent = isAssistant && msg.content
+          ? extractThinking(msg.content)
+          : { hasThinking: false, content: msg.content || "", thinking: "" };
+
+        const showThinking = thinkingVisibility[msg.id] && processedContent.hasThinking;
+
         return (
           <div
             key={msg.id}
@@ -201,7 +238,35 @@ export function ChatList({
             >
               {isAssistant ? (
                 <div className={cn("", msg.role === "user" ? "" : "pl-1")}>
-                  <Markdown content={msg.content || "..."} />
+                  <Markdown content={processedContent.content || "..."} />
+
+                  {processedContent.hasThinking && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => toggleThinking(msg.id)}
+                        className="flex items-center gap-1 px-2 py-1 mb-2 text-xs text-gray-700 bg-gray-100 rounded-md"
+                      >
+                        {showThinking ? (
+                          <>
+                            <EyeOff className="w-3 h-3" />
+                            <span>Hide Thinking</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-3 h-3" />
+                            <span>Show Thinking</span>
+                          </>
+                        )}
+                      </button>
+
+                      {showThinking && (
+                        <div className="p-3 mt-2 text-sm border border-gray-200 rounded-md bg-gray-50">
+                          <h4 className="mb-1 text-xs font-medium text-gray-500">AI Thinking Process:</h4>
+                          <Markdown content={processedContent.thinking} />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className={cn(

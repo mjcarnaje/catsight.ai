@@ -770,3 +770,37 @@ def get_docs_count(request):
             {"status": "error", "message": f"Error getting document count: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def regenerate_summary(request, doc_id):
+    """
+    Regenerate the summary, title, tags, and year for a document.
+    """
+    try:
+        document = Document.objects.get(id=doc_id)
+        
+        # Kick off the summary generation task
+        task = generate_document_summary_task.delay(doc_id)
+        
+        # Update task_id in document
+        document.task_id = task.id
+        document.save(update_fields=["task_id"])
+        
+        logger.info(f"Summary regeneration task started for document {doc_id}")
+        return Response(
+            {"status": "success", "message": "Document summary regeneration started"}, 
+            status=status.HTTP_200_OK
+        )
+    except Document.DoesNotExist:
+        logger.warning(f"Document not found: {doc_id}")
+        return Response(
+            {"status": "error", "message": "Document not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error regenerating summary for document {doc_id}: {str(e)}", exc_info=True)
+        return Response(
+            {"status": "error", "message": f"Error regenerating summary: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

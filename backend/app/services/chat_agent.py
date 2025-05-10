@@ -20,7 +20,7 @@ from langgraph.errors import NodeInterrupt
 from langchain_core.tools import Tool
 from langchain_ollama import ChatOllama
 from ..services.vectorstore import vector_store, DB_URI
-from ..services.ollama import base_url
+from ..services.ollama import base_url, MODELS, LLAMA_CHAT
 from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
@@ -55,14 +55,6 @@ def get_connection_pool():
         )
         logger.info(f"Created PostgreSQL connection pool for LangGraph using: {PSYCOPG_DB_URI}")
     return _connection_pool
-
-# --- Model Registry --------------------------------------------------------
-# Supported models
-MODELS = {
-    "llama3.2:1b": LLAMA_CHAT,
-    "qwen3:1.7b": QWEN_CHAT,
-    "hermes3:3b": HERMES_CHAT,
-}
 
 # --- Prompt Constants -------------------------------------------------------
 SYSTEM_PROMPT = """

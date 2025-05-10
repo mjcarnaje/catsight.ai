@@ -5,9 +5,9 @@ base_url = "http://ollama:11434"
 
 BGEM3_EMBEDDINGS = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url=base_url)
 
-LLAMA_CHAT = ChatOllama(model="llama3.2:1b", base_url=base_url, temperature=1)
-QWEN_CHAT = ChatOllama(model="qwen3:1.7b", base_url=base_url, temperature=1)
-HERMES_CHAT = ChatOllama(model="hermes3:3b", base_url=base_url, temperature=1)
+LLAMA_CHAT = ChatOllama(model="llama3.2:1b", base_url=base_url, temperature=0)
+QWEN_CHAT = ChatOllama(model="qwen3:0.7b", base_url=base_url, temperature=0)
+HERMES_CHAT = ChatOllama(model="hermes3:3b", base_url=base_url, temperature=0)
 
 # --- Model Registry --------------------------------------------------------
 # Supported models
