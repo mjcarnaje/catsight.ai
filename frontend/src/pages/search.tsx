@@ -138,6 +138,21 @@ export function SearchPage() {
     return <IconComponent className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />;
   };
 
+  // Add this function to ensure we handle the year properly
+  const getDisplayYear = (document: any) => {
+    return document.year || new Date(document.created_at).getFullYear();
+  };
+
+  // Add this function to ensure we handle tags properly
+  const getDocumentTags = (document: any) => {
+    return document.tags || [];
+  };
+
+  // Add this function to ensure we handle the summary properly
+  const getDocumentSummary = (document: any) => {
+    return document.summary || "";
+  };
+
   return (
     <div className="container max-w-6xl py-8 mx-auto">
       <div className="flex flex-col items-center mb-12">
@@ -243,13 +258,31 @@ export function SearchPage() {
                             </Badge>
                           </div>
 
-                          {document.description && (
-                            <p className="mb-3 text-sm text-muted-foreground line-clamp-2">{document.description}</p>
+                          {getDocumentSummary(document) && (
+                            <p className="mb-3 text-sm text-muted-foreground line-clamp-2">{getDocumentSummary(document)}</p>
                           )}
 
-                          <div className="flex items-center mb-3 text-xs text-muted-foreground">
-                            <Calendar className="w-3.5 h-3.5 mr-1" />
-                            <span>{new Date(document.created_at).toLocaleDateString()}</span>
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            <div className="flex items-center text-xs text-muted-foreground">
+                              <Calendar className="w-3.5 h-3.5 mr-1" />
+                              <span>{getDisplayYear(document)}</span>
+                            </div>
+
+                            {getDocumentTags(document).length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {getDocumentTags(document).slice(0, 3).map((tag: string, idx: number) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    <Tag className="w-3 h-3 mr-1" />
+                                    {tag}
+                                  </Badge>
+                                ))}
+                                {getDocumentTags(document).length > 3 && (
+                                  <Badge variant="outline" className="text-xs">
+                                    +{getDocumentTags(document).length - 3}
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-2 gap-2 mt-2 text-xs">

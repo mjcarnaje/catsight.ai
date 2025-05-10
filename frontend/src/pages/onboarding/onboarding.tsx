@@ -19,6 +19,7 @@ export function OnboardingPage() {
   const [avatar, setAvatar] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | undefined>(user?.avatar);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fullName, setFullName] = useState<string>(`${user?.first_name || ''} ${user?.last_name || ''}`);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -71,6 +72,8 @@ export function OnboardingPage() {
         formData.append("avatar_file", avatar);
       }
       formData.append("is_onboarded", "true");
+      formData.append("first_name", fullName.split(" ")[0]);
+      formData.append("last_name", fullName.split(" ").slice(1).join(" "));
 
       await updateProfile.mutateAsync(formData);
 
@@ -92,11 +95,11 @@ export function OnboardingPage() {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-full">Loading...</div>;
+    return <div className="flex items-center justify-center h-full">Loading...</div>;
   }
 
   if (isError) {
-    return <div className="flex justify-center items-center h-full">Error loading user data</div>;
+    return <div className="flex items-center justify-center h-full">Error loading user data</div>;
   }
 
   const initials = user ?
@@ -140,8 +143,8 @@ export function OnboardingPage() {
             <div className="space-y-2">
               <Label>Name</Label>
               <Input
-                value={`${user?.first_name || ''} ${user?.last_name || ''}`}
-                disabled
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 className="bg-muted"
               />
               <p className="text-xs text-muted-foreground">

@@ -113,7 +113,9 @@ class DocumentManager(models.Manager):
 
 class Document(models.Model):
     title              = models.TextField(null=True, blank=True)
-    description        = models.TextField(null=True, blank=True)
+    summary            = models.TextField(null=True, blank=True)
+    year               = models.IntegerField(null=True, blank=True)
+    tags               = models.JSONField(null=True, blank=True)
     file               = models.CharField(max_length=1000, null=True, blank=True)
     file_name          = models.CharField(max_length=1000, null=True, blank=True)
     file_type          = models.CharField(max_length=100, null=True, blank=True)
@@ -144,7 +146,7 @@ class Document(models.Model):
     def __str__(self):
         return self.title or f"Document {self.id}"
 
-    def save(self, *args, **kwargs):
+def save(self, *args, **kwargs):
         # Check if creation or status change
         is_create = self.pk is None
         old_status = None

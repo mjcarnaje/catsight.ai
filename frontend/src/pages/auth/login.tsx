@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import { useGoogleAuth, useLogin } from "@/lib/auth"
+import { useGoogleAuth, useLogin, authApi } from "@/lib/auth"
 import axios from "axios"
 import { useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Eye, EyeOff } from "lucide-react"
 
 const GOOGLE_CLIENT_ID = "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
 const REDIRECT_URI = "https://catsightai.ngrok.app/auth/login"
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loginError, setLoginError] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
 
   // Clear any previous errors when form changes
   useEffect(() => {
@@ -64,23 +66,25 @@ export default function LoginPage() {
     try {
       console.log("Attempting login with:", { email, password: "********" })
 
-      // Try direct API call first to see the raw response
-      try {
-        const response = await axios.post("/api/auth/login",
-          { email, password },
-          { headers: { 'Content-Type': 'application/json' } }
-        )
-        console.log("Direct API response:", response.data)
-      } catch (directError) {
-        console.error("Direct API error:", directError)
-        if (axios.isAxiosError(directError)) {
-          console.error("Response data:", directError.response?.data)
-        }
+      // Call the login mutation and wait for it to complete
+      const result = await login.mutateAsync({ email, password })
+      console.log("Login successful:", result)
+
+      // Check if we have the tokens stored properly
+      const accessToken = localStorage.getItem("access_token")
+      if (!accessToken) {
+        console.error("No access token after login")
+        throw new Error("Authentication failed. Please try again.")
       }
 
-      // Now use the hook
-      await login.mutateAsync({ email, password })
-      navigate("/dashboard");
+      // Verify authentication state
+      if (!authApi.isAuthenticated()) {
+        console.error("Auth state not updated after successful login")
+        throw new Error("Authentication state error. Please try again.")
+      }
+
+      // Navigate to dashboard after successful login
+      navigate("/dashboard")
     } catch (error: unknown) {
       console.error("Login error:", error)
 
@@ -118,9 +122,27 @@ export default function LoginPage() {
 
   const handleGoogleCallback = async (code: string) => {
     try {
-      await googleAuth.mutateAsync(code)
-      // Navigation is handled in the onSuccess callback of useGoogleAuth
+      console.log("Processing Google authentication code...")
+      const result = await googleAuth.mutateAsync(code)
+      console.log("Google auth successful:", result)
+
+      // Double-check if tokens were stored properly
+      const accessToken = localStorage.getItem("access_token")
+      if (!accessToken) {
+        console.error("No access token after Google login")
+        throw new Error("Google authentication failed. Please try again.")
+      }
+
+      // Verify authentication state
+      if (!authApi.isAuthenticated()) {
+        console.error("Auth state not updated after successful Google login")
+        throw new Error("Authentication state error. Please try again.")
+      }
+
+      // We have the onSuccess callback in googleAuth hook, but let's make sure navigation happens
+      navigate("/dashboard")
     } catch (error) {
+      console.error("Google login error:", error)
       const errorMessage = error instanceof Error
         ? error.message
         : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Could not authenticate with Google. Please try again."
@@ -181,14 +203,32 @@ export default function LoginPage() {
                       Forgot password?
                     </Button>
                   </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="h-9"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="h-9"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute -translate-y-1/2 right-1 top-1/2 h-7 w-7"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
+                      <span className="sr-only">
+                        {showPassword ? "Hide password" : "Show password"}
+                      </span>
+                    </Button>
+                  </div>
                 </div>
                 {loginError && (
                   <div className="text-sm text-destructive">

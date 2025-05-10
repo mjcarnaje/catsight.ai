@@ -1,5 +1,4 @@
-from ..models import LLMModel
-from ..serializers import LLMModelSerializer
+from ..constant.llm import LLM_MODELS
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from app.utils.permissions import AllowAny
@@ -7,14 +6,26 @@ from app.utils.permissions import AllowAny
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_llm_models(request):
-    llm_models = LLMModel.objects.all().order_by('name')
-    serializer = LLMModelSerializer(llm_models, many=True)
-    return Response(serializer.data)
+    # Add id field to each model based on its position in the list
+    models_with_ids = []
+    for i, model in enumerate(LLM_MODELS, 1):
+        model_with_id = model.copy()
+        model_with_id['id'] = i
+        models_with_ids.append(model_with_id)
+    
+    return Response(models_with_ids)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_llm_model(request, pk):
-    llm_model = LLMModel.objects.get(pk=pk)
-    serializer = LLMModelSerializer(llm_model)
-    return Response(serializer.data)
+    try:
+        # Since pk is an integer in the URL pattern, use it as index
+        if 0 < pk <= len(LLM_MODELS):
+            model = LLM_MODELS[pk-1].copy()
+            model['id'] = pk
+            return Response(model)
+        else:
+            return Response({'error': 'LLM model not found'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
 

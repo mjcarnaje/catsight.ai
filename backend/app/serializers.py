@@ -70,7 +70,7 @@ class DocumentSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Document
-        fields = ['id', 'title', 'description', 'file', 'file_name', 'file_type', 
+        fields = ['id', 'title', 'summary', 'year', 'tags', 'file', 'file_name', 'file_type', 
                  'preview_image', 'blurhash', 'status', 'is_failed', 'task_id', 
                  'markdown_converter', 'no_of_chunks', 'created_at', 'updated_at', 
                  'uploaded_by', 'status_history']

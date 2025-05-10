@@ -39,11 +39,32 @@ export type Action =
     };
 
 export function chatReducer(state: Message[], action: Action): Message[] {
+  // Log actions for debugging
+  console.log("ChatReducer action:", action.type, action);
+
   switch (action.type) {
     case "ADD_USER":
+      // Ensure the payload has all required fields
+      if (!action.payload.id) {
+        action.payload.id = `user-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 7)}`;
+      }
+      if (!action.payload.timestamp) {
+        action.payload.timestamp = new Date().toISOString();
+      }
       return [...state, action.payload];
 
     case "START_ASSISTANT":
+      // Ensure the payload has all required fields
+      if (!action.payload.id) {
+        action.payload.id = `assistant-${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 7)}`;
+      }
+      if (!action.payload.timestamp) {
+        action.payload.timestamp = new Date().toISOString();
+      }
       return [...state, action.payload];
 
     case "APPEND_ASSISTANT":

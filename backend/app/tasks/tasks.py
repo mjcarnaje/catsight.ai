@@ -257,7 +257,7 @@ def chunk_and_embed_text_task(self, document_id):
 @shared_task(bind=True)
 def generate_document_summary_task(self, document_id):
     """
-    Generates a title and summary from the first chunk.
+    Generates a title, summary, year and tags from the first chunk.
     """
     try:
         document = Document.objects.get(id=document_id)
@@ -275,12 +275,14 @@ def generate_document_summary_task(self, document_id):
 
         if chunks:
             first = chunks[0]
-            title, summary = DocumentProcessor.generate_information(first.page_content)
-            document.title = title
-            document.description = summary
-            document.save(update_fields=["title", "description"])
+            info = DocumentProcessor.get_full_information(first.page_content)
+            document.title = info.title
+            document.summary = info.summary
+            document.year = info.year
+            document.tags = info.tags
+            document.save(update_fields=["title", "summary", "year", "tags"])
             update_document_status(document, DocumentStatus.SUMMARY_GENERATED,
-                                   update_fields=["status", "title", "description"])
+                                   update_fields=["status", "title", "summary", "year", "tags"])
 
             if document.no_of_chunks > 0:
                 update_document_status(document, DocumentStatus.COMPLETED)

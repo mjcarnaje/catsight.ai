@@ -18,7 +18,7 @@ from .views.documents import (
     search_docs,
     chat_with_docs,
     delete_all_docs,
-    get_graph,
+    get_graph_image,
     get_chat_history,
     regenerate_preview,
     get_docs_count,
@@ -62,7 +62,7 @@ urlpatterns = [
     path('documents/search', search_docs, name='search_docs'),
     path('documents/chat', chat_with_docs, name='chat_with_docs'),
     path('documents/delete_all', delete_all_docs, name='delete_all_docs'),
-    path('documents/graph', get_graph, name='get_graph'),
+    path('documents/graph/image', get_graph_image, name='get_graph_image'),
     path('chats/<str:chat_id>/history', get_chat_history, name='get_chat_history'),
     
     # Chat URLs

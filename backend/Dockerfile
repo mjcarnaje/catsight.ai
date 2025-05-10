@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libyaml-dev \
     libffi-dev \
     libssl-dev \
+    poppler-utils \
     curl \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
@@ -61,7 +62,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     wget \
  && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && which pdfinfo  # Verify pdfinfo is in PATH
 
 # Copy application code
 COPY . .
