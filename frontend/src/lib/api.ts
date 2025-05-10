@@ -224,6 +224,11 @@ export const documentsApi = {
   getOne: (id: number) => api.get<Document>(`/documents/${id}`),
   getRaw: (id: number) => api.get<Document>(`/documents/${id}/raw`),
   getMarkdown: (id: number) => api.get<Document>(`/documents/${id}/markdown`),
+  getGraph: () =>
+    api.get<{ mermaid: string; format: string; message: string }>(
+      "/documents/graph"
+    ),
+  getGraphImageUrl: () => `${API_PREFIX}/documents/graph/image`,
   retry: (id: number) => api.post(`/documents/${id}/retry/`),
   regeneratePreview: (id: number) =>
     api.post<{

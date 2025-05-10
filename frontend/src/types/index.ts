@@ -1,4 +1,5 @@
 import { DocumentStatus } from "@/lib/document-status";
+import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
 export * from "./llm";
 export * from "./source";
 
@@ -27,10 +28,12 @@ export interface Document {
   file: string;
   file_name: string;
   file_type: string;
-  description: string;
+  summary: string;
+  year?: number;
+  tags?: string[];
   no_of_chunks: number;
   status: DocumentStatus;
-  markdown_converter: "marker" | "markitdown" | "docling";
+  markdown_converter: keyof typeof MARKDOWN_CONVERTERS;
   is_failed: boolean;
   created_at: string;
   updated_at: string;
@@ -38,23 +41,15 @@ export interface Document {
   status_history?: StatusHistory[];
   preview_image?: string;
   blurhash?: string;
+  file_path?: string;
+  file_size?: number;
 }
 
 export interface Chat {
   id: number;
-  title?: string;
+  title: string;
   created_at: string;
   updated_at: string;
-  messages_count?: number;
-  document_id?: number;
-  document_title?: string;
-  messages?: {
-    id: string;
-    role: "user" | "assistant";
-    content: string;
-    timestamp: string;
-  }[];
-  model_id?: string;
   model_name?: string;
 }
 
@@ -87,4 +82,42 @@ export interface PaginatedResponse<T> {
   page: number;
   next: number | null;
   previous: number | null;
+}
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  description: string;
+  logo: string;
+}
+
+export interface SearchResultItem {
+  chunk_index: number;
+  text: string;
+  snippet?: string;
+  score: number;
+}
+
+export interface SearchResult {
+  document_id: number;
+  title: string;
+  file_name: string;
+  file_type: string;
+  preview_image?: string;
+  blurhash?: string;
+  max_score: number;
+  results: SearchResultItem[];
+  created_at: string;
+  updated_at: string;
+  no_of_chunks?: number;
+  markdown_converter: keyof typeof MARKDOWN_CONVERTERS;
+  summary?: string;
+  year?: number;
+  tags?: string[];
+}
+
+export interface SearchResponse {
+  count: number;
+  num_pages: number;
+  results: SearchResult[];
 }

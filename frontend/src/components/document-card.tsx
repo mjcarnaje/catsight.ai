@@ -34,6 +34,12 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const queryClient = useQueryClient();
 
+  // Get document year (prefer doc.year if available, otherwise use creation date year)
+  const documentYear = doc.year || new Date(doc.created_at).getFullYear();
+
+  // Get tags or empty array if not available
+  const tags = doc.tags || [];
+
   // Use status history if available, otherwise use the current status
   const statusInfo = hasStatusHistory
     ? getDocumentStatusFromHistory(doc.status_history)
@@ -96,7 +102,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
       })
     : [];
 
-  const ConverterIcon = MARKDOWN_CONVERTERS[doc.markdown_converter].icon
+  const ConverterIcon = MARKDOWN_CONVERTERS[doc.markdown_converter || "marker"].icon
   const previewImageUrl = getDocumentPreviewUrl(doc.preview_image);
 
   const statusColors = {
@@ -165,14 +171,23 @@ export function DocumentCard({ doc }: DocumentCardProps) {
 
         {/* Basic Info */}
         <div className="flex-1 p-3 pl-4 overflow-hidden">
-          {/* Status Badge - Positioned at top right */}
-          <div className="flex justify-end mb-1.5">
+          {/* Status Badge and Year - Positioned at top right */}
+          <div className="flex justify-end gap-1.5 mb-1.5">
             <Badge
               variant="outline"
               className={`rounded-full px-2 py-0.5 font-medium text-xs ${statusColor} transition-colors whitespace-nowrap`}
             >
               {statusInfo.label}
             </Badge>
+
+            {/* Year Badge */}
+            <Badge
+              variant="secondary"
+              className="rounded-full px-2 py-0.5 font-medium text-xs bg-primary/10 text-primary border-primary/20"
+            >
+              {documentYear}
+            </Badge>
+
             {hasStatusHistory && (
               <StatusHistoryPopover
                 statusHistory={doc.status_history}
@@ -223,10 +238,31 @@ export function DocumentCard({ doc }: DocumentCardProps) {
 
       {/* Description */}
       <div className="flex-grow px-4 pt-2 pb-1">
-        {doc.description ? (
-          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{doc.description}</p>
+        {doc.summary ? (
+          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{doc.summary}</p>
         ) : (
           <p className="text-xs italic sm:text-sm text-muted-foreground">No description available</p>
+        )}
+
+        {/* Tags Section */}
+        {tags && tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {tags.slice(0, 3).map((tag, idx) => (
+              <Badge
+                key={idx}
+                variant="secondary"
+                className="text-xs bg-secondary/40 hover:bg-secondary/60"
+              >
+                <Tag className="w-3 h-3 mr-1" />
+                {tag}
+              </Badge>
+            ))}
+            {tags.length > 3 && (
+              <Badge variant="outline" className="text-xs">
+                +{tags.length - 3}
+              </Badge>
+            )}
+          </div>
         )}
       </div>
 

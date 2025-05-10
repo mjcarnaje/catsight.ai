@@ -1,5 +1,5 @@
 // ChatInput.tsx
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { ModelSelector } from "@/components/chat/model-selector";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Send, Loader2, Sparkles } from "lucide-react";
@@ -21,8 +21,14 @@ export function ChatInput({
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Debug log for modelId changes
+  useEffect(() => {
+    console.log("ChatInput modelId changed:", modelId);
+  }, [modelId]);
+
   const submit = () => {
     if (!text.trim() || !modelId) return;
+    console.log("Submitting text:", text.trim());
     onSend(text.trim());
     setText("");
     // Reset textarea height
@@ -48,6 +54,11 @@ export function ChatInput({
         200
       )}px`;
     }
+  };
+
+  const handleModelChange = (model: ModelInfo | null) => {
+    console.log("Model changed to:", model);
+    onModelChange(model);
   };
 
   return (
@@ -100,7 +111,7 @@ export function ChatInput({
           </form>
 
           <div className="shrink-0">
-            <ModelSelector modelId={modelId} onModelChange={onModelChange} />
+            <ModelSelector modelId={modelId} onModelChange={handleModelChange} />
           </div>
         </div>
 

@@ -4,12 +4,13 @@ from django.conf import settings
 
 from celery import chain
 from celery.result import AsyncResult
-from django.http import FileResponse, StreamingHttpResponse
+from django.http import FileResponse, StreamingHttpResponse, HttpResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, parser_classes, permission_classes
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from langchain_core.runnables.graph import MermaidDrawMethod
 
 from ..models import Document, DocumentFullText, Chat
 from ..serializers import DocumentSerializer, ChatSerializer
@@ -21,7 +22,7 @@ from ..utils.extractor import make_snippet
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsSuperAdmin, IsOwnerOrAdmin, AllowAny
 from ..services.vectorstore import vector_store
-from ..services.chat_agent import catsight_agent
+from ..services.catsight_agent import catsight_agent, _print_event
 from ..models import DocumentStatus
 import json
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -369,7 +370,9 @@ def search_docs(request):
                     documents_map[doc_id] = {
                         "document_id": doc_id,
                         "title": document.title,
-                        "description": document.description,
+                        "summary": document.summary,
+                        "year": document.year,
+                        "tags": document.tags,
                         "file_name": document.file_name,
                         "file_type": document.file_type,
                         "created_at": document.created_at.isoformat(),
@@ -521,11 +524,13 @@ def chat_with_docs(request):
         ai_message_id = None
 
         try:
+            _printed = set()
             for state in catsight_agent.stream(
                 input=input_state,
                 config=config,
                 stream_mode="values"
             ):               
+                _print_event(state, _printed)
                 # Check if title has been generated
                 if "title" in state and state.get("should_generate_title") is False and state["title"]:
                     # Update chat title in the database
@@ -584,26 +589,6 @@ def chat_with_docs(request):
         content_type="text/event-stream"
     )
 
-# GET /api/documents/graph
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def get_graph(request):
-    try:
-        # Get the Mermaid string directly instead of rendering to PNG
-        mermaid_text = catsight_agent.get_graph().draw_mermaid()
-        
-        # Return the Mermaid text in a JSON response
-        return Response({
-            "mermaid": mermaid_text,
-            "format": "mermaid",
-            "message": "Render this mermaid diagram on the client side for better compatibility"
-        })
-    except Exception as e:
-        logger.error(f"Error getting graph: {str(e)}")
-        return Response(
-            {"error": f"Failed to get graph: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -628,16 +613,23 @@ def get_chat_history(request, chat_id):
             formatted_messages = []
             is_previous_tool_message = False
             sources = []
+            
             for msg in messages:
                 msg.pretty_print()
                 role = "user" if isinstance(msg, HumanMessage) else "tool" if isinstance(msg, ToolMessage) else "assistant"
 
                 content = getattr(msg, "content", "")
                 
+                if not content or content.startswith("Error: ") or (role == "tool" and msg.name == "grade_relevance"):
+                    continue
+
+                logger.info("========<DEBUG>=========")
+                logger.info(msg)
+                logger.info("========<END_DEBUG>=========")
+                
                 if isinstance(msg, ToolMessage):
                     is_previous_tool_message = True
                     sources = json.loads(content)
-                    print(sources)
                     continue
 
                 formatted_messages.append({
@@ -664,6 +656,49 @@ def get_chat_history(request, chat_id):
         logger.error(f"Error in get_chat_history: {str(e)}")
         return Response(
             {"error": f"Error: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_graph_image(request):
+    try:
+        # Get the Mermaid string
+        mermaid_text = catsight_agent.get_graph().draw_mermaid()
+        
+        # Create a simple HTML page with the mermaid diagram
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>LangGraph Visualization</title>
+            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+            <script>
+                mermaid.initialize({{ startOnLoad: true, theme: 'default' }});
+            </script>
+            <style>
+                body {{ margin: 0; padding: 0; }}
+                .mermaid {{ max-width: 100%; }}
+            </style>
+        </head>
+        <body>
+            <div class="mermaid">
+            {mermaid_text}
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Return the HTML content
+        return HttpResponse(
+            html_content,
+            content_type="text/html"
+        )
+    except Exception as e:
+        logger.error(f"Error getting graph image: {str(e)}")
+        return Response(
+            {"error": f"Failed to get graph image: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 

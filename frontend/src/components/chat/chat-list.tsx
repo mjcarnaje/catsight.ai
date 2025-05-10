@@ -2,23 +2,93 @@
 import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Message } from "./chat-reducer";
-import { Loader2, Copy, Check, RefreshCw } from "lucide-react";
+import { Loader2, Copy, Check, RefreshCw, FileText, CalendarDays, Landmark, Users, Scroll, Megaphone } from "lucide-react";
 import { SourcesButton } from "./sources-button";
 import { Markdown } from "@/components/markdown";
+
+interface QuestionSuggestion {
+  icon: React.ElementType;
+  label: string;
+  prompts: string[];
+}
 
 interface ChatListProps {
   messages: Message[];
   isStreaming?: boolean;
   onRegenerateMessage?: (messageId: string) => void;
+  onSelectSuggestion?: (text: string) => void;
 }
+
+const questionSuggestions: QuestionSuggestion[] = [
+  {
+    icon: FileText,
+    label: "Special Orders & Memorandums",
+    prompts: [
+      "What are the latest MSU-IIT Special Orders?",
+      "Show me recent University Memorandums",
+      "What's the difference between Special Orders and Memorandums?",
+    ],
+  },
+  {
+    icon: CalendarDays,
+    label: "Calendars & Bulletins",
+    prompts: [
+      "What's on the MSU-IIT academic calendar?",
+      "Tell me about recent Campus Bulletins",
+      "When is the next semester break and registration period?",
+    ],
+  },
+  {
+    icon: Landmark,
+    label: "Board Resolutions & University Circulars",
+    prompts: [
+      "Show me the most recent Board Resolutions",
+      "What do the latest University Circulars say about new policies?",
+      "Can you find a Board Resolution about faculty promotions?",
+    ],
+  },
+  {
+    icon: Users,
+    label: "Student & Faculty Policies",
+    prompts: [
+      "What are the current Student Policies?",
+      "Tell me about faculty directives for this semester",
+      "Have there been any recent changes to academic policies?",
+    ],
+  },
+  {
+    icon: Scroll,
+    label: "Administrative Notices & Travel Orders",
+    prompts: [
+      "What do the latest Administrative Notices say?",
+      "Show me information about Travel Orders",
+      "Who is authorized for official travel this month?",
+    ],
+  },
+  {
+    icon: Megaphone,
+    label: "University Announcements",
+    prompts: [
+      "What are the latest University announcements?",
+      "Tell me about upcoming campus events",
+      "Are there any urgent announcements from the administration?",
+    ],
+  },
+];
 
 export function ChatList({
   messages,
   isStreaming = false,
-  onRegenerateMessage
+  onRegenerateMessage,
+  onSelectSuggestion
 }: ChatListProps) {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Debug logging
+  useEffect(() => {
+    console.log("ChatList received messages:", messages.length, messages);
+  }, [messages]);
 
   const copyToClipboard = (text: string, id: string) => {
     try {
@@ -72,10 +142,36 @@ export function ChatList({
     }
   }, [messages]);
 
+  // Only show suggestions when there are no messages
   if (!messages || messages.length === 0) {
     return (
-      <div className="flex items-center justify-center flex-1 p-4">
-        <p className="text-gray-500">Send a message to start the conversation</p>
+      <div className="flex flex-col items-center justify-center flex-1 w-full max-w-4xl p-8 mx-auto">
+        <h2 className="mb-6 text-2xl font-semibold text-center text-gray-800">How can I help you today?</h2>
+
+        <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
+          {questionSuggestions.map((category, idx) => {
+            const Icon = category.icon;
+            return (
+              <div key={idx} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <Icon className="w-5 h-5 text-pink-500" />
+                  <h3 className="font-medium text-gray-800">{category.label}</h3>
+                </div>
+                <div className="space-y-2">
+                  {category.prompts.map((prompt, pIdx) => (
+                    <button
+                      key={pIdx}
+                      onClick={() => onSelectSuggestion?.(prompt)}
+                      className="w-full p-2 text-sm text-left text-gray-700 transition-colors rounded-md hover:bg-pink-50"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }

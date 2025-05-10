@@ -1,6 +1,7 @@
 Django==5.1.2
 djangorestframework
 django-cors-headers
+django-extensions
 celery
 ocrmypdf
 ollama
@@ -42,3 +43,4 @@ pdf2image==1.17.0
 Pillow>=10.4.0
 blurhash>=1.0.0
 blurhash-python>=1.2.2
+pyppeteer

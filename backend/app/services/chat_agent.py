@@ -2,7 +2,7 @@ import logging
 import json
 from typing import List, Optional, Dict, Annotated, Any
 from typing_extensions import TypedDict
-
+from pydantic import BaseModel
 from django.conf import settings
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -13,12 +13,15 @@ from ..models import Document
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg_pool import ConnectionPool
-
+from langgraph.errors import NodeInterrupt
+from langchain_core.tools import Tool
+from langchain_ollama import ChatOllama
 from ..services.vectorstore import vector_store, DB_URI
-from ..services.ollama import LLAMA_CHAT, QWEN_CHAT, HERMES_CHAT
+from ..services.ollama import base_url
+from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -84,16 +87,16 @@ Always format your responses using Markdown to improve readability:
 
 
 <instructions>
-1. ALWAYS prioritize information from retrieved documents over general knowledge.
-2. CRITICAL: Carefully evaluate each retrieved document for relevance to the user's specific query:
-   - If a document appears unrelated to the query, DO NOT include it in your response
-   - For documents with low relevance scores (below 0.5), be extra critical when evaluating their usefulness
-   - Focus only on the most relevant information that directly addresses the user query
-3. When relevant documents are retrieved, indicate this with: "**Based on the documents I've found:**" and then provide the information.
-4. If documents are retrieved but don't fully answer the query, state: "**The documents I have access to provide this information:**\n\n[summary of document content]\n\n
-But I don't have complete information about [missing information]. You may want to check [suggest appropriate source or approach]."
-5. If no relevant documents are found or if the retrieved documents are completely unrelated to the query, clearly state: "**I don't have specific document information about this topic.**" Then provide a general response based on common knowledge, clearly marking it as not document-based.
-6. Always maintain academic integrity and factual accuracy - only state what is supported by the documents or is widely accepted knowledge.
+1. Prioritize information from retrieved documents over general knowledge.
+2. Evaluate each retrieved document for relevance to the user's query:
+   - Exclude documents unrelated to the query.
+   - Be critical of documents with relevance scores below 0.5.
+   - Focus on information that directly addresses the query.
+3. Grade the relevance of documents before using them in your response.
+4. When relevant documents are found, start with: "**Based on the documents I've found:**" and provide the information.
+5. If documents don't fully answer the query, state: "**The documents I have access to provide this information:**\n\n[summary of document content]\n\nBut I don't have complete information about [missing information]. You may want to check [suggest appropriate source or approach]."
+6. If no relevant documents are found, state: "**I don't have specific document information about this topic.**" Provide a general response based on common knowledge, clearly marking it as not document-based.
+7. Maintain academic integrity and factual accuracy - only state what is supported by documents or widely accepted knowledge.
 </instructions>
 
 <tools>
@@ -102,12 +105,41 @@ But I don't have complete information about [missing information]. You may want 
 </tools>
 """
 
+FALLBACK_PROMPT = """
+You are CATSight.AI, an AI assistant for Mindanao State University – Iligan Institute of Technology (MSU-IIT).
+
+<instructions>
+The user has asked a question that is not specifically related to MSU-IIT administrative documents. Politely inform them that:
+
+1. You're currently specialized in answering questions about MSU-IIT administrative documents, such as:
+   - Special Orders
+   - Memorandums
+   - University circulars
+   - Academic calendars
+   - Board resolutions
+   - University announcements
+   - Student policies
+   - Faculty directives
+   - Administrative notices
+   - Campus bulletins
+   - Travel Orders
+   - Other MSU-IIT administrative documents
+
+2. You'd be happy to assist with questions related to these administrative documents.
+
+3. Suggest that they rephrase their question to focus on MSU-IIT administrative information if that's what they're looking for.
+
+Use a friendly, helpful tone and make your response concise. Format your response using Markdown.
+</instructions>
+"""
+
 # --- State Definition -------------------------------------------------------
 class AgentState(TypedDict):
     """State for the chat agent graph."""
     messages: Annotated[list, add_messages]
     title: Optional[str]
     should_generate_title: bool = True  
+    is_msu_iit_related: bool = False
 
 class ConfigSchema(TypedDict):
     """Configuration for the agent graph."""
@@ -124,7 +156,7 @@ def retrieve_context(query: str) -> list[object]:
     Only returns sources whose similarity score is >= score_threshold.
     Returns a JSON string of source-dicts or a message if none found.
     """
-    score_threshold = 0.4
+    score_threshold = 0.35
     top_k = 10
     
     if not query:
@@ -158,7 +190,9 @@ def retrieve_context(query: str) -> list[object]:
             sources_map[doc_id] = {
                 "id":           d.id,
                 "title":        d.title,
-                "description":  d.description,
+                "summary":      d.summary,
+                "year":         d.year,
+                "tags":         d.tags,
                 "file_name":    d.file_name,
                 "blurhash":     d.blurhash,
                 "preview_image":  d.preview_image,
@@ -178,13 +212,15 @@ def retrieve_context(query: str) -> list[object]:
     return json.dumps(list(sources_map.values()))
 
 @tool
-def grade_relevance(query: str, context: list[object]) -> str:
+def grade_relevance(query: str, context: str) -> str:
     """Determine if the provided context is relevant to the query."""
+
+    context = json.loads(context)
 
     formatted_context = ""
 
     for c in context:
-        formatted_context += f"Title: {c['title']}\nDescription: {c['description']}\nFile Name: {c['file_name']}\nFile Type: {c['file_type']}\nCreated At: {c['created_at']}\nUpdated At: {c['updated_at']}\nContent: {c['content']}\n\n"
+        formatted_context += f"Title: {c['title']}\nSummary: {c['summary']}\nYear: {c['year']}\nTags: {c['tags']}\nFile Name: {c['file_name']}\nFile Type: {c['file_type']}\nCreated At: {c['created_at']}\nUpdated At: {c['updated_at']}\nContent: {c['content']}\n\n"
     
     prompt = PromptTemplate(
         input_variables=["query", "context"],
@@ -215,48 +251,138 @@ def grade_relevance(query: str, context: list[object]) -> str:
     response = model.invoke([HumanMessage(content=prompt)])
     return response.content
 
+toolbox = [retrieve_context, grade_relevance]
+
 # --- Helper Functions ------------------------------------------------------
-def should_continue_tools(state: AgentState) -> str:
-    """Determine if the assistant should use tools or finish."""
-    messages = state["messages"]
-    should_generate_title = state["should_generate_title"]
-    
-    if not messages:
-        return END
-    
-    last_message = messages[-1]
-    
-    if isinstance(last_message, AIMessage) and last_message.tool_calls:
-        return "tools"
+class Title(BaseModel):
+    title: str
 
-    if should_generate_title:
-        return "generate_title"
-    
-    return END
+class IntentCheck(BaseModel):
+    is_msu_iit_related: bool
 
-def generate_title(state: AgentState) -> str:   
-    """Generate a title for the query."""
+def generate_title(state: AgentState) -> dict:
+    """
+    Generate a concise and descriptive 3-6 word title for a conversation between a user and MSU-IIT's AI assistant.
+    """
+
+    # System prompt with title requirements
     system_prompt = """
-    You are tasked with generating a concise, descriptive title for this conversation between a user and CATSight.AI (MSU-IIT's AI assistant).
-    
-    TITLE REQUIREMENTS:
-    - EXTREMELY brief: 3-6 words only
-    - Descriptive of the main topic/question
-    - Relevant to MSU-IIT university context when applicable
-    - NO articles (a, an, the) unless absolutely necessary
-    - NO special characters or quotes
-    - Title case format (Capitalize Important Words)
-    - NO explanatory text, ONLY return the title itself
+        You are an expert extraction algorithm. Only extract relevant information from the text. If you do not know the value of an attribute asked to extract, return null for the attribute's value.
 
-    Here is the conversation:
-    """ + "\n".join([m.content for m in state["messages"]]) 
-    ai_msg = LLAMA_CHAT.invoke([SystemMessage(content=system_prompt)])
-    
-    title = ai_msg.content.split("\n\n")[1]    
+        Create a concise and descriptive 3-6 word title for a conversation between a user and MSU-IIT's AI assistant.
+
+        <title_requirements>
+        - 3-6 words, extremely brief
+        - Describes the main topic or question
+        - Relevant to MSU-IIT university context if applicable
+        - Avoid articles (a, an, the) unless necessary
+        - No special characters or quotes
+        - Title Case format (Capitalize Important Words)
+        - Provide only the title, no additional text
+        - Do not include any other text or comments
+        - Avoid using the word "Summary of", etc.
+        </title_requirements>
+        """
+
+    # Combine conversation messages into a single string
+    conversation_text = "\n".join([m.content for m in state["messages"] if isinstance(m, HumanMessage)])
+
+    # Create the prompt template
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{text}")
+    ])
+
+    # Bind the prompt with the chat model and structured output
+    runnable = prompt | LLAMA_CHAT.with_structured_output(schema=Title)
+
+    # Invoke the model with the conversation text
+    ai_msg = runnable.invoke({"text": conversation_text})
+
+    # Extract the title from the structured response
+    title = ai_msg.title.strip()
+
+    # Log the generated title
+    logger.info(f"Generated title: {title}")
 
     return {
         "title": title,
         "should_generate_title": False
+    }
+
+def generate_title_condition(state: AgentState):
+    """Determine if the assistant should generate a title."""
+    messages = state["messages"]
+    should_generate_title = state["should_generate_title"]
+    
+    if len(messages) > 1 and should_generate_title:
+        return "generate_title"
+    
+    return END
+
+def intent_check(state: AgentState):
+    user_request = state["messages"][-1].content
+
+    intent_check_prompt = f"""
+    Determine if the user's request is related to MSU-IIT (Mindanao State University - Iligan Institute of Technology).
+    
+    A request is related to MSU-IIT if it mentions:
+    - Any MSU-IIT document, policy, or administrative matter
+    - Any MSU-IIT location, facility, or campus
+    - Any MSU-IIT department, college, or program
+    - Any event, activity, or organization that could be connected to MSU-IIT
+    - Any person who might be affiliated with MSU-IIT
+    
+    User request: "{user_request}"
+    
+    Respond with "True" if the request might be related to MSU-IIT.
+    Respond with "False" only if the request is clearly unrelated to MSU-IIT or any university matter.
+    
+    When in doubt, respond with "True".
+    """
+
+    # Create the prompt template
+    prompt = ChatPromptTemplate.from_messages([
+        ("human", intent_check_prompt)
+    ])
+
+    # Bind the prompt with the chat model and structured output
+    runnable = prompt | LLAMA_CHAT.with_structured_output(schema=IntentCheck)
+
+    # Invoke the model with structured output
+    result = runnable.invoke({"user_request": user_request})
+
+    logger.info(f"Intent check result: {result.is_msu_iit_related}")
+    
+    # Return classification value for routing
+    return {"is_msu_iit_related": result.is_msu_iit_related}
+
+def intent_router(state: AgentState):
+    """Route based on intent classification result"""
+    if state.get("is_msu_iit_related", False):
+        return "chatbot"
+    else:
+        return "fallback"
+
+def fallback_handler(state: AgentState, config: RunnableConfig):
+    """Handle queries not related to MSU-IIT administrative documents."""
+    # Get the model
+    model_name = config["configurable"].get("model", "llama3.2:1b")
+    model = MODELS.get(model_name)
+    
+    # Get the messages from the state
+    messages = state.get("messages", [])
+    
+    # Create the system message with fallback prompt
+    system_msg = SystemMessage(content=FALLBACK_PROMPT)
+    
+    # Invoke the model with the fallback prompt
+    response = model.invoke([system_msg] + messages)
+    
+    # Return updated state
+    return {
+        "messages": [response],
+        "should_generate_title": state.get("should_generate_title", True)
     }
 
 pool = get_connection_pool()
@@ -274,10 +400,7 @@ def create_chat_agent():
     checkpointer.setup()
     logger.info("PostgreSQL checkpointer setup completed")
 
-    # Create tools list
-    tools = [retrieve_context, grade_relevance]
-    
-    # Initialize the graph
+   # Initialize the graph
     graph_builder = StateGraph(AgentState, ConfigSchema)
     
     # Define the chatbot node
@@ -285,8 +408,8 @@ def create_chat_agent():
         """Process user input and generate appropriate responses."""
         # Get the model
         model_name = config["configurable"].get("model", "llama3.2:1b")
-        model = MODELS.get(model_name, LLAMA_CHAT)
-        model_with_tools = model.bind_tools(tools)
+        model = ChatOllama(model=model_name, base_url=base_url)
+        model_with_tools = model.bind_tools(toolbox)
         
         # Get the messages from the state
         messages = state.get("messages", [])
@@ -311,33 +434,57 @@ def create_chat_agent():
             "messages": [response],
             "should_generate_title": state.get("should_generate_title", True)
         }
-    
-    # Define the tools node
-    tools_node = ToolNode(tools=tools)
-    
+  
     # Add nodes to the graph
+    graph_builder.add_node("intent_check", intent_check)
     graph_builder.add_node("chatbot", chatbot)
-    graph_builder.add_node("tools", tools_node)
+    graph_builder.add_node("fallback", fallback_handler)
+    graph_builder.add_node("tools", ToolNode(toolbox))
     graph_builder.add_node("generate_title", generate_title)
-    
-    # Add edges to the graph
-    graph_builder.add_edge(START, "chatbot")
-    graph_builder.add_edge("tools", "chatbot")
 
-    # Add conditional edges
+    # Add edges to the graph
+    graph_builder.add_edge(START, "intent_check")
+    
+    # Add conditional edge from intent check to either chatbot or fallback
+    graph_builder.add_conditional_edges(
+        "intent_check",
+        intent_router,
+        {
+            "chatbot": "chatbot",
+            "fallback": "fallback"
+        }
+    )
+
     graph_builder.add_conditional_edges(
         "chatbot",
-        should_continue_tools,
+        tools_condition,
+    )
+    graph_builder.add_edge("tools", "chatbot")
+    
+    # Add conditional edge for title generation from both chatbot and fallback
+    graph_builder.add_conditional_edges(
+        "chatbot",
+        generate_title_condition,
         {
-            "tools": "tools",
             "generate_title": "generate_title",
             END: END
         }
     )
+    
+    graph_builder.add_conditional_edges(
+        "fallback",
+        generate_title_condition,
+        {
+            "generate_title": "generate_title",
+            END: END
+        }
+    )
+    
+    graph_builder.add_edge("generate_title", END)
     
     # Compile with checkpointer and return the graph
     graph = graph_builder.compile(checkpointer=checkpointer)
     
     return graph
 
-catsight_agent = create_chat_agent()
+catsight_agent1 = create_chat_agent()

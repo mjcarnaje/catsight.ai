@@ -117,6 +117,9 @@ export function DocumentViewPage() {
 
   const statusColor = statusColors[statusInfo.label as keyof typeof statusColors] || statusColors.default;
 
+  // Extract tags from data or default to empty array
+  const tags = data.tags || [];
+
   return (
     <div className="min-h-screen">
       {/* Hero Header */}
@@ -140,14 +143,38 @@ export function DocumentViewPage() {
             >
               {statusInfo.label}
             </Badge>
+
+            {/* Display Year */}
+            <Badge
+              variant="secondary"
+              className="rounded-full px-3 py-0.5 font-medium text-xs bg-primary/10 text-primary border-primary/20"
+            >
+              {data.year}
+            </Badge>
           </div>
 
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{data.title}</h1>
               <p className="mt-2 text-muted-foreground">
-                {data.description || "No description provided for this document."}
+                {data.summary || "No summary provided for this document."}
               </p>
+
+              {/* Display Tags */}
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {tags.map((tag, index) => (
+                    <Badge
+                      key={index}
+                      variant="outline"
+                      className="px-3 py-1 transition-colors rounded-full bg-secondary/40 hover:bg-secondary/60 border-secondary/20"
+                    >
+                      <Tag className="w-3 h-3 mr-1" />
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               <Button
@@ -244,6 +271,30 @@ export function DocumentViewPage() {
                         <div className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                           {formattedUpdatedDate}
+                        </div>
+
+                        <div className="font-medium">Year</div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                          <Badge className="font-medium border-none bg-primary/10 text-primary hover:bg-primary/20">
+                            {data.year}
+                          </Badge>
+                        </div>
+
+                        <div className="font-medium">Tags</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {tags.length > 0 ? (
+                            tags.map((tag, index) => (
+                              <Badge
+                                key={index}
+                                className="border-none bg-secondary/40 hover:bg-secondary/60 text-secondary-foreground"
+                              >
+                                {tag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs italic text-muted-foreground">No tags</span>
+                          )}
                         </div>
                       </div>
                     </div>

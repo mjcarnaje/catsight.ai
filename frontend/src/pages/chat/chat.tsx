@@ -22,6 +22,12 @@ export default function ChatPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   // Ref to store the last user message during navigation
   const pendingUserMessageRef = useRef<Message | null>(null);
+  // Track if we're in a new chat with no history
+  const [isNewChat, setIsNewChat] = useState<boolean>(true);
+  // Track the previous chatId for comparison
+  const previousChatIdRef = useRef<string | undefined>(chatId);
+  // Track if this is the initial load with no chatId
+  const isInitialLoad = useRef<boolean>(true);
 
   const { send, isStreaming } = useChatStream(
     chatId,
@@ -87,6 +93,24 @@ export default function ChatPage() {
       });
   }, []);
 
+  // Load chat history on initial mount if chatId exists
+  useEffect(() => {
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+
+      if (chatId) {
+        console.log("Initial load with chatId:", chatId);
+        setIsLoadingHistory(true);
+        setIsNewChat(false);
+        loadChatHistory(chatId);
+      } else {
+        console.log("No chatId, this is a new chat");
+        setIsNewChat(true);
+        setIsLoadingHistory(false);
+      }
+    }
+  }, [chatId]);
+
   // Handle regenerating a message
   const handleRegenerateMessage = (messageId: string) => {
     if (!selectedModel) {
@@ -137,17 +161,36 @@ export default function ChatPage() {
 
   // Clear messages when navigating to a new chat
   useEffect(() => {
+    if (isInitialLoad.current) {
+      return; // Skip on initial load as we handle it in a separate effect
+    }
+
     console.log("Location or chatId changed:", location.pathname);
 
-    // Clear existing messages when we navigate to a different chat
-    dispatch({
-      type: "SET_CLEAR_MESSAGES",
-      payload: [] as Message[],
-    });
+    // Check if this is a different chat than before to trigger a full reset
+    const isChangingChat = previousChatIdRef.current !== chatId;
+    previousChatIdRef.current = chatId;
 
-    // If we have a chatId, load that chat's history
-    if (chatId) {
-      loadChatHistory(chatId);
+    if (isChangingChat) {
+      console.log(`Changing from chat ${previousChatIdRef.current} to ${chatId}, clearing messages`);
+
+      // Clear existing messages first
+      dispatch({
+        type: "SET_CLEAR_MESSAGES",
+        payload: [] as Message[],
+      });
+
+      // Mark as loading
+      setIsLoadingHistory(true);
+
+      // If we have a chatId, load that chat's history
+      if (chatId) {
+        loadChatHistory(chatId);
+      } else {
+        // If no chatId, mark as a new chat and stop loading
+        setIsNewChat(true);
+        setIsLoadingHistory(false);
+      }
     }
   }, [location.pathname, chatId]);
 
@@ -173,12 +216,16 @@ export default function ChatPage() {
   // Load existing chat history
   const loadChatHistory = (id: string) => {
     setIsLoadingHistory(true);
+    setIsNewChat(false);
+
+    console.log(`Loading chat history for ID: ${id}`);
 
     // First, try to load chat history from LangGraph state
     chatsApi
       .getHistory(Number(id))
       .then((response) => {
         const historyData = response.data;
+        console.log("Received history data:", historyData);
 
         // Process messages from LangGraph history
         if (historyData.messages && historyData.messages.length > 0) {
@@ -191,7 +238,7 @@ export default function ChatPage() {
           // Add each message from history to state
           historyData.messages.forEach((msg: any) => {
             const messagePayload: Message = {
-              id: msg.id,
+              id: msg.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
               role: msg.role,
               content: msg.content,
               timestamp: msg.timestamp || new Date().toISOString(),
@@ -234,10 +281,10 @@ export default function ChatPage() {
                 console.error("Failed to get model details:", err);
               });
           }
-
-          // Stop loading and return early if we got messages
-          setIsLoadingHistory(false);
-          return;
+        } else {
+          // If no messages found, mark as a new chat
+          console.log("No messages found in history, marking as new chat");
+          setIsNewChat(true);
         }
       })
       .catch((err) => {
@@ -247,6 +294,8 @@ export default function ChatPage() {
           description: "Could not load chat history.",
           variant: "destructive",
         });
+        // If there's an error, still mark as a new chat
+        setIsNewChat(true);
       })
       .finally(() => {
         setIsLoadingHistory(false);
@@ -261,6 +310,22 @@ export default function ChatPage() {
       });
       return;
     }
+    // Set isNewChat to false since we're sending a message
+    setIsNewChat(false);
+    send(text);
+  };
+
+  // Handle selecting a suggestion question
+  const handleSelectSuggestion = (text: string) => {
+    if (!selectedModel) {
+      toast({
+        title: "No Model Selected",
+        description: "Please select a model before sending a message.",
+      });
+      return;
+    }
+    // Set isNewChat to false since we're sending a message
+    setIsNewChat(false);
     send(text);
   };
 
@@ -283,6 +348,7 @@ export default function ChatPage() {
               messages={messages}
               isStreaming={isStreaming}
               onRegenerateMessage={handleRegenerateMessage}
+              onSelectSuggestion={handleSelectSuggestion}
             />
           </div>
         )}

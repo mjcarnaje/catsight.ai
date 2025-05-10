@@ -1,0 +1,24 @@
+
+LLM_MODELS =[
+        {
+            'code': 'llama3.2:1b',
+            'name': 'Llama 3.2 1B',
+            'description': (
+                'Llama 3.2 1B is a compact general purpose language model optimized for efficiency. '
+                'It offers good performance for its size, making it suitable for a wide range of applications. '
+                'This model provides a balance between speed and capability for daily tasks.'
+            ),
+        'logo': 'https://pbs.twimg.com/profile_images/16470ge89927269101570/pAVjQBOf_400x400.jpg',
+        },
+        {
+            'code': 'qwen3:1.7b',
+            'name': 'Qwen 3.1.7B',
+            'description': (
+                'Qwen 3 is the latest generation of large language models in Qwen series, offering a comprehensive suite of dense and mixture-of-experts (MoE) models. '
+                'The flagship model, Qwen3-235B-A22B, achieves competitive results in benchmark evaluations of coding, math, general capabilities, etc., when compared to '
+                'other top-tier models such as DeepSeek-R1, o1, o3-mini, Grok-3, and Gemini-2.5-Pro. Additionally, the small MoE model offers excellent performance '
+                'for efficient deployment.'
+            ),
+            'logo': 'https://avatars.githubusercontent.com/u/141221163?s=200&v=4',
+        },
+    ]
