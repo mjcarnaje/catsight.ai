@@ -274,15 +274,20 @@ def generate_document_summary_task(self, document_id):
             )
 
         if chunks:
-            first = chunks[0]
-            info = DocumentProcessor.get_full_information(first.page_content)
-            document.title = info.title
-            document.summary = info.summary
-            document.year = info.year
-            document.tags = info.tags
+            title = DocumentProcessor.get_title(chunks)
+            summary = DocumentProcessor.get_summary(chunks)
+            year = DocumentProcessor.get_year(chunks)
+            tags = DocumentProcessor.get_tags(summary)
+            
+            # Update document with the generated information
+            document.title = title
+            document.summary = summary
+            document.year = year
+            document.tags = tags
             document.save(update_fields=["title", "summary", "year", "tags"])
+            
             update_document_status(document, DocumentStatus.SUMMARY_GENERATED,
-                                   update_fields=["status", "title", "summary", "year", "tags"])
+                               update_fields=["status", "title", "summary", "year", "tags"])
 
             if document.no_of_chunks > 0:
                 update_document_status(document, DocumentStatus.COMPLETED)

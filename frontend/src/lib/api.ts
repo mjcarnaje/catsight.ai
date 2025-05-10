@@ -269,6 +269,15 @@ export const documentsApi = {
         throw error;
       });
   },
+  getChunks: (id: number) => {
+    return api.get(`/documents/${id}/chunks`);
+  },
+  updateMarkdown: (id: number, markdown: string) => {
+    return api.put(`/documents/${id}/update`, { markdown });
+  },
+  regenerateSummary: (id: number) => {
+    return api.post(`/documents/${id}/regenerate-summary`);
+  },
 };
 
 interface LLMModel {

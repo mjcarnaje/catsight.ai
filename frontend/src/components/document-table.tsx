@@ -2,7 +2,7 @@ import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
 import { DocumentStatus, getStatusInfo, getDocumentStatusFromHistory } from "@/lib/document-status";
 import { Document } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Eye, FileText, Image as ImageIcon, Loader2, MoreHorizontal, RotateCw, Trash, User } from "lucide-react";
+import { ChevronRight, Eye, FileText, Image as ImageIcon, Loader2, MoreHorizontal, RefreshCw, RotateCw, Trash, User } from "lucide-react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
@@ -70,6 +70,24 @@ export function DocumentTable({ documents }: DocumentTableProps) {
       toast({
         title: "Error",
         description: "Failed to regenerate preview image. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const regenerateSummaryMutation = useMutation({
+    mutationFn: (docId: number) => documentsApi.regenerateSummary(docId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Success",
+        description: "Document summary regeneration started. This might take a moment.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to regenerate document summary. Please try again.",
         variant: "destructive",
       });
     },
@@ -261,7 +279,22 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {!hasPreview && (
+                      <DropdownMenuItem
+                        className="flex items-center gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          regenerateSummaryMutation.mutate(doc.id);
+                        }}
+                        disabled={regenerateSummaryMutation.isPending && regenerateSummaryMutation.variables === doc.id}
+                      >
+                        {regenerateSummaryMutation.isPending && regenerateSummaryMutation.variables === doc.id ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                        )}
+                        Regenerate Summary
+                      </DropdownMenuItem>
+                      {!(doc.preview_image && doc.blurhash) && (
                         <>
                           <DropdownMenuItem
                             className="flex items-center gap-2"
@@ -269,7 +302,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                               e.stopPropagation();
                               regeneratePreviewMutation.mutate(doc.id);
                             }}
-                            disabled={regeneratePreviewMutation.isPending}
+                            disabled={regeneratePreviewMutation.isPending && regeneratePreviewMutation.variables === doc.id}
                           >
                             {regeneratePreviewMutation.isPending && regeneratePreviewMutation.variables === doc.id ? (
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />

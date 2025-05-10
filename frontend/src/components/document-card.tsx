@@ -2,7 +2,7 @@ import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
 import { getDocumentStatusFromHistory, getStatusInfo } from "@/lib/document-status";
 import { Document } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, RotateCw, Tag, Trash } from "lucide-react";
+import { Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, RefreshCw, RotateCw, Tag, Trash } from "lucide-react";
 import { useState } from "react";
 import { Blurhash } from "react-blurhash";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +22,14 @@ import {
   TooltipTrigger,
 } from "./ui/tooltip";
 import { useToast } from "./ui/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 
 interface DocumentCardProps {
   doc: Document;
@@ -78,6 +86,24 @@ export function DocumentCard({ doc }: DocumentCardProps) {
       toast({
         title: "Error",
         description: "Failed to regenerate preview image. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const regenerateSummaryMutation = useMutation({
+    mutationFn: () => documentsApi.regenerateSummary(doc.id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Success",
+        description: "Document summary regeneration started. This might take a moment.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to regenerate document summary. Please try again.",
         variant: "destructive",
       });
     },
@@ -302,22 +328,67 @@ export function DocumentCard({ doc }: DocumentCardProps) {
           <span>View details</span>
           <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="w-8 h-8 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteMutation.mutate();
-          }}
-          disabled={handleDeleteMutation.isPending}
-        >
-          {handleDeleteMutation.isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Trash className="w-4 h-4" />
-          )}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              className="flex items-center gap-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                regenerateSummaryMutation.mutate();
+              }}
+              disabled={regenerateSummaryMutation.isPending}
+            >
+              {regenerateSummaryMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              Regenerate Summary
+            </DropdownMenuItem>
+            {!(doc.preview_image && doc.blurhash) && (
+              <DropdownMenuItem
+                className="flex items-center gap-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  regeneratePreviewMutation.mutate();
+                }}
+                disabled={regeneratePreviewMutation.isPending}
+              >
+                {regeneratePreviewMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RotateCw className="w-4 h-4 mr-2" />
+                )}
+                Generate Preview
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteMutation.mutate();
+              }}
+              disabled={handleDeleteMutation.isPending}
+            >
+              {handleDeleteMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash className="w-4 h-4 mr-2" />
+              )}
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </Card>
   );

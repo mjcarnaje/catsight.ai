@@ -27,7 +27,8 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { recentChats, isLoading, error, fetchRecentChats, removeChat } = useChatContext();
+  const { recentChats, isLoading, error, fetchRecentChats, removeChat } =
+    useChatContext();
 
   const handleNewChat = () => {
     navigate("/chat");
@@ -109,14 +110,8 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
                     className="flex-1 block text-sm truncate"
                   >
                     <div className="flex items-center gap-2">
-                      <MessageSquare className="w-4 h-4 text-gray-500" />
                       <span>{getChatTitle(chat)}</span>
                     </div>
-                    {chat.model_name && (
-                      <div className="pl-6 mt-1 text-xs text-gray-500">
-                        {chat.model_name}
-                      </div>
-                    )}
                   </Link>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -133,16 +128,21 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Chat</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete this chat? This action cannot be undone.
+                          Are you sure you want to delete this chat? This action
+                          cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => deleteChatMutation.mutate(Number(chat.id))}
+                          onClick={() =>
+                            deleteChatMutation.mutate(Number(chat.id))
+                          }
                           disabled={deleteChatMutation.isPending}
                         >
-                          {deleteChatMutation.isPending ? "Deleting..." : "Delete"}
+                          {deleteChatMutation.isPending
+                            ? "Deleting..."
+                            : "Delete"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

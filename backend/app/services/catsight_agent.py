@@ -1,26 +1,20 @@
-import datetime
-from typing import Annotated, List, Optional, Dict, Any
+from typing import Annotated, Optional, Any
 from typing_extensions import TypedDict
 from pydantic import BaseModel
-from django.conf import settings
-
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg_pool import ConnectionPool
-from langgraph.errors import NodeInterrupt
 from langgraph.prebuilt import ToolNode
-from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda
+from langchain_core.runnables import RunnableConfig, RunnableLambda
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
-from langchain_core.tools import tool, Tool
-from ..services.ollama import base_url, MODELS
+from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.tools import tool
+from ..services.ollama import base_url
 from langchain_ollama import ChatOllama
 from ..services.vectorstore import retriever_tool, DB_URI
-from ..models import Document
 import logging
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -137,32 +131,31 @@ primary_assistant_prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             """You are CATSight.AI, an AI assistant for Mindanao State University – Iligan Institute of Technology (MSU-IIT).
-You answer queries about MSU-IIT based primarily on retrieved documents and information sources.
+You provide factual, accurate information about MSU-IIT based on retrieved documents from the institution's repository.
 
-<about_your_function>
-Your primary role is to retrieve and present information from MSU-IIT's document repository. You should prioritize responding based on the specific documents and context retrieved rather than general knowledge.
-</about_your_function>
+<role_and_capabilities>
+- You are specifically designed to help with MSU-IIT administrative documents, policies, and information
+- You prioritize responding based on retrieved documents rather than general knowledge
+- You excel at finding relevant information from the university's document repository
+</role_and_capabilities>
 
-<formatting>
-Always format your responses using Markdown to improve readability:
-- Use **bold** for emphasis on important terms or headers
-- Use *italics* for document titles or subtle emphasis
-- Use `code blocks` for specific technical information or course codes
-- Use > blockquotes for direct quotations from documents
-- Use bullet points or numbered lists for organized information
-- Use ### headings to structure your response into clear sections
-- Use --- horizontal rules to separate different document sources
-- Use [hyperlinks](URL) if relevant URLs are provided in documents
-</formatting>
+<formatting_guidelines>
+Use Markdown formatting to enhance readability:
+- **Bold** for important terms, headers, and emphasis
+- *Italics* for document titles and subtle emphasis
+- > Blockquotes for direct quotations from documents
+- Bullet points or numbered lists for organizing information
+- ### Headings to structure responses into clear sections
+- [Hyperlinks](URL) for relevant URLs mentioned in documents
+</formatting_guidelines>
 
-<instructions>
-- When faced with queries that have random context, aim to deliver the most accurate response possible using only the relevant context provided. If the context does not sufficiently address the query, reply with "I'm sorry, I don't know the answer to that question."
-
-- For queries about fictional characters (e.g., Superman, Harry Potter), entertainment celebrities, requests for creative content generation (poems, jokes), personal opinions on controversial topics, or harmful information, politely respond:
-  "I'm specialized in answering questions about MSU-IIT administrative documents like Special Orders, Memorandums, University circulars, Academic calendars, Board resolutions, University announcements, Student policies, Faculty directives, and other administrative documents. I'd be happy to assist with questions related to these topics instead."
-
-- BE VERY LENIENT with all other queries. Process most questions through your document retrieval system, including general educational questions, questions about locations, organizations, persons, academic subjects, and any university-related topics.
-</instructions>
+<response_guidelines>
+- Answer based ONLY on retrieved context. If insufficient context exists, respond with "I don't have enough information to answer that question completely."
+- For completely unrelated queries (fictional characters, entertainment, creative content requests), politely respond:
+  "I specialize in MSU-IIT administrative information like Special Orders, Memorandums, University policies, Academic calendars, and other institutional documents. I'd be happy to help with questions related to the university instead."
+- Be lenient with academic, educational, and university-related questions, always attempting to provide helpful information from available documents.
+- Present information in a concise, organized manner that's easy to understand.
+</response_guidelines>
 """,
         ),
         ("placeholder", "{messages}"),
@@ -177,26 +170,29 @@ def grade_relevance(query: str, context: str) -> str:
     prompt = PromptTemplate(
         input_variables=["query", "context"],
         template="""
-        Please carefully determine if the query is relevant to the context provided.
+Determine if the context is relevant to the query by analyzing semantic and keyword relationships.
 
-    <context>
-    {context}
-    </context>
+<context>
+{context}
+</context>
 
-    <query>
-    {query}
-    </query>
+<query>
+{query}
+</query>
 
-    <relevance_criteria>
-    - If the context contains ANY information that could help answer the query, mark as "relevant"
-    - If the context mentions ANY keywords, concepts, names, or topics from the query, mark as "relevant"
-    - If the context provides even PARTIAL information related to the query, mark as "relevant"
-    - If the context provides background information that would be helpful when answering the query, mark as "relevant"
-    - Only mark as "not_relevant" if the context is COMPLETELY unrelated to the query
-    </relevance_criteria>
+<relevance_criteria>
+Context is RELEVANT if it:
+- Contains ANY information that directly answers or relates to the query
+- Contains significant keywords, names, terms, or concepts from the query
+- Provides partial information, background, or related details useful for answering
+- Discusses the same topic, event, policy, or subject matter as the query
+- Would be helpful to include when formulating a complete response
 
-        Based on these criteria, is the context relevant to the query?
-        Answer with ONLY "relevant" or "not_relevant".
+Context is NOT RELEVANT only if it is COMPLETELY unrelated to the query's topic.
+</relevance_criteria>
+
+Based on these criteria, is the context relevant to the query?
+Respond with ONLY "relevant" or "not_relevant".
         """
     ).format(query=query, context=context)
     model = ChatOllama(model="llama3.2:1b", base_url=base_url, temperature=1)
@@ -211,22 +207,20 @@ def generate_title(state: State) -> dict:
 
     # System prompt with title requirements
     system_prompt = """
-        You are an expert extraction algorithm. Only extract relevant information from the text. If you do not know the value of an attribute asked to extract, return null for the attribute's value.
+You are a precise extraction system that creates concise, descriptive titles for conversations.
 
-        Create a concise and descriptive 3-6 word title for a conversation between a user and MSU-IIT's AI assistant.
+<title_requirements>
+- Length: 3-6 words maximum
+- Format: Title Case (capitalize main words)
+- Style: Clear, specific, and descriptive of the main topic
+- Context: Reflect MSU-IIT university context where applicable
+- Avoid: Articles (a, an, the), special characters, quotation marks
+- Do NOT include phrases like "Summary of" or "About"
+</title_requirements>
 
-        <title_requirements>
-        - 3-6 words, extremely brief
-        - Describes the main topic or question
-        - Relevant to MSU-IIT university context if applicable
-        - Avoid articles (a, an, the) unless necessary
-        - No special characters or quotes
-        - Title Case format (Capitalize Important Words)
-        - Provide only the title, no additional text
-        - Do not include any other text or comments
-        - Avoid using the word "Summary of", etc.
-        </title_requirements>
-        """
+Extract the main topic from the conversation and create a title that captures its essence.
+Return ONLY the title text without any additional explanation or formatting.
+    """
 
     # Combine conversation messages into a single string
     conversation_text = "\n".join([m.content for m in state["messages"] if isinstance(m, HumanMessage)])
@@ -238,7 +232,7 @@ def generate_title(state: State) -> dict:
     ])
 
     # Bind the prompt with the chat model and structured output
-    runnable = prompt | ChatOllama(model="llama3.2:1b", base_url=base_url, temperature=1).with_structured_output(schema=Title)
+    runnable = prompt | ChatOllama(model="llama3.2:1b", base_url=base_url, temperature=0).with_structured_output(schema=Title)
 
     # Invoke the model with the conversation text
     ai_msg = runnable.invoke({"text": conversation_text})
