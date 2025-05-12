@@ -1,4 +1,4 @@
 ollama
 backend/.venv
-backend/media
 backend/logs
+backend/media/
