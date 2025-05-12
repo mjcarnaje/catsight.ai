@@ -7,7 +7,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, documentsApi } from "@/lib/api";
-import { getStatusInfo } from "@/lib/document-status";
+import { getStatusInfo } from "@/lib/document-status-config";
 import { Document } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Calendar, Edit, File, FileText, LayoutPanelLeft, Pencil, User } from "lucide-react";

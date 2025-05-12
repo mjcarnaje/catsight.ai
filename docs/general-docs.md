@@ -240,10 +240,17 @@ docker-compose up -d --build
 **Pull Default Models:**
 
 ```bash
+docker-compose exec ollama ollama pull llama3.1:8b
 docker-compose exec ollama ollama pull llama3.2:1b
 docker-compose exec ollama ollama pull qwen3:1.7b
-docker-compose exec ollama ollama pull hermes3:3b
 docker-compose exec ollama ollama pull bge-m3
+docker-compose exec ollama ollama pull phi4
+```
+
+**To get the list of models available in the ollama container:**
+
+```bash
+docker-compose exec ollama ollama list
 ```
 
 **Downloading Models for Offline Use:**
@@ -267,3 +274,13 @@ To clean the database, run:
 ```bash
 docker-compose exec backend python manage.py flush
 ```
+
+| Available Models   | Size   |
+| ------------------ | ------ |
+| - phi4:latest      | 9.1 GB |
+| - llama3.1:8b      | 4.9 GB |
+| - hermes3:3b       | 2.0 GB |
+| - qwen3:1.7b       | 1.4 GB |
+| - bge-m3:latest    | 1.2 GB |
+| - deepseek-r1:1.5b | 1.1 GB |
+| - llama3.2:1b      | 1.3 GB |

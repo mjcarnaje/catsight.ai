@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { UploadDocumentsModal } from "@/components/upload-documents-modal"
 import { documentsApi } from "@/lib/api"
-import { DocumentStatus, getStatusInfo } from "@/lib/document-status"
-import { Document, PaginatedResponse, ViewMode } from "@/types"
+import { DocumentStatus, getStatusInfo } from "@/lib/document-status-config"
+import { Document, DocumentFilters, PaginatedResponse, ViewMode } from "@/types"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { FileText, Grid, List, Search, Upload, Filter, LayoutGrid } from "lucide-react"
+import { FileText, Grid, List, Search, Upload, Filter, LayoutGrid, Tag, Calendar } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
   Select,
@@ -32,6 +32,14 @@ import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { DocumentCardSkeleton } from "@/components/document-card-skeleton"
 import { DocumentTableSkeleton } from "@/components/document-table-skeleton"
+import { MultiSelect, Option } from "@/components/ui/multi-select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
+import { X } from "lucide-react"
 
 const PAGE_SIZE = 9
 
@@ -39,6 +47,9 @@ export default function DocumentsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('card')
   const [searchQuery, setSearchQuery] = useState("")
+  const [tagOptions, setTagOptions] = useState<Option[]>([])
+  const [yearOptions, setYearOptions] = useState<Option[]>([])
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -49,13 +60,23 @@ export default function DocumentsPage() {
   const searchParams = new URLSearchParams(location.search)
   const pageParam = searchParams.get('page')
   const statusParam = searchParams.get('status')
+  const yearParam = searchParams.get('year')
+  const tagsParam = searchParams.get('tags')
 
   // Set initial values from URL or defaults
   const [currentPage, setCurrentPage] = useState(pageParam ? parseInt(pageParam) : 1)
-  const [statusFilter, setStatusFilter] = useState<DocumentStatus | "all">(
-    statusParam as DocumentStatus || "all"
+  const [filters, setFilters] = useState<DocumentFilters>({
+    status: statusParam as DocumentStatus || "all",
+    year: yearParam ? yearParam.split(',') : [],
+    tags: tagsParam ? tagsParam.split(',') : [],
+  })
+
+  // Count active filters
+  const activeFilterCount = (
+    (filters.status !== "all" ? 1 : 0) +
+    (filters.tags && filters.tags.length > 0 ? 1 : 0) +
+    (filters.year && filters.year.length > 0 ? 1 : 0)
   )
-  const [pageSize] = useState(PAGE_SIZE)
 
   // Update URL when filters change
   useEffect(() => {
@@ -65,8 +86,16 @@ export default function DocumentsPage() {
       params.set('page', currentPage.toString())
     }
 
-    if (statusFilter !== "all") {
-      params.set('status', statusFilter)
+    if (filters.status && filters.status !== "all") {
+      params.set('status', filters.status)
+    }
+
+    if (filters.year && filters.year.length > 0) {
+      params.set('year', filters.year.join(','))
+    }
+
+    if (filters.tags && filters.tags.length > 0) {
+      params.set('tags', filters.tags.join(','))
     }
 
     const newSearch = params.toString()
@@ -76,13 +105,15 @@ export default function DocumentsPage() {
     if (location.search !== `?${newSearch}`) {
       navigate(newPath, { replace: true })
     }
-  }, [currentPage, statusFilter, location.pathname, navigate])
+  }, [currentPage, filters, location.pathname, navigate])
 
   // Update state when URL changes
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const pageParam = params.get('page')
     const statusParam = params.get('status')
+    const yearParam = params.get('year')
+    const tagsParam = params.get('tags')
 
     if (pageParam) {
       setCurrentPage(parseInt(pageParam))
@@ -90,29 +121,68 @@ export default function DocumentsPage() {
       setCurrentPage(1)
     }
 
-    if (statusParam && Object.values(DocumentStatus).includes(statusParam as DocumentStatus)) {
-      setStatusFilter(statusParam as DocumentStatus)
-    } else if (statusFilter !== "all") {
-      setStatusFilter("all")
-    }
+    setFilters(prev => ({
+      ...prev,
+      status: statusParam && Object.values(DocumentStatus).includes(statusParam as DocumentStatus)
+        ? statusParam as DocumentStatus
+        : "all",
+      year: yearParam ? yearParam.split(',') : [],
+      tags: tagsParam ? tagsParam.split(',') : []
+    }))
   }, [location.search])
 
   const { data: paginatedDocuments, isLoading: isDocumentsLoading } = useQuery({
-    queryKey: ["documents", currentPage, pageSize, statusFilter],
+    queryKey: ["documents", currentPage, PAGE_SIZE, filters],
     queryFn: () => {
       const params: Record<string, string | number> = {
         page: currentPage,
-        page_size: pageSize
+        page_size: PAGE_SIZE
       }
 
-      if (statusFilter !== "all") {
-        params.status = statusFilter
+      if (filters.status && filters.status !== "all") {
+        params.status = filters.status
       }
 
-      return documentsApi.getAll(currentPage, pageSize, params).then((res) => res.data)
+      if (filters.year && filters.year.length > 0) {
+        params.year = filters.year.join(',')
+      }
+
+      if (filters.tags && filters.tags.length > 0) {
+        params.tags = filters.tags.join(',')
+      }
+
+      return documentsApi.getAll(currentPage, PAGE_SIZE, params).then((res) => res.data)
     },
     refetchInterval: 5000,
   })
+
+  // Extract unique tags and years from all documents for the filter options
+  useEffect(() => {
+    if (paginatedDocuments?.results) {
+      const uniqueTags = new Set<string>()
+      const uniqueYears = new Set<string>()
+
+      paginatedDocuments.results.forEach(doc => {
+        // Extract tags
+        if (doc.tags && Array.isArray(doc.tags)) {
+          doc.tags.forEach(tag => {
+            if (tag) uniqueTags.add(tag)
+          })
+        }
+
+        // Extract years
+        if (doc.year !== undefined && doc.year !== null) {
+          uniqueYears.add(doc.year.toString())
+        }
+      })
+
+      const sortedTags = Array.from(uniqueTags).sort()
+      setTagOptions(sortedTags.map(tag => ({ value: tag, label: tag })))
+
+      const sortedYears = Array.from(uniqueYears).sort((a, b) => parseInt(b) - parseInt(a))
+      setYearOptions(sortedYears.map(year => ({ value: year, label: year })))
+    }
+  }, [paginatedDocuments])
 
   const totalPages = paginatedDocuments?.num_pages || 1
 
@@ -142,10 +212,37 @@ export default function DocumentsPage() {
     setCurrentPage(page);
   };
 
-  // Handle status filter change
+  // Handle filter changes
   const handleStatusFilterChange = (value: string) => {
-    setStatusFilter(value as DocumentStatus | "all");
-    // Reset to page 1 when changing filters
+    setFilters(prev => ({
+      ...prev,
+      status: value as DocumentStatus | "all"
+    }));
+    setCurrentPage(1);
+  };
+
+  const handleYearFilterChange = (values: string[]) => {
+    setFilters(prev => ({
+      ...prev,
+      year: values
+    }));
+    setCurrentPage(1);
+  };
+
+  const handleTagsFilterChange = (values: string[]) => {
+    setFilters(prev => ({
+      ...prev,
+      tags: values
+    }));
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      status: "all",
+      year: [],
+      tags: []
+    });
     setCurrentPage(1);
   };
 
@@ -157,7 +254,7 @@ export default function DocumentsPage() {
     // Redirect to search page with query parameters
     const params = new URLSearchParams()
     params.set("query", searchQuery)
-    if (statusFilter !== "all") {
+    if (filters.status !== "all") {
       params.set("title", searchQuery)
     }
 
@@ -197,8 +294,8 @@ export default function DocumentsPage() {
 
       <div className="container py-4 md:py-8 mx-auto px-4 md:px-6">
         {/* Filters and View Mode */}
-        <div className="flex flex-col gap-4 p-4 mb-6 md:mb-8 border rounded-lg shadow-sm bg-card md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-col gap-4 w-full md:flex-row md:items-center">
+        <div className="flex flex-col gap-4 p-4 mb-6 md:mb-8 border rounded-lg shadow-sm bg-card md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col gap-4 w-full md:flex-row md:items-start">
             <form onSubmit={handleSearch} className="relative w-full md:w-80">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -208,26 +305,96 @@ export default function DocumentsPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </form>
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              <Select
-                value={statusFilter}
-                onValueChange={handleStatusFilterChange}
-              >
-                <SelectTrigger className="w-full md:w-[180px] h-9 rounded-full">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  {Object.values(DocumentStatus).map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
+            <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full md:w-auto flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    <span>Filters</span>
+                  </div>
+                  {activeFilterCount > 0 && (
+                    <Badge variant="secondary" className="rounded-full ml-2">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-sm">Filter Documents</h4>
+                  {activeFilterCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearFilters}
+                      className="h-8 text-xs"
+                    >
+                      Clear all
+                    </Button>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {/* Status filter */}
+                  <div className="grid gap-1.5">
+                    <label htmlFor="status-filter" className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Status
+                    </label>
+                    <Select
+                      value={filters.status}
+                      onValueChange={handleStatusFilterChange}
+                    >
+                      <SelectTrigger id="status-filter" className="h-9">
+                        <SelectValue placeholder="Filter by status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        {Object.values(DocumentStatus).map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Year filter - now using MultiSelect */}
+                  <div className="grid gap-1.5">
+                    <label htmlFor="year-filter" className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Year
+                    </label>
+                    <MultiSelect
+                      options={yearOptions}
+                      selected={filters.year || []}
+                      onChange={handleYearFilterChange}
+                      placeholder="Filter by years"
+                    />
+                  </div>
+
+                  {/* Tags filter */}
+                  <div className="grid gap-1.5">
+                    <label htmlFor="tags-filter" className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1">
+                      <Tag className="h-3.5 w-3.5" />
+                      Tags
+                    </label>
+                    <MultiSelect
+                      options={tagOptions}
+                      selected={filters.tags || []}
+                      onChange={handleTagsFilterChange}
+                      placeholder="Filter by tags"
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
+
+          {/* Applied filters display */}
           <div className="flex items-center self-end gap-2 p-1 border rounded-full md:self-auto bg-muted/30">
             <Button
               variant={viewMode === 'card' ? "default" : "ghost"}
@@ -255,6 +422,67 @@ export default function DocumentsPage() {
             </Button>
           </div>
         </div>
+
+        {/* Active filters display */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {filters.status !== "all" && (
+              <Badge variant="secondary" className="flex items-center gap-1">
+                Status: {filters.status.charAt(0).toUpperCase() + filters.status.slice(1).replace(/_/g, ' ')}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleStatusFilterChange("all")}
+                  className="h-auto w-auto p-0 ml-1"
+                >
+                  <X className="h-3 w-3" />
+                  <span className="sr-only">Remove status filter</span>
+                </Button>
+              </Badge>
+            )}
+
+            {filters.year && filters.year.length > 0 && filters.year.map(year => (
+              <Badge key={`year-${year}`} variant="secondary" className="flex items-center gap-1">
+                Year: {year}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleYearFilterChange(filters.year?.filter(y => y !== year) || [])}
+                  className="h-auto w-auto p-0 ml-1"
+                >
+                  <X className="h-3 w-3" />
+                  <span className="sr-only">Remove year filter</span>
+                </Button>
+              </Badge>
+            ))}
+
+            {filters.tags && filters.tags.map(tag => (
+              <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                {tag}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleTagsFilterChange(filters.tags?.filter(t => t !== tag) || [])}
+                  className="h-auto w-auto p-0 ml-1"
+                >
+                  <X className="h-3 w-3" />
+                  <span className="sr-only">Remove tag filter</span>
+                </Button>
+              </Badge>
+            ))}
+
+            {activeFilterCount > 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-7 text-xs"
+              >
+                Clear all
+              </Button>
+            )}
+          </div>
+        )}
 
         {isDocumentsLoading ? (
           viewMode === 'card' ? (
@@ -368,11 +596,11 @@ export default function DocumentsPage() {
                 </div>
                 <h3 className="mb-2 text-lg md:text-xl font-semibold">No documents found</h3>
                 <p className="max-w-md mb-4 md:mb-6 text-sm md:text-base text-muted-foreground">
-                  {searchQuery || statusFilter !== "all"
+                  {searchQuery || filters.status !== "all"
                     ? "Try adjusting your filters to see more results."
                     : "Upload documents to make them available for search and chat."}
                 </p>
-                {!searchQuery && statusFilter === "all" && (
+                {!searchQuery && filters.status === "all" && (
                   <Button
                     onClick={() => setIsDialogOpen(true)}
                     size="lg"

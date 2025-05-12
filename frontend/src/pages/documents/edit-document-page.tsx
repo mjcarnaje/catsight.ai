@@ -1,15 +1,13 @@
 import MarkdownPreview from "@/components/markdown-preview";
-import MDXEditorComponent from "@/components/markdown-editor";
+import EnhancedMarkdownEditor from "../../components/enhanced-markdown-editor";
 import PDFViewer from "@/components/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { Document } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ChevronLeft, Edit, FileText, LayoutPanelTop, Loader2, Maximize2, Minimize2, Save } from "lucide-react";
+import { ArrowLeft, ChevronLeft, FileText, LayoutPanelTop, Loader2, Maximize2, Minimize2, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
@@ -21,7 +19,6 @@ export function EditDocumentPage() {
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("edit");
   const [markdown, setMarkdown] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -188,99 +185,46 @@ export function EditDocumentPage() {
 
       {/* Edit Interface */}
       <Card className="overflow-hidden border shadow-sm">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-            <TabsList className="h-9">
-              <TabsTrigger value="edit" className="px-4 text-xs rounded-full">
-                Edit Markdown
-              </TabsTrigger>
-              <TabsTrigger value="preview" className="px-4 text-xs rounded-full">
-                Preview
-              </TabsTrigger>
-              <TabsTrigger value="comparison" className="px-4 text-xs rounded-full">
-                Side by Side
-              </TabsTrigger>
-            </TabsList>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="flex items-center gap-1.5 px-2.5 text-xs h-8 rounded-full"
-              >
-                {isFullscreen ? (
-                  <>
-                    <Minimize2 className="w-3.5 h-3.5" />
-                    Exit Fullscreen
-                  </>
-                ) : (
-                  <>
-                    <Maximize2 className="w-3.5 h-3.5" />
-                    Fullscreen
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBackClick}
-                className="flex items-center gap-1.5 px-2.5 text-xs h-8 rounded-full"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                Back
-              </Button>
-            </div>
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+          <h3 className="text-sm font-medium">Markdown Editor</h3>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="flex items-center gap-1.5 px-2.5 text-xs h-8 rounded-full"
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  Exit Fullscreen
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  Fullscreen
+                </>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBackClick}
+              className="flex items-center gap-1.5 px-2.5 text-xs h-8 rounded-full"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              Back
+            </Button>
           </div>
+        </div>
 
-          {/* Edit Tab */}
-          <TabsContent value="edit" className="p-0 m-0">
-            <div className="h-[calc(100vh-240px)]">
-              <DocMarkdownEditor id={data.id.toString()} markdown={markdown} setMarkdown={setMarkdown} />
-            </div>
-          </TabsContent>
-
-          {/* Preview Tab */}
-          <TabsContent value="preview" className="p-0 m-0">
-            <div className="h-[calc(100vh-240px)] p-6 overflow-auto">
-              <MarkdownPreview content={markdown} />
-            </div>
-          </TabsContent>
-
-          {/* Side-by-Side Tab */}
-          <TabsContent value="comparison" className="p-0 m-0">
-            <ResizablePanelGroup direction="horizontal" className="h-[calc(100vh-240px)]">
-              <ResizablePanel defaultSize={50} minSize={30}>
-                <div className="flex flex-col h-full border-r">
-                  <div className="flex items-center px-4 py-2 border-b bg-muted/20">
-                    <h3 className="text-xs font-medium">Editor</h3>
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <DocMarkdownEditor id={data.id.toString()} markdown={markdown} setMarkdown={setMarkdown} />
-                  </div>
-                </div>
-              </ResizablePanel>
-
-              <ResizableHandle withHandle />
-
-              <ResizablePanel defaultSize={50} minSize={30}>
-                <div className="flex flex-col h-full">
-                  <div className="flex items-center px-4 py-2 border-b bg-muted/20">
-                    <h3 className="text-xs font-medium">Preview</h3>
-                  </div>
-                  <div className="flex-1 p-6 overflow-auto">
-                    <MarkdownPreview content={markdown} />
-                  </div>
-                </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          </TabsContent>
-        </Tabs>
+        <div className="h-[calc(100vh-240px)] overflow-hidden">
+          <DocMarkdownEditor id={data.id.toString()} markdown={markdown} setMarkdown={setMarkdown} />
+        </div>
 
         <CardContent className="flex items-center justify-between p-3 border-t bg-muted/10">
           <div className="text-xs text-muted-foreground">
-            {activeTab === "edit" ? "Editing markdown content" :
-              activeTab === "preview" ? "Previewing rendered markdown" :
-                "Side-by-side editing and preview"}
+            Editing markdown content
           </div>
           <Button
             onClick={() => handleUpdateMarkdown(markdown)}
@@ -367,7 +311,7 @@ export function DocMarkdownEditor({ id, markdown, setMarkdown }: { id: string; m
 
   return (
     <div className="h-full">
-      <MDXEditorComponent markdown={markdown} onChange={setMarkdown} />
+      <EnhancedMarkdownEditor markdown={markdown} onChange={setMarkdown} height={800} />
     </div>
   );
 }

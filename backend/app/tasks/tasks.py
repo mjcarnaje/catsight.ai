@@ -1,16 +1,17 @@
 import logging
 import os
+import asyncio
 from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
-from langchain.docstore.document import Document as LangchainDocument
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.docstore.document import Document as Doc
+from langchain.text_splitter import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
 
 from ..constant import DocumentStatus, MarkdownConverter
 from ..models import Document, DocumentStatusHistory, DocumentFullText
 from ..services.vectorstore import vector_store
-from ..utils.doc_processor import DocumentProcessor
 from docling.document_converter import DocumentConverter
+from ..services.summarization_agent import summarization_agent, summarization_splitter
 
 converter = DocumentConverter()
 logger = logging.getLogger(__name__)
@@ -47,34 +48,14 @@ def update_document_status(document, status, update_fields=None, failed=False):
         f"Document status updated from '{old_status}' to '{new_status}' for Document ID: {document.id}"
     )
 
-
-def save_document_chunks(document, chunks):
-    """
-    Saves the given chunks to the vector store and updates the document instance.
-    """
-    document_chunks = []
-    chunk_ids = []
-
-    for index, chunk in enumerate(chunks):
-        chunk_id = f"doc_{document.id}_chunk_{index}"
-        document_chunks.append(LangchainDocument(
-            page_content=chunk.page_content,
-            metadata={"doc_id": document.id, "id": chunk_id, "index": index},
-        ))
-        chunk_ids.append(chunk_id)
-
+def save_document_chunks(document, docs):
     try:
-        vector_store.add_documents(document_chunks, ids=chunk_ids)
-        logger.info(f"Added {len(document_chunks)} chunks for document {document.id}")
+        vector_store.add_documents(docs)
+        logger.info(f"Added {len(docs)} chunks for document {document.id}")
     except Exception as e:
         logger.error(f"Error adding chunks: {e}")
-        for i, doc in enumerate(document_chunks):
-            try:
-                vector_store.add_documents([doc], ids=[chunk_ids[i]])
-            except Exception as chunk_error:
-                logger.error(f"Failed chunk {i}: {chunk_error}")
-        # if still errors, let it bubble
-    return len(document_chunks)
+    
+    return len(docs)
 
 
 def convert_pdf_with_marker(file_path: str) -> str:
@@ -89,8 +70,11 @@ def convert_pdf_with_marker(file_path: str) -> str:
         "disable_image_extraction": True,
         "ollama_base_url": os.getenv("OLLAMA_URL"),
         "llm_service": "marker.services.ollama.OllamaService",
-        "ollama_model": "llama3.2:1b",
+        "ollama_model": "phi4:latest",
         "force_ocr": True,
+        "strip_existing_ocr": True,
+        "use_llm": False,
+        "debug": True
     }
     parser = ConfigParser(config)
     pdf_conv = PdfConverter(
@@ -200,7 +184,6 @@ def chunk_and_embed_text_task(self, document_id):
             logger.info(f"Found DocumentFullText for document {document.id}")
             fulltext = fulltext_obj.text
         except DocumentFullText.DoesNotExist:
-            # Create a placeholder if it doesn't exist
             logger.warning(f"DocumentFullText not found for document {document_id}, creating placeholder")
             fulltext = f"# {document.title}\n\nPlaceholder for document {document_id}"
             fulltext_obj = DocumentFullText.objects.create(
@@ -209,26 +192,47 @@ def chunk_and_embed_text_task(self, document_id):
             )
             logger.info(f"Created placeholder DocumentFullText for document {document.id}")
 
-        # Log text content length for debugging
         logger.info(f"Text length for document {document.id}: {len(fulltext) if fulltext else 0}")
 
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            separators=["\n\n", "\n", " ", ""]
-        )
+        chunk_size = 2000
+        chunk_overlap = 200
         
-        # Improve error handling for splitting
-        try:
-            docs = splitter.split_documents([LangchainDocument(page_content=fulltext)])
-            logger.info(f"Split text into {len(docs)} chunks")
-        except Exception as e:
-            logger.exception(f"Error splitting document: {str(e)}")
-            # Create at least one basic chunk so we can continue
-            docs = [LangchainDocument(page_content=fulltext[:1000])]
-            logger.info("Created fallback chunk after splitting error")
+        # markdown_splitter = MarkdownHeaderTextSplitter(
+        #     headers_to_split_on=[("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")],
+        #     strip_headers=False,
+        # )
+        
+        # md_header_splits = markdown_splitter.split_text(fulltext)
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, 
+            chunk_overlap=chunk_overlap, 
+            separators=[
+                "\n\n",
+                "\n",
+                " ",
+                ".",
+                ",",
+                "\u200b",  # Zero-width space
+                "\uff0c",  # Fullwidth comma
+                "\u3001",  # Ideographic comma
+                "\uff0e",  # Fullwidth full stop
+                "\u3002",  # Ideographic full stop
+                "",
+            ],
+        )
+        splits = text_splitter.split_text(fulltext)
+        logger.info(f"Split text into {len(splits)} chunks")
 
-        # Save chunks with better error handling
+        docs = []
+
+        for i, chunk in enumerate(splits):
+            metadata = {
+                "doc_id": document.id,
+                "id": f"doc_{document.id}_chunk_{i}",
+                "index": i
+            }
+            docs.append(Doc(page_content=chunk, metadata=metadata))
+
         try:
             count = save_document_chunks(document, docs)
             logger.info(f"Saved {count} chunks to vector store")
@@ -261,39 +265,45 @@ def generate_document_summary_task(self, document_id):
     """
     try:
         document = Document.objects.get(id=document_id)
+        fulltext = DocumentFullText.objects.get(document=document).text
         update_document_status(document, DocumentStatus.GENERATING_SUMMARY)
 
-        chunks = vector_store.similarity_search(
-            "", k=1,
-            filter={"doc_id": document_id, "index": 0}
-        )
-        if not chunks:
-            chunks = vector_store.similarity_search(
-                "", k=1,
-                filter={"id": f"doc_{document_id}_chunk_0"}
-            )
+        chunks = summarization_splitter.split_text(fulltext)
 
-        if chunks:
-            title = DocumentProcessor.get_title(chunks)
-            summary = DocumentProcessor.get_summary(chunks)
-            year = DocumentProcessor.get_year(chunks)
-            tags = DocumentProcessor.get_tags(summary)
-            
-            # Update document with the generated information
-            document.title = title
-            document.summary = summary
-            document.year = year
-            document.tags = tags
-            document.save(update_fields=["title", "summary", "year", "tags"])
-            
-            update_document_status(document, DocumentStatus.SUMMARY_GENERATED,
-                               update_fields=["status", "title", "summary", "year", "tags"])
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        async def process_summarization():
+            final_state = None
+            async for state in summarization_agent.astream(
+                input={"contents": chunks},
+                stream_mode="values"
+            ):
+                final_state = state
+            return final_state
+        
+        final_state = loop.run_until_complete(process_summarization())
 
-            if document.no_of_chunks > 0:
-                update_document_status(document, DocumentStatus.COMPLETED)
-        else:
-            logger.warning(f"No chunks to summarize for {document_id}")
-            update_document_status(document, DocumentStatus.SUMMARY_GENERATED, failed=True)
+        logger.info(f"[TITLE] {final_state['title']}")
+        logger.info(f"[SUMMARY] {final_state['final_summary']}")
+        logger.info(f"[YEAR] {final_state['year']}")
+        logger.info(f"[TAGS] {final_state['tags']}")
+        
+        document.title = final_state["title"]
+        document.summary = final_state["final_summary"]
+        document.year = final_state["year"]
+        document.tags = final_state["tags"]
+        
+        document.save(update_fields=["title", "summary", "year", "tags"])
+        
+        update_document_status(document, DocumentStatus.SUMMARY_GENERATED,
+                            update_fields=["status", "title", "summary", "year", "tags"])
+
+        update_document_status(document, DocumentStatus.COMPLETED)
+
 
         return document_id
 

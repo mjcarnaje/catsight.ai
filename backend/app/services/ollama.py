@@ -3,11 +3,11 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings, ChatOllama
 EMBEDDING_MODEL_ID = "bge-m3"
 base_url = "http://ollama:11434"
 
-BGEM3_EMBEDDINGS = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url=base_url)
+BGEM3_EMBEDDINGS = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url="http://ollama:11434")
 
-LLAMA_CHAT = ChatOllama(model="llama3.2:1b", base_url=base_url, temperature=0)
-QWEN_CHAT = ChatOllama(model="qwen3:0.7b", base_url=base_url, temperature=0)
-HERMES_CHAT = ChatOllama(model="hermes3:3b", base_url=base_url, temperature=0)
+LLAMA_CHAT = ChatOllama(model="llama3.2:1b", base_url="http://ollama:11434", temperature=0)
+QWEN_CHAT = ChatOllama(model="qwen3:0.7b", base_url="http://ollama:11434", temperature=0)
+HERMES_CHAT = ChatOllama(model="hermes3:3b", base_url="http://ollama:11434", temperature=0)
 
 # --- Model Registry --------------------------------------------------------
 # Supported models

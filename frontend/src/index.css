@@ -104,3 +104,55 @@
     font-family: "Nunito Sans", sans-serif;
   }
 }
+
+/* Markdown Editor Styles */
+.markdown-editor-container {
+  border-radius: 0.375rem;
+  overflow: hidden;
+}
+
+.markdown-editor-container .w-md-editor {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.markdown-editor-container .w-md-editor-toolbar {
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+}
+
+.markdown-editor-container .w-md-editor-text-input,
+.markdown-editor-container .w-md-editor-preview {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.markdown-editor-container .w-md-editor-content {
+  background-color: var(--background);
+}
+
+/* Dark Mode Styles for Markdown Editor */
+[data-color-mode="dark"] .w-md-editor {
+  --color-canvas-default: hsl(var(--background));
+  --color-border-default: hsl(var(--border));
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--background));
+}
+
+[data-color-mode="dark"] .w-md-editor-toolbar {
+  background-color: hsl(var(--muted));
+  border-color: hsl(var(--border));
+}
+
+[data-color-mode="dark"] .w-md-editor-toolbar svg {
+  filter: invert(1);
+}
+
+[data-color-mode="dark"] .wmde-markdown-color pre {
+  background-color: hsl(var(--muted)) !important;
+}
+
+/* Make editor take full height of container */
+.h-full > .w-md-editor {
+  height: 100% !important;
+}

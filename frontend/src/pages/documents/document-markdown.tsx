@@ -48,8 +48,8 @@ export function DocumentMarkdownPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Skeleton className="w-24 h-9 rounded-full" />
-            <Skeleton className="w-24 h-9 rounded-full" />
+            <Skeleton className="w-24 rounded-full h-9" />
+            <Skeleton className="w-24 rounded-full h-9" />
           </div>
         </div>
         <Skeleton className="w-full h-[calc(100vh-180px)] rounded-lg" />

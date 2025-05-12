@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from "./ui/popover";
 import { Progress } from "./ui/progress";
-import { getStatusInfo } from "@/lib/document-status";
+import { getDocumentStatusDisplay } from "@/lib/document-status-config";
 
 interface StatusHistoryPopoverProps {
   statusHistory: StatusHistory[];
@@ -65,7 +65,7 @@ export function StatusHistoryPopover({ statusHistory, progress }: StatusHistoryP
             {statusesWithElapsed.map((statusChange) => (
               <div key={statusChange.id} className="flex justify-between text-sm">
                 <div>
-                  <span>{getStatusInfo(statusChange.status).label}</span>
+                  <span>{getDocumentStatusDisplay(statusChange.status).label}</span>
                   {statusChange.elapsedTime > 0 && (
                     <span className="ml-2 text-xs text-muted-foreground">
                       (took {formatElapsedTime(statusChange.elapsedTime)})

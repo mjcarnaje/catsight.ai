@@ -23,6 +23,7 @@ from .views.documents import (
     regenerate_preview,
     get_docs_count,
     regenerate_summary,
+    reextract_doc,
 )
 from .views.llm import (
     get_llm_models,
@@ -61,6 +62,7 @@ urlpatterns = [
     path('documents/<int:doc_id>/update', update_doc_markdown, name='update_doc_markdown'),
     path('documents/<int:doc_id>/regenerate-preview', regenerate_preview, name='regenerate_preview'),
     path('documents/<int:doc_id>/regenerate-summary', regenerate_summary, name='regenerate_summary'),
+    path('documents/<int:doc_id>/reextract', reextract_doc, name='reextract_doc'),
     path('documents/search', search_docs, name='search_docs'),
     path('documents/chat', chat_with_docs, name='chat_with_docs'),
     path('documents/delete_all', delete_all_docs, name='delete_all_docs'),

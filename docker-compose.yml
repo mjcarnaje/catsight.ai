@@ -75,7 +75,7 @@ services:
     build: ./backend
     command: >
       bash -c "mkdir -p /usr/src/app/logs &&
-               celery -A inteldocs worker --loglevel=info --concurrency=1"
+               celery -A inteldocs worker --loglevel=info --concurrency=3"
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0

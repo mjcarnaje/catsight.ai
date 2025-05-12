@@ -1,5 +1,5 @@
 import axios from "axios";
-import { DocumentStatus } from "./document-status";
+import { DocumentStatus } from "./document-status-config";
 import { Document, PaginatedResponse, Chat } from "@/types";
 
 // API endpoint prefix
@@ -237,6 +237,16 @@ export const documentsApi = {
       preview_image: string;
       blurhash: string | null;
     }>(`/documents/${id}/regenerate-preview`),
+  regenerateSummary: (id: number) =>
+    api.post<{
+      status: string;
+      message: string;
+    }>(`/documents/${id}/regenerate-summary`),
+  reextract: (id: number, markdown_converter: string) =>
+    api.post<{
+      status: string;
+      message: string;
+    }>(`/documents/${id}/reextract`, { markdown_converter }),
   upload: (files: File[], markdown_converter: string) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
@@ -274,9 +284,6 @@ export const documentsApi = {
   },
   updateMarkdown: (id: number, markdown: string) => {
     return api.put(`/documents/${id}/update`, { markdown });
-  },
-  regenerateSummary: (id: number) => {
-    return api.post(`/documents/${id}/regenerate-summary`);
   },
 };
 

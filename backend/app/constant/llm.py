@@ -1,6 +1,16 @@
 
 LLM_MODELS =[
         {
+            'code': 'llama3.1:8b',
+            'name': 'Llama 3.1 8B',
+            'description': (
+                'Llama 3.1 8B is a compact general purpose language model optimized for efficiency. '
+                'It offers good performance for its size, making it suitable for a wide range of applications. '
+                'This model provides a balance between speed and capability for daily tasks.'
+            ),
+        'logo': 'https://pbs.twimg.com/profile_images/16470ge89927269101570/pAVjQBOf_400x400.jpg',
+        },
+        {
             'code': 'llama3.2:1b',
             'name': 'Llama 3.2 1B',
             'description': (
