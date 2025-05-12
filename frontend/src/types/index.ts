@@ -1,7 +1,7 @@
 import { DocumentStatus } from "@/lib/document-status-config";
 import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
 export * from "./llm";
-export * from "./source";
+export * from "./message";
 
 export interface User {
   id: string | number;
@@ -84,7 +84,7 @@ export interface PaginatedResponse<T> {
   previous: number | null;
 }
 
-export interface ModelInfo {
+export interface LLMModel {
   id: string;
   name: string;
   description: string;

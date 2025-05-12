@@ -4,7 +4,7 @@ import {
   SheetHeader,
   SheetTitle
 } from "@/components/ui/sheet";
-import { Source } from "@/types/source";
+import { Source } from "@/types/message";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
 import { getDocumentPreviewUrl } from "@/lib/api";
