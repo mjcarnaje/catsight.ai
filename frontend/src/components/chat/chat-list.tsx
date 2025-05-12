@@ -1,10 +1,10 @@
 // components/ChatList.tsx
-import React, { useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
-import { Message } from "./chat-reducer";
-import { Loader2, Copy, Check, RefreshCw, FileText, CalendarDays, Landmark, Users, Scroll, Megaphone, Eye, EyeOff } from "lucide-react";
-import { SourcesButton } from "./sources-button";
 import { Markdown } from "@/components/markdown";
+import { cn } from "@/lib/utils";
+import { Message } from "@/types/message";
+import { CalendarDays, Check, Copy, Eye, EyeOff, FileText, Landmark, Loader2, Megaphone, PickaxeIcon, RefreshCw, Scroll, Users } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { SourcesButton } from "./sources-button";
 
 interface QuestionSuggestion {
   icon: React.ElementType;
@@ -86,70 +86,25 @@ export function ChatList({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [thinkingVisibility, setThinkingVisibility] = useState<Record<string, boolean>>({});
 
-  // Debug logging
-  useEffect(() => {
-    console.log("ChatList received messages:", messages.length, messages);
-  }, [messages]);
-
   const copyToClipboard = (text: string, id: string) => {
-    try {
-      if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => {
-          setCopiedId(id);
-          setTimeout(() => setCopiedId(null), 2000);
-        }).catch(err => {
-          console.error("Failed to copy text: ", err);
-          // Use fallback method if clipboard API fails
-          fallbackCopyToClipboard(text, id);
-        });
-      } else {
-        // Fallback for browsers that don't support clipboard API
-        fallbackCopyToClipboard(text, id);
-      }
-    } catch (error) {
-      console.error("Error copying to clipboard:", error);
-    }
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    })
   };
 
-  // Fallback method using textarea element
-  const fallbackCopyToClipboard = (text: string, id: string) => {
-    try {
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      // Make the textarea out of viewport
-      textArea.style.position = "fixed";
-      textArea.style.left = "-999999px";
-      textArea.style.top = "-999999px";
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
 
-      const successful = document.execCommand("copy");
-      document.body.removeChild(textArea);
-
-      if (successful) {
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
-      }
-    } catch (err) {
-      console.error("Fallback copy method failed:", err);
-    }
-  };
-
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (endOfMessagesRef.current) {
       endOfMessagesRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isStreaming]);
 
-  // Extract thinking content from message
   const extractThinking = (content: string) => {
     const thinkRegex = /<think>([\s\S]*?)<\/think>/;
     const match = content.match(thinkRegex);
 
     if (match && match[1]) {
-      // Return the content without the thinking part and the thinking part separately
       const cleanContent = content.replace(thinkRegex, '').trim();
       return {
         hasThinking: true,
@@ -172,7 +127,6 @@ export function ChatList({
     }));
   };
 
-  // Only show suggestions when there are no messages
   if (!messages || messages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 w-full max-w-4xl p-8 mx-auto">
@@ -206,23 +160,35 @@ export function ChatList({
     );
   }
 
-  // Check if we should display the AI thinking message
-  const shouldShowThinking = isStreaming && messages.length > 0 &&
-    messages[messages.length - 1].role === "user";
-
   return (
     <div className="flex-1 w-full max-w-4xl p-4 pb-20 mx-auto space-y-6">
-      {messages.map((msg) => {
-        const isAssistant = msg.role === "assistant";
+      {messages.map((msg, idx) => {
+        const previousMessage = messages[idx - 1];
         const isCopied = copiedId === msg.id;
-        const hasSources = msg.sources && msg.sources.length > 0;
+        const hasSources = previousMessage?.role === "tool" && previousMessage.tool_result?.sources.length > 0;
+        const sources = hasSources ? previousMessage.tool_result?.sources : [];
 
-        // Process thinking content only for assistant messages
-        const processedContent = isAssistant && msg.content
+        const processedContent = msg.role === "assistant" && msg.content
           ? extractThinking(msg.content)
           : { hasThinking: false, content: msg.content || "", thinking: "" };
 
         const showThinking = thinkingVisibility[msg.id] && processedContent.hasThinking;
+
+        if (msg.role === "tool") {
+          return null;
+        }
+
+        if (msg.role === "assistant" && msg.message_type === "tool_call") {
+          return (
+            <div key={msg.id} className="flex items-center gap-4 p-2 bg-gray-100 rounded-md">
+              <PickaxeIcon className="w-5 h-5 text-primary" />
+              <div className="flex flex-col">
+                <span className="font-medium text-gray-800 capitalize">{msg.tool_call?.name}</span>
+                <span className="text-xs text-gray-500">{msg.tool_call?.query}</span>
+              </div>
+            </div>
+          );
+        }
 
         return (
           <div
@@ -240,8 +206,8 @@ export function ChatList({
                   : "text-gray-800"
               )}
             >
-              {isAssistant ? (
-                <div className={cn("", msg.role === "user" ? "" : "pl-1")}>
+              {msg.role === "assistant" ? (
+                <div className="pl-1">
                   <Markdown content={processedContent.content || "..."} />
 
                   {processedContent.hasThinking && (
@@ -282,8 +248,8 @@ export function ChatList({
               )}
 
               <div className="flex items-center gap-2 mt-3">
-                {hasSources && isAssistant && (
-                  <SourcesButton sources={msg.sources} />
+                {hasSources && msg.role === "assistant" && (
+                  <SourcesButton sources={sources} />
                 )}
 
                 <button
@@ -309,7 +275,7 @@ export function ChatList({
                   )}
                 </button>
 
-                {isAssistant && onRegenerateMessage && (
+                {msg.role === "assistant" && onRegenerateMessage && (
                   <button
                     onClick={() => onRegenerateMessage(msg.id)}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-gray-700 bg-gray-100 rounded-md"
@@ -326,7 +292,7 @@ export function ChatList({
       })}
 
       {/* Better AI thinking placeholder with animation */}
-      {shouldShowThinking && (
+      {isStreaming && (
         <div className="flex justify-start">
           <div className="p-3 border border-gray-100 rounded-lg shadow-sm bg-gray-50">
             <div className="flex items-center space-x-3">

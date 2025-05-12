@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Source } from "@/types/source";
+import { Source } from "@/types/message";
 import { SourcesPanel } from "./sources-panel";
 import { cn } from "@/lib/utils";
 import { BookOpen } from "lucide-react";

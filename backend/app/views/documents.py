@@ -449,53 +449,6 @@ def search_docs(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-def _serialize_document(doc: LangchainDocument) -> dict:
-    """Convert a Document object to a serializable dict."""
-    return {
-        "page_content": doc.page_content,
-        "metadata": doc.metadata,
-    }
-
-def _make_serializable(obj):
-    """Recursively convert objects to JSON-serializable types."""
-    if isinstance(obj, list):
-        return [_make_serializable(item) for item in obj]
-    if isinstance(obj, dict):
-        return {k: _make_serializable(v) for k, v in obj.items()}
-    if isinstance(obj, LangchainDocument):
-        return _serialize_document(obj)
-    if isinstance(obj, (HumanMessage, AIMessage, ToolMessage)):
-        message_type = "human"
-        content = getattr(obj, "content", "")
-
-        if isinstance(obj, AIMessage):
-            message_type = "ai"
-        elif isinstance(obj, ToolMessage):
-            message_type = "tool"
-            
-        result = {
-            "role": message_type,
-            "content": content,
-            "id": getattr(obj, "id", None),
-            "additional_kwargs": getattr(obj, "additional_kwargs", {}),
-        }
-        
-        # Add tool-specific fields for ToolMessage
-        if isinstance(obj, ToolMessage):
-            result.update({
-                "name": getattr(obj, "name", ""),
-                "tool_call_id": getattr(obj, "tool_call_id", "")
-            })
-            
-        return result
-    # fallback for any other Document‐like object
-    if hasattr(obj, "page_content") and hasattr(obj, "metadata"):
-        return {
-            "page_content": getattr(obj, "page_content", ""),
-            "metadata": getattr(obj, "metadata", {}),
-        }
-    return obj
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def chat_with_docs(request):
@@ -511,11 +464,11 @@ def chat_with_docs(request):
     if not query or not isinstance(query, str) or not query.strip():
         return Response({"error": "Valid query parameter is required"}, status=400)
     
-    model_id = body.get("model_id", "llama3.2:1b")  # Default model if not specified
-    chat_id = body.get("chat_id")  # Get chat_id if continuing an existing chat
+    model_id = body.get("model_id", "llama3.2:1b")
+    chat_id = body.get("chat_id")
         
     def event_stream():
-        nonlocal chat_id
+        nonlocal chat_id, query
         # Initialize or retrieve chat record
         if not chat_id:
             chat = Chat.objects.create(user=request.user, title="Untitled")
@@ -526,7 +479,7 @@ def chat_with_docs(request):
                 yield f"event: error\ndata: {{\"error\": \"Chat not found: {chat_id}\"}}\n\n"
                 return
 
-        yield f"event: start\ndata: {{\"chat_id\": \"{chat_id}\"}}\n\n"
+        yield f"event: start\ndata: {{\"chat_id\": \"{chat_id}\", \"title\": \"{chat.title}\"}}\n\n"
 
         thread_id = f"thread_{chat_id}"
         config = {"configurable": {"model": model_id, "thread_id": thread_id}}
@@ -536,64 +489,91 @@ def chat_with_docs(request):
         input_messages = [human_msg]
         input_state = {"current_query": query, "messages": input_messages}
 
-        # Keep track of the latest sources from tool messages
-        latest_sources = []
-        has_sent_ai_message = False
-        ai_message_id = None
-
         try:
             _printed = set()
+            streamed = set()
             for state in catsight_agent.stream(
                 input=input_state,
                 config=config,
                 stream_mode="values"
             ):               
                 _print_event(state, _printed)
-                # Check if title has been generated
-                if "title" in state and state.get("should_generate_title") is False and state["title"]:
-                    # Update chat title in the database
-                    chat.title = state["title"]
+
+                title = state.get("title")
+                should_generate_title = state.get("should_generate_title")
+                
+                if should_generate_title is False and title:
+                    chat.title = title
                     chat.save()
                     
                     # Send title event to frontend
-                    yield f"event: title\ndata: {{\"title\": \"{state['title']}\"}}\n\n"
+                    yield f"event: title\ndata: {{\"title\": \"{title}\"}}\n\n"
                 
-                # First, extract any tool message with sources
-                if "messages" in state:
-                    for message in state["messages"]:
-                        if isinstance(message, ToolMessage) and message.name == "retrieve_context":
-                            try:
-                                source_content = message.content
-                                if isinstance(source_content, str):
-                                    sources = json.loads(source_content)
-                                    if isinstance(sources, list) and len(sources) > 0:
-                                        latest_sources = sources
-                                        # If we've already sent an AI message, send an update with the sources
-                                        if has_sent_ai_message and ai_message_id:
-                                            yield f"event: sources\ndata: {json.dumps({'message_id': ai_message_id, 'sources': latest_sources})}\n\n"
-                            except Exception as e:
-                                logger.error(f"Error processing tool message content: {str(e)}")
+                messages = state.get("messages")
+                if messages:
+                    if isinstance(messages, list):
+                        new_message = messages[-1]
+                    
+                    if new_message.id not in streamed:
+                        role = "unknown"
+                        if isinstance(new_message, HumanMessage):
+                            role = "user"
+                        elif isinstance(new_message, AIMessage):
+                            role = "assistant"
+                        elif isinstance(new_message, ToolMessage):
+                            role = "tool"
+                        
+                        tool_calls = getattr(new_message, "tool_calls", [])
+                        is_tool_calls = len(tool_calls) > 0
+                        
+                        message = {
+                            "id": getattr(new_message, "id"),
+                            "role": role,
+                            "content": getattr(new_message, "content", ""),
+                            "timestamp": getattr(new_message, "additional_kwargs", {}).get("timestamp", ""),
+                            "message_type": "message",
+                            "tool_call": None,
+                            "tool_result": None
+                        }
+
+                        if role == "assistant" and is_tool_calls:
+                            message["message_type"] = "tool_call"
+                            
+                            tool_name = tool_calls[0].get("name", "")
+                            args = tool_calls[0].get("args", {})
+                            query = args.get("query", "")
+
+                            if tool_name == "grade_relevance":
+                                continue
+                            
+                            message["tool_call"] = {
+                                "name": tool_name,
+                                "query": query,
+                            }
+                            yield f"event: message\ndata: {json.dumps(message)}\n\n"
+                            continue
+
+                        if role == "tool":
+                            if tool_name == "grade_relevance":
+                                continue
+                            
+                            if message["content"].startswith("Error"):
+                                continue
+
+                            sources = json.loads(message["content"])
+                            message["content"] = ""
+                            message["tool_result"] = {
+                                "sources": sources,
+                            }
+                            yield f"event: message\ndata: {json.dumps(message)}\n\n"
+                            continue
+
+                        yield f"event: message\ndata: {json.dumps(message)}\n\n"
+                        
+                        streamed.add(new_message.id)
+                    
+                   
                 
-                # Process AI messages and attach sources
-                if "messages" in state:
-                    for message in state["messages"]:
-                        if isinstance(message, AIMessage) and message.content and not message.tool_calls:
-                            # This is a main AI response message
-                            has_sent_ai_message = True
-                            ai_message_id = getattr(message, "id", f"ai-{hash(message.content)}")
-                
-                # Make the state serializable
-                serializable_state = _make_serializable(state)
-                
-                # Add sources to the delta if there's an AI message
-                if has_sent_ai_message and latest_sources and "messages" in serializable_state:
-                    for msg in serializable_state["messages"]:
-                        if msg["role"] == "ai" and "content" in msg and msg["content"] and "tool_calls" not in msg:
-                            msg["sources"] = latest_sources
-                
-                # Send update event
-                yield f"event: update\ndata: {json.dumps({'delta': serializable_state})}\n\n"
-        
         except Exception as e:
             logger.error(f"Error streaming response: {str(e)}", exc_info=True)
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
@@ -629,36 +609,65 @@ def get_chat_history(request, chat_id):
                         
             # Filter out tool messages and format for frontend
             formatted_messages = []
-            is_previous_tool_message = False
             sources = []
             
             for msg in messages:
                 msg.pretty_print()
-                role = "user" if isinstance(msg, HumanMessage) else "tool" if isinstance(msg, ToolMessage) else "assistant"
+                role = "unknown"
 
-                content = getattr(msg, "content", "")
-                
-                if not content or content.startswith("Error: ") or (role == "tool" and msg.name == "grade_relevance"):
-                    continue
+                if isinstance(msg, HumanMessage):
+                    role = "user"
+                elif isinstance(msg, AIMessage):
+                    role = "assistant"
+                elif isinstance(msg, ToolMessage):
+                    role = "tool"
 
-                logger.info("========<DEBUG>=========")
-                logger.info(msg)
-                logger.info("========<END_DEBUG>=========")
-                
-                if isinstance(msg, ToolMessage):
-                    is_previous_tool_message = True
-                    sources = json.loads(content)
-                    continue
+                tool_calls = getattr(msg, "tool_calls", [])
+                is_tool_calls = len(tool_calls) > 0
 
-                formatted_messages.append({
+                message = {
                     "id": getattr(msg, "id", f"{role}-{len(formatted_messages)}"),
                     "role": role,
-                    "content": content,
+                    "content": getattr(msg, "content", ""),
                     "timestamp": getattr(msg, "additional_kwargs", {}).get("timestamp", ""),
-                    "sources": sources if is_previous_tool_message else []
-                })
+                    "message_type": "message",
+                    "tool_call": None,
+                    "tool_result": None
+                }
 
-                is_previous_tool_message = False
+                if role == "assistant" and is_tool_calls:
+                    message["message_type"] = "tool_call"
+                    
+                    tool_name = tool_calls[0].get("name", "")
+                    args = tool_calls[0].get("args", {})
+                    query = args.get("query", "")
+
+                    if tool_name == "grade_relevance":
+                        continue
+                    
+                    message["tool_call"] = {
+                        "name": tool_name,
+                        "query": query,
+                    }
+                    formatted_messages.append(message)
+                    continue
+                
+                if role == "tool":
+                    if tool_name == "grade_relevance":
+                        continue
+                    
+                    if message["content"].startswith("Error"):
+                        continue
+
+                    sources = json.loads(message["content"])
+                    message["content"] = ""
+                    message["tool_result"] = {
+                        "sources": sources,
+                    }
+                    formatted_messages.append(message)
+                    continue
+
+                formatted_messages.append(message)
 
             return Response({
                 "messages": formatted_messages,
