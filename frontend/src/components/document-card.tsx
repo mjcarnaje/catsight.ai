@@ -1,5 +1,5 @@
 import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
-import { getDocumentStatusFromHistory, getStatusInfo } from "@/lib/document-status";
+import { DocumentStatus, calculateDocumentStatusFromHistory, getDocumentStatusDisplay } from "@/lib/document-status-config";
 import { Document } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, RefreshCw, RotateCw, Tag, Trash } from "lucide-react";
@@ -30,6 +30,8 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { Markdown } from "./markdown";
+import { cn } from "@/lib/utils";
 
 interface DocumentCardProps {
   doc: Document;
@@ -50,8 +52,8 @@ export function DocumentCard({ doc }: DocumentCardProps) {
 
   // Use status history if available, otherwise use the current status
   const statusInfo = hasStatusHistory
-    ? getDocumentStatusFromHistory(doc.status_history)
-    : { ...getStatusInfo(doc.status), progress: 0, currentStatus: doc.status };
+    ? calculateDocumentStatusFromHistory(doc.status_history)
+    : { ...getDocumentStatusDisplay(doc.status), progress: 0, currentStatus: doc.status };
 
   const handleDeleteMutation = useMutation({
     mutationFn: () => documentsApi.delete(doc.id.toString()),
@@ -109,6 +111,24 @@ export function DocumentCard({ doc }: DocumentCardProps) {
     },
   });
 
+  const reextractMutation = useMutation({
+    mutationFn: (converter: string) => documentsApi.reextract(doc.id, converter),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Success",
+        description: "Document re-extraction started. This might take a moment.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to re-extract document. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const getInitials = (name?: string) => {
     if (!name) return "U";
     return name
@@ -119,26 +139,10 @@ export function DocumentCard({ doc }: DocumentCardProps) {
       .substring(0, 2);
   };
 
-  // Get the status changes with timestamps (completed statuses)
-  const completedStatuses = hasStatusHistory
-    ? doc.status_history!
-      .filter(s => s.changed_at !== null)
-      .sort((a, b) => {
-        return new Date(b.changed_at!).getTime() - new Date(a.changed_at!).getTime();
-      })
-    : [];
-
-  const ConverterIcon = MARKDOWN_CONVERTERS[doc.markdown_converter || "marker"].icon
+  const ConverterIcon = doc.markdown_converter && MARKDOWN_CONVERTERS[doc.markdown_converter]
+    ? MARKDOWN_CONVERTERS[doc.markdown_converter].icon
+    : undefined;
   const previewImageUrl = getDocumentPreviewUrl(doc.preview_image);
-
-  const statusColors = {
-    'Processing': 'bg-amber-500/10 text-amber-600 border-amber-200',
-    'Completed': 'bg-green-500/10 text-green-600 border-green-200',
-    'Failed': 'bg-red-500/10 text-red-600 border-red-200',
-    'default': 'bg-sky-500/10 text-sky-600 border-sky-200'
-  };
-
-  const statusColor = statusColors[statusInfo.label as keyof typeof statusColors] || statusColors.default;
 
   return (
     <Card
@@ -201,9 +205,18 @@ export function DocumentCard({ doc }: DocumentCardProps) {
           <div className="flex justify-end gap-1.5 mb-1.5">
             <Badge
               variant="outline"
-              className={`rounded-full px-2 py-0.5 font-medium text-xs ${statusColor} transition-colors whitespace-nowrap`}
+              className={cn(`rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`, statusInfo.color.bg, statusInfo.color.border, statusInfo.color.text)}
             >
-              {statusInfo.label}
+              {statusInfo.showLoading ? (
+                <>
+                  <Loader2 className="w-3.5 mr-1 h-3.5 animate-spin" />
+                  {statusInfo.label}
+                </>
+              ) : (
+                <>
+                  {statusInfo.label}
+                </>
+              )}
             </Badge>
 
             {/* Year Badge */}
@@ -264,15 +277,9 @@ export function DocumentCard({ doc }: DocumentCardProps) {
 
       {/* Description */}
       <div className="flex-grow px-4 pt-2 pb-1">
-        {doc.summary ? (
-          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">{doc.summary}</p>
-        ) : (
-          <p className="text-xs italic sm:text-sm text-muted-foreground">No description available</p>
-        )}
-
         {/* Tags Section */}
         {tags && tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
+          <div className="flex flex-wrap gap-1">
             {tags.slice(0, 3).map((tag, idx) => (
               <Badge
                 key={idx}
@@ -302,7 +309,11 @@ export function DocumentCard({ doc }: DocumentCardProps) {
 
           <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
             {ConverterIcon && <ConverterIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
-            <span className="font-medium truncate">{MARKDOWN_CONVERTERS[doc.markdown_converter].label}</span>
+            <span className="font-medium truncate">
+              {doc.markdown_converter && MARKDOWN_CONVERTERS[doc.markdown_converter]
+                ? MARKDOWN_CONVERTERS[doc.markdown_converter].label
+                : "Unknown converter"}
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
@@ -371,6 +382,28 @@ export function DocumentCard({ doc }: DocumentCardProps) {
                 Generate Preview
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+              Re-extract with:
+            </DropdownMenuItem>
+            {Object.entries(MARKDOWN_CONVERTERS).map(([key, converter]) => (
+              <DropdownMenuItem
+                key={key}
+                className="flex items-center gap-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  reextractMutation.mutate(key);
+                }}
+                disabled={reextractMutation.isPending}
+              >
+                {reextractMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <converter.icon className="w-4 h-4 mr-2" />
+                )}
+                {converter.label}
+              </DropdownMenuItem>
+            ))}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"

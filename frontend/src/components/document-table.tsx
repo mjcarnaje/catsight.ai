@@ -1,5 +1,5 @@
 import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
-import { DocumentStatus, getStatusInfo, getDocumentStatusFromHistory } from "@/lib/document-status";
+import { DocumentStatus, calculateDocumentStatusFromHistory, getDocumentStatusDisplay } from "@/lib/document-status-config";
 import { Document } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Eye, FileText, Image as ImageIcon, Loader2, MoreHorizontal, RefreshCw, RotateCw, Trash, User } from "lucide-react";
@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Blurhash } from "react-blurhash";
 import { useState } from "react";
+import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
 
 interface DocumentTableProps {
   documents: Document[];
@@ -93,6 +94,25 @@ export function DocumentTable({ documents }: DocumentTableProps) {
     },
   });
 
+  const reextractMutation = useMutation({
+    mutationFn: ({ docId, converter }: { docId: number, converter: string }) =>
+      documentsApi.reextract(docId, converter),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast({
+        title: "Success",
+        description: "Document re-extraction started. This might take a moment.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to re-extract document. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const getInitials = (name?: string) => {
     if (!name) return "U";
     return name
@@ -110,34 +130,25 @@ export function DocumentTable({ documents }: DocumentTableProps) {
     }));
   };
 
-  const statusColors = {
-    'Processing': 'bg-amber-500/10 text-amber-600 border-amber-200',
-    'Completed': 'bg-green-500/10 text-green-600 border-green-200',
-    'Failed': 'bg-red-500/10 text-red-600 border-red-200',
-    'default': 'bg-sky-500/10 text-sky-600 border-sky-200'
-  };
-
   return (
     <Table>
       <TableHeader>
         <TableRow className="bg-muted/40 hover:bg-muted/40">
           <TableHead className="w-[50px] font-medium">Preview</TableHead>
           <TableHead className="w-[200px] md:w-[280px] font-medium">Title</TableHead>
-          <TableHead className="font-medium hidden sm:table-cell">Status</TableHead>
-          <TableHead className="font-medium hidden md:table-cell">Uploader</TableHead>
-          <TableHead className="font-medium hidden md:table-cell">Created</TableHead>
-          <TableHead className="font-medium hidden sm:table-cell">Chunks</TableHead>
-          <TableHead className="text-right font-medium">Actions</TableHead>
+          <TableHead className="hidden font-medium sm:table-cell">Status</TableHead>
+          <TableHead className="hidden font-medium md:table-cell">Uploader</TableHead>
+          <TableHead className="hidden font-medium md:table-cell">Created</TableHead>
+          <TableHead className="hidden font-medium sm:table-cell">Chunks</TableHead>
+          <TableHead className="font-medium text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {documents.map((doc) => {
           const hasStatusHistory = doc.status_history && doc.status_history.length > 0;
           const statusInfo = hasStatusHistory
-            ? getDocumentStatusFromHistory(doc.status_history)
-            : { ...getStatusInfo(doc.status), progress: 0, currentStatus: doc.status };
-
-          const statusColor = statusColors[statusInfo.label as keyof typeof statusColors] || statusColors.default;
+            ? calculateDocumentStatusFromHistory(doc.status_history)
+            : { ...getDocumentStatusDisplay(doc.status), progress: 0, currentStatus: doc.status };
 
           const hasPreview = doc.preview_image && doc.blurhash;
           const previewImageUrl = getDocumentPreviewUrl(doc.preview_image);
@@ -146,11 +157,11 @@ export function DocumentTable({ documents }: DocumentTableProps) {
           return (
             <TableRow
               key={doc.id}
-              className="group cursor-pointer transition-colors"
+              className="transition-colors cursor-pointer group"
               onClick={() => navigate(`/documents/${doc.id}`)}
             >
               <TableCell className="w-[50px]">
-                <div className="relative w-10 h-14 rounded-sm overflow-hidden border border-border">
+                <div className="relative w-10 overflow-hidden border rounded-sm h-14 border-border">
                   {hasPreview ? (
                     <>
                       {!isImageLoaded && doc.blurhash && (
@@ -173,7 +184,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                       />
                     </>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-muted/30 text-muted-foreground">
+                    <div className="flex items-center justify-center w-full h-full bg-muted/30 text-muted-foreground">
                       <ImageIcon className="w-4 h-4" />
                     </div>
                   )}
@@ -185,13 +196,22 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                     <FileText className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="group-hover:text-primary transition-colors line-clamp-1">{doc.title}</span>
-                    <div className="sm:hidden flex items-center mt-1">
+                    <span className="transition-colors group-hover:text-primary line-clamp-1">{doc.title}</span>
+                    <div className="flex items-center mt-1 sm:hidden">
                       <Badge
                         variant="outline"
-                        className={`rounded-full px-2 py-0.5 font-medium text-xs ${statusColor}`}
+                        className={cn(`rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`, statusInfo.color.bg, statusInfo.color.border, statusInfo.color.text)}
                       >
-                        {statusInfo.label}
+                        {statusInfo.showLoading ? (
+                          <>
+                            <Loader2 className="w-3.5 mr-1 h-3.5 animate-spin" />
+                            {statusInfo.label}
+                          </>
+                        ) : (
+                          <>
+                            {statusInfo.label}
+                          </>
+                        )}
                       </Badge>
                     </div>
                   </div>
@@ -201,9 +221,18 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                 <div className="flex items-center gap-2">
                   <Badge
                     variant="outline"
-                    className={`rounded-full px-3 py-0.5 font-medium text-xs ${statusColor}`}
+                    className={cn(`rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`, statusInfo.color.bg, statusInfo.color.border, statusInfo.color.text)}
                   >
-                    {statusInfo.label}
+                    {statusInfo.showLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 mr-1 h-3.5 animate-spin" />
+                        {statusInfo.label}
+                      </>
+                    ) : (
+                      <>
+                        {statusInfo.label}
+                      </>
+                    )}
                   </Badge>
                   {doc.status_history && doc.status_history.length > 0 && (
                     <StatusHistoryPopover
@@ -224,7 +253,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                               src={doc.uploaded_by.avatar || ''}
                               alt={doc.uploaded_by.username || doc.uploaded_by.email}
                             />
-                            <AvatarFallback className="bg-primary/5 text-primary text-xs">
+                            <AvatarFallback className="text-xs bg-primary/5 text-primary">
                               {getInitials(doc.uploaded_by.first_name && doc.uploaded_by.last_name
                                 ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
                                 : doc.uploaded_by.username)}
@@ -259,7 +288,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-primary rounded-full"
+                    className="w-8 h-8 rounded-full text-muted-foreground hover:text-primary"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/documents/${doc.id}`);
@@ -273,7 +302,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-full text-muted-foreground"
+                        className="w-8 h-8 rounded-full text-muted-foreground"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </Button>
@@ -314,6 +343,28 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                           <DropdownMenuSeparator />
                         </>
                       )}
+                      <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                        Re-extract with:
+                      </DropdownMenuItem>
+                      {Object.entries(MARKDOWN_CONVERTERS).map(([key, converter]) => (
+                        <DropdownMenuItem
+                          key={key}
+                          className="flex items-center gap-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            reextractMutation.mutate({ docId: doc.id, converter: key });
+                          }}
+                          disabled={reextractMutation.isPending}
+                        >
+                          {reextractMutation.isPending && reextractMutation.variables?.docId === doc.id ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <converter.icon className="w-4 h-4 mr-2" />
+                          )}
+                          {converter.label}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={(e) => {

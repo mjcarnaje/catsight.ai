@@ -2,11 +2,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, getDocumentPreviewUrl } from "@/lib/api";
-import { getStatusInfo } from "@/lib/document-status";
+import { getDocumentStatusDisplay } from "@/lib/document-status-config";
 import { Document } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowLeft, Calendar, ChevronRight, Edit, Eye, FileText, FilePlus2, Grid3X3, Layers, Tag, User } from "lucide-react";
+import { ArrowLeft, Calendar, ChevronRight, Edit, Eye, FileText, FilePlus2, Grid3X3, Layers, Tag, User, Loader2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Blurhash } from "react-blurhash";
 import { useState } from "react";
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
 import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/markdown";
 
 export function DocumentViewPage() {
   const { id } = useParams();
@@ -101,23 +102,13 @@ export function DocumentViewPage() {
     );
   }
 
-  const statusInfo = getStatusInfo(data.status);
+  const statusInfo = getDocumentStatusDisplay(data.status);
   const formattedCreatedDate = format(new Date(data.created_at), "PPP");
   const formattedUpdatedDate = format(new Date(data.updated_at), "PPP");
   const previewImageUrl = getDocumentPreviewUrl(data.preview_image);
 
   const ConverterIcon = data.markdown_converter ? MARKDOWN_CONVERTERS[data.markdown_converter].icon : null;
 
-  const statusColors = {
-    'Processing': 'bg-amber-500/10 text-amber-600 border-amber-200',
-    'Completed': 'bg-green-500/10 text-green-600 border-green-200',
-    'Failed': 'bg-red-500/10 text-red-600 border-red-200',
-    'default': 'bg-sky-500/10 text-sky-600 border-sky-200'
-  };
-
-  const statusColor = statusColors[statusInfo.label as keyof typeof statusColors] || statusColors.default;
-
-  // Extract tags from data or default to empty array
   const tags = data.tags || [];
 
   return (
@@ -139,9 +130,18 @@ export function DocumentViewPage() {
             </Button>
             <Badge
               variant="outline"
-              className={`rounded-full px-3 py-0.5 font-medium text-xs ${statusColor}`}
+              className={cn(`rounded-full px-3 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`, statusInfo.color.bg, statusInfo.color.border, statusInfo.color.text)}
             >
-              {statusInfo.label}
+              {statusInfo.showLoading ? (
+                <>
+                  <Loader2 className="w-3.5 mr-1 h-3.5 animate-spin" />
+                  {statusInfo.label}
+                </>
+              ) : (
+                <>
+                  {statusInfo.label}
+                </>
+              )}
             </Badge>
 
             {/* Display Year */}
@@ -156,9 +156,12 @@ export function DocumentViewPage() {
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
               <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{data.title}</h1>
-              <p className="mt-2 text-muted-foreground">
-                {data.summary || "No summary provided for this document."}
-              </p>
+              <div className="mt-2 text-muted-foreground">
+                {data.summary ?
+                  <Markdown content={data.summary} className="prose-sm prose-p:my-1 prose-headings:my-1" /> :
+                  "No summary provided for this document."
+                }
+              </div>
 
               {/* Display Tags */}
               {tags.length > 0 && (

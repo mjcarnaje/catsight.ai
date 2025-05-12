@@ -32,6 +32,8 @@ export function useChatStream(
   const latestSourcesRef = useRef<any[]>([]);
   // Store the latest assistant message ID
   const lastAssistantMessageIdRef = useRef<string | null>(null);
+  // Generate a unique stream ID for each request
+  const streamIdRef = useRef<string>(`stream-${Date.now()}`);
   // Get the chat context functions
   const { updateChatTitle, addNewChat } = useChatContext();
 
@@ -46,17 +48,19 @@ export function useChatStream(
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
+
+      // Reset all the state for a new request
       setIsStreaming(true);
-      // Set waiting for response flag
       waitingForResponseRef.current = true;
-      // Reset content started flag
       hasStartedContentRef.current = false;
-      // Clear processed message IDs on new message
       processedMessageIdsRef.current.clear();
-      // Clear sources when sending a new message
       latestSourcesRef.current = [];
-      // Reset last assistant message ID
       lastAssistantMessageIdRef.current = null;
+
+      // Generate a new stream ID for this request
+      streamIdRef.current = `stream-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 7)}`;
 
       // dispatch user message
       const userMessage = {
@@ -69,12 +73,14 @@ export function useChatStream(
       // Store the user message for possible navigation
       lastUserMessageRef.current = userMessage;
 
+      // Add user message to the conversation history
       dispatch({
         type: "ADD_USER",
         payload: userMessage,
       });
 
-      // Update our reference of current messages
+      // Update our reference with all existing messages plus the new user message
+      // This ensures we keep conversation history while adding the new message
       currentMessagesRef.current = [...currentMessagesRef.current, userMessage];
 
       // select endpoint
@@ -100,7 +106,16 @@ export function useChatStream(
           let buffer = "";
           let currentChatId = null;
 
+          // Store the current stream ID to detect stale callbacks
+          const currentStreamId = streamIdRef.current;
+
           function readChunk(): Promise<void> {
+            // If the stream ID has changed, this is a stale callback
+            if (currentStreamId !== streamIdRef.current) {
+              console.log("Ignoring stale stream callback");
+              return Promise.resolve();
+            }
+
             return reader.read().then(({ done, value }) => {
               if (done) {
                 setIsStreaming(false);
@@ -115,6 +130,12 @@ export function useChatStream(
               buffer = parts.pop()!;
 
               for (const part of parts) {
+                // Check if this is a stale stream
+                if (currentStreamId !== streamIdRef.current) {
+                  console.log("Ignoring data from stale stream");
+                  return Promise.resolve();
+                }
+
                 // Extract event type and data
                 const eventMatch = part.match(/^event:\s*(\w+)/m);
                 const dataMatch = part.match(/^data:\s*(.*)$/m);
@@ -197,8 +218,8 @@ export function useChatStream(
                     console.error("Error handling start event:", e);
                   }
 
-                  // Don't create the assistant message placeholder here anymore
-                  // The loading indicator in the chat list will show instead
+                  // We deliberately don't create an assistant placeholder here
+                  // The ChatList will show a loading indicator based on isStreaming state
                 } else if (
                   eventType === "sources" &&
                   data.message_id &&
@@ -247,16 +268,19 @@ export function useChatStream(
                   if (!hasStartedContentRef.current) {
                     hasStartedContentRef.current = true;
 
-                    // Create empty assistant message placeholder
+                    // Create assistant message with unique ID for this stream
+                    const assistantId = `assistant-${Date.now()}-${Math.random()
+                      .toString(36)
+                      .substring(2, 7)}`;
                     const newAssistantMessage = {
-                      id: generateId(),
+                      id: assistantId,
                       role: "assistant",
                       content: data.content, // Start with the first content
                       timestamp: new Date().toISOString(),
                     };
 
                     // Store the assistant message ID
-                    lastAssistantMessageIdRef.current = newAssistantMessage.id;
+                    lastAssistantMessageIdRef.current = assistantId;
 
                     // Update our reference
                     currentMessagesRef.current = [
@@ -273,10 +297,7 @@ export function useChatStream(
                     currentMessagesRef.current = currentMessagesRef.current.map(
                       (msg) =>
                         msg.role === "assistant" &&
-                        msg ===
-                          currentMessagesRef.current[
-                            currentMessagesRef.current.length - 1
-                          ]
+                        msg.id === lastAssistantMessageIdRef.current
                           ? { ...msg, content: msg.content + data.content }
                           : msg
                     );
@@ -339,30 +360,10 @@ export function useChatStream(
                   if (!latestAIMessage) continue;
 
                   // Generate a unique ID for the message if we haven't processed it already
-                  // Use the content as part of the ID to ensure uniqueness
-                  const messageContentHash = latestAIMessage.content.substring(
-                    0,
-                    20
-                  );
-                  const uniqueMessageId = `${
-                    latestAIMessage.id || "ai"
-                  }-${messageContentHash}`;
-
-                  // If we've already processed this particular message content, skip it
-                  if (processedMessageIdsRef.current.has(uniqueMessageId)) {
-                    continue;
-                  }
-
-                  // Mark this message as processed
-                  processedMessageIdsRef.current.add(uniqueMessageId);
-
-                  // Check if we already have an assistant message
-                  const lastMessage =
-                    currentMessagesRef.current[
-                      currentMessagesRef.current.length - 1
-                    ];
-                  const isLastMessageAssistant =
-                    lastMessage && lastMessage.role === "assistant";
+                  const timestamp = Date.now();
+                  const uniqueMessageId = `ai-${timestamp}-${Math.random()
+                    .toString(36)
+                    .substring(2, 7)}`;
 
                   // Check for sources in the AI message itself or use our stored sources
                   const messageSources =
@@ -384,53 +385,26 @@ export function useChatStream(
                     // Store the assistant message ID
                     lastAssistantMessageIdRef.current = uniqueMessageId;
 
-                    // If last message is user, add new assistant message
-                    if (!isLastMessageAssistant) {
-                      currentMessagesRef.current = [
-                        ...currentMessagesRef.current,
-                        newAssistantMessage,
-                      ];
+                    // Add new assistant message to our current messages
+                    currentMessagesRef.current = [
+                      ...currentMessagesRef.current,
+                      newAssistantMessage,
+                    ];
 
-                      dispatch({
-                        type: "START_ASSISTANT",
-                        payload: newAssistantMessage,
-                      });
-                    } else {
-                      // Replace existing assistant message with new content
-                      currentMessagesRef.current =
-                        currentMessagesRef.current.map((msg, idx) =>
-                          idx === currentMessagesRef.current.length - 1
-                            ? {
-                                ...msg,
-                                content: latestAIMessage.content,
-                                sources:
-                                  messageSources.length > 0
-                                    ? messageSources
-                                    : msg.sources,
-                              }
-                            : msg
-                        );
-
-                      dispatch({
-                        type: "REPLACE_ASSISTANT",
-                        payload: {
-                          id: lastMessage.id,
-                          content: latestAIMessage.content,
-                          sources:
-                            messageSources.length > 0
-                              ? messageSources
-                              : lastMessage.sources,
-                        },
-                      });
-                    }
+                    dispatch({
+                      type: "START_ASSISTANT",
+                      payload: newAssistantMessage,
+                    });
 
                     // We've received a non-empty response
                     waitingForResponseRef.current = false;
-                  } else {
+                  } else if (lastAssistantMessageIdRef.current) {
                     // Update existing assistant message with new content
+                    const lastMessageId = lastAssistantMessageIdRef.current;
+
                     currentMessagesRef.current = currentMessagesRef.current.map(
                       (msg) =>
-                        msg.role === "assistant" && msg === lastMessage
+                        msg.role === "assistant" && msg.id === lastMessageId
                           ? {
                               ...msg,
                               content: latestAIMessage.content,
@@ -445,12 +419,12 @@ export function useChatStream(
                     dispatch({
                       type: "REPLACE_ASSISTANT",
                       payload: {
-                        id: lastMessage.id,
+                        id: lastMessageId,
                         content: latestAIMessage.content,
                         sources:
                           messageSources.length > 0
                             ? messageSources
-                            : lastMessage.sources,
+                            : undefined,
                       },
                     });
                   }
@@ -507,6 +481,7 @@ export function useChatStream(
     [chatId, modelId, dispatch, updateChatTitle, addNewChat]
   );
 
+  // Clean up abort controller on unmount
   useEffect(
     () => () => {
       abortRef.current?.abort();

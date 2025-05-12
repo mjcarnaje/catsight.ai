@@ -65,11 +65,11 @@ export default function MDXEditorComponent({ markdown, onChange }: MDXEditorProp
   }
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full overflow-hidden">
       <MDXEditor
         markdown={sanitizedMarkdown}
         onChange={handleChange}
-        contentEditableClassName="prose prose-sm md:prose-base lg:prose-lg dark:prose-invert max-w-none min-h-[calc(100vh-12rem)] p-4"
+        contentEditableClassName="prose prose-sm md:prose-base lg:prose-lg dark:prose-invert max-w-none h-full p-4 overflow-auto"
         plugins={[
           headingsPlugin(),
           listsPlugin(),

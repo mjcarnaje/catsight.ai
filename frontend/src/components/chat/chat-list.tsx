@@ -141,7 +141,7 @@ export function ChatList({
     if (endOfMessagesRef.current) {
       endOfMessagesRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages]);
+  }, [messages, isStreaming]);
 
   // Extract thinking content from message
   const extractThinking = (content: string) => {
@@ -205,6 +205,10 @@ export function ChatList({
       </div>
     );
   }
+
+  // Check if we should display the AI thinking message
+  const shouldShowThinking = isStreaming && messages.length > 0 &&
+    messages[messages.length - 1].role === "user";
 
   return (
     <div className="flex-1 w-full max-w-4xl p-4 pb-20 mx-auto space-y-6">
@@ -321,11 +325,14 @@ export function ChatList({
         );
       })}
 
-      {isStreaming && messages.length > 0 && messages[messages.length - 1].role !== "assistant" && (
+      {/* Better AI thinking placeholder with animation */}
+      {shouldShowThinking && (
         <div className="flex justify-start">
-          <div className="flex items-center space-x-2 text-gray-500">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>AI is thinking...</span>
+          <div className="p-3 border border-gray-100 rounded-lg shadow-sm bg-gray-50">
+            <div className="flex items-center space-x-3">
+              <Loader2 className="w-5 h-5 text-pink-500 animate-spin" />
+              <span className="text-gray-700">AI is generating response...</span>
+            </div>
           </div>
         </div>
       )}

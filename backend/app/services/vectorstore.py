@@ -3,6 +3,9 @@ from app.services.ollama import BGEM3_EMBEDDINGS
 from langchain_core.tools.simple import Tool
 from ..models import Document
 from typing import Any, Dict, List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 DB_URI = "postgresql+psycopg://postgres:postgres@db:5432/app_db"
 
@@ -33,18 +36,21 @@ def get_documents(query: str, retriever) -> List[Dict[str, Any]]:
 
     # Group by document
     sources_map: Dict[Any, Dict[str, Any]] = {}
+    logger.info(f"GETTING DOCUMENTS: {docs}")
     for doc in docs:
         doc_id = doc.metadata.get("doc_id")
         chunk_index = doc.metadata.get("index")
         snippet = doc.page_content
 
         if doc_id is None:
+            logger.info(f"DOC ID IS NONE: {doc}")
             continue
 
         if doc_id not in sources_map:
             try:
                 d = Document.objects.get(id=doc_id)
             except Document.DoesNotExist:
+                logger.info(f"DOCUMENT DOES NOT EXIST: {doc_id}")
                 continue
 
             sources_map[doc_id] = {

@@ -41,6 +41,24 @@ def get_docs(request):
     """
     documents = Document.objects.all().order_by('-created_at')
     
+    # Filter by status if specified
+    status_filter = request.GET.get('status')
+    if status_filter and status_filter != 'all':
+        documents = documents.filter(status=status_filter)
+    
+    # Filter by year if specified
+    years = request.GET.get('year')
+    if years:
+        year_list = years.split(',')
+        documents = documents.filter(year__in=year_list)
+    
+    # Filter by tags if specified
+    tags = request.GET.get('tags')
+    if tags:
+        tag_list = tags.split(',')
+        # Filter documents that have any of the specified tags
+        documents = documents.filter(tags__contains=tag_list)
+    
     # Pagination
     page_size = int(request.GET.get('page_size', 9))
     page_number = int(request.GET.get('page', 1))
@@ -802,5 +820,62 @@ def regenerate_summary(request, doc_id):
         logger.error(f"Error regenerating summary for document {doc_id}: {str(e)}", exc_info=True)
         return Response(
             {"status": "error", "message": f"Error regenerating summary: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reextract_doc(request, doc_id):
+    """
+    Re-extract the document text using a different markdown converter.
+    Deletes existing chunks and full text, then starts the extraction process again.
+    """
+    try:
+        # Get the document
+        document = Document.objects.get(id=doc_id)
+
+        # Get the new markdown converter from request
+        markdown_converter = request.data.get("markdown_converter")
+        if not markdown_converter:
+            return Response(
+                {"detail": "No markdown converter provided"}, status=400
+            )
+
+        # 1) Delete old vectors
+        vector_store.delete(filter={"doc_id": doc_id})
+
+        # 2) Delete existing full text if it exists
+        DocumentFullText.objects.filter(document=document).delete()
+
+        # 3) Update document's markdown converter and reset status
+        document.markdown_converter = markdown_converter
+        update_document_status(document, DocumentStatus.PENDING, update_fields=["status", "markdown_converter"])
+
+        # 4) Kick off extraction tasks chain
+        task_chain = chain(
+            extract_text_task.s(document.id),
+            chunk_and_embed_text_task.s(),
+            generate_document_summary_task.s()
+        )
+        result = task_chain.apply_async()
+        
+        # Update task ID in document
+        document.task_id = result.id
+        document.save(update_fields=["task_id"])
+
+        return Response(
+            {"status": "success", "message": "Document re-extraction started"}, 
+            status=status.HTTP_200_OK
+        )
+    except Document.DoesNotExist:
+        logger.warning(f"Document not found: {doc_id}")
+        return Response(
+            {"status": "error", "message": "Document not found"}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error re-extracting document {doc_id}: {str(e)}", exc_info=True)
+        return Response(
+            {"status": "error", "message": f"Error re-extracting document: {str(e)}"}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

@@ -1,4 +1,4 @@
-import { DocumentStatus } from "@/lib/document-status";
+import { DocumentStatus } from "@/lib/document-status-config";
 import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
 export * from "./llm";
 export * from "./source";
@@ -120,4 +120,11 @@ export interface SearchResponse {
   count: number;
   num_pages: number;
   results: SearchResult[];
+}
+
+export interface DocumentFilters {
+  status?: DocumentStatus | "all";
+  tags?: string[];
+  year?: string[];
+  search?: string;
 }
