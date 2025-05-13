@@ -116,13 +116,13 @@ export function UploadDocumentsModal({ open, onOpenChange, onUpload, isUploading
           <DialogDescription>Choose your converter and upload your documents.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
-          <div className="grid grid-cols-1">
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Markdown Converter</label>
               <Popover open={popoverOpen} onOpenChange={setPopoverOpen} modal={true}>
                 <PopoverTrigger asChild>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     role="combobox"
                     aria-expanded={popoverOpen}
                     className={cn("justify-between w-full h-10 transition-all", {
