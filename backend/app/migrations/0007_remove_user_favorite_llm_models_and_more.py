@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='document',
             name='summarization_model',
-            field=models.CharField(default=app.models.LLM_MODELS.get_default, max_length=100),
+            field=models.CharField(default="", max_length=100),
         ),
         migrations.DeleteModel(
             name='LLMModel',

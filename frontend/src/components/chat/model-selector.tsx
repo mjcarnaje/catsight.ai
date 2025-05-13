@@ -39,7 +39,7 @@ export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
       setLoading(true);
       setError(null);
       try {
-        const apiModels = await llmApi.getAll(true);
+        const apiModels = await llmApi.getAll();
 
         // Transform API models to our ModelInfo type and mark favorites
         const transformedModels: ModelInfo[] = apiModels.map((model) => ({

@@ -20,7 +20,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-from app.models import User, LLM_MODELS
+from app.models import User
 from app.serializers import (
     UserSerializer, 
     RegisterSerializer, 

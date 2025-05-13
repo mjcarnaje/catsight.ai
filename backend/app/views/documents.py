@@ -30,6 +30,7 @@ from langchain_core.runnables.graph_mermaid import MermaidDrawMethod
 from langchain_core.documents import Document as LangchainDocument
 from IPython.display import Image
 from ..utils import pretty_print_messages
+from ..services.rag_agent import rag_agent
 
 logger = logging.getLogger(__name__)
 
@@ -367,84 +368,14 @@ def search_docs(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Pagination
-    page_size = int(request.GET.get('page_size', 9))
-    page_number = int(request.GET.get('page', 1))
-
     try:
-        # Perform similarity search with scores
-        docs_with_scores = vector_store.similarity_search_with_score(query, k=50)  # Get more results for pagination
-        
-        # Group results by document
-        documents_map = {}
-        
-        for doc, score in docs_with_scores:
-            doc_id = doc.metadata.get("doc_id")
-            chunk_index = doc.metadata.get("index")
-            
-            if not doc_id:
-                continue
-                
-            if doc_id not in documents_map:
-                try:
-                    document = Document.objects.get(id=doc_id)
-                    documents_map[doc_id] = {
-                        "document_id": doc_id,
-                        "title": document.title,
-                        "summary": document.summary,
-                        "year": document.year,
-                        "tags": document.tags,
-                        "file_name": document.file_name,
-                        "file_type": document.file_type,
-                        "created_at": document.created_at.isoformat(),
-                        "updated_at": document.updated_at.isoformat(),
-                        "blurhash": document.blurhash,
-                        "preview_image": document.preview_image,
-                        "no_of_chunks": document.no_of_chunks,
-                        "uploaded_by": {
-                            "username": document.uploaded_by.username if document.uploaded_by else None,
-                            "email": document.uploaded_by.email if document.uploaded_by else None,
-                        },
-                        "markdown_converter": document.markdown_converter,
-                        "results": [],
-                        "max_score": 0  # Track highest score for sorting
-                    }
-                except Document.DoesNotExist:
-                    continue
-            
-            documents_map[doc_id]["results"].append({
-                "chunk_index": chunk_index,
-                "text": doc.page_content,
-                "score": score,
-                "snippet": make_snippet(doc.page_content, query)
-            })
-            
-            # Update max score if this chunk has a higher score
-            documents_map[doc_id]["max_score"] = max(documents_map[doc_id]["max_score"], score)
-        
-        # Convert to list and sort by max score
-        grouped_results = list(documents_map.values())
-        grouped_results.sort(key=lambda x: x["max_score"], reverse=True)
-        
-        # Paginate the grouped results
-        paginator = Paginator(grouped_results, page_size)
-        
-        try:
-            page = paginator.page(page_number)
-        except PageNotAnInteger:
-            page = paginator.page(1)
-        except EmptyPage:
-            page = paginator.page(paginator.num_pages)
-        
-        return Response({
-            'results': page.object_list,
-            'count': paginator.count,
-            'num_pages': paginator.num_pages,
-            'page': page.number,
-            'next': page.next_page_number() if page.has_next() else None,
-            'previous': page.previous_page_number() if page.has_previous() else None,
-        }, status=status.HTTP_200_OK)
+        result = rag_agent.invoke({"query": query})
 
+        return Response({
+            'summary': result.get("summary", ""),
+            'sources': result.get("sources", []),
+        }, status=status.HTTP_200_OK)
+        
     except Exception as e:
         logger.exception("Search failed")
         return Response(
@@ -544,9 +475,6 @@ def chat_with_docs(request):
                             args = tool_calls[0].get("args", {})
                             query = args.get("query", "")
 
-                            if tool_name == "grade_relevance":
-                                continue
-                            
                             message["tool_call"] = {
                                 "name": tool_name,
                                 "query": query,
@@ -555,9 +483,6 @@ def chat_with_docs(request):
                             continue
 
                         if role == "tool":
-                            if tool_name == "grade_relevance":
-                                continue
-                            
                             if message["content"].startswith("Error"):
                                 continue
 
@@ -692,8 +617,14 @@ def get_chat_history(request, chat_id):
 @permission_classes([AllowAny])
 def get_graph_image(request):
     try:
-        # Get the Mermaid string
-        mermaid_text = catsight_agent.get_graph().draw_mermaid()
+        agent = request.GET.get("agent", "catsight")
+
+        if agent == "catsight":
+            # Get the Mermaid string
+            mermaid_text = catsight_agent.get_graph().draw_mermaid()
+        elif agent == "rag":
+            # Get the Mermaid string
+            mermaid_text = rag_agent.get_graph().draw_mermaid()
         
         # Create a simple HTML page with the mermaid diagram
         html_content = f"""
