@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect, useState } from "react"
-import { Check, ChevronDown, Loader2, Sparkles } from 'lucide-react'
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
@@ -16,10 +14,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Button } from "@/components/ui/button"
 import { llmApi } from "@/lib/api"
 import { useUser } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 import { ModelInfo } from "@/types"
+import { Check, ChevronDown, Loader2, Sparkles } from 'lucide-react'
+import { useEffect, useState } from "react"
 
 interface ModelSelectorProps {
   modelId?: string | null
@@ -119,10 +119,10 @@ export function ModelSelector({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           role="combobox"
           aria-expanded={open}
           className={cn("justify-between w-full h-10 transition-all", {
@@ -145,48 +145,50 @@ export function ModelSelector({
           <ChevronDown className="w-4 h-4 ml-1 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-lg border shadow-lg" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] min-w-96 p-0 rounded-lg border shadow-lg" align="start">
         <Command>
-          <CommandInput placeholder="Search models..." className="h-9" />
-          <CommandList>
-            <CommandEmpty>No model found.</CommandEmpty>
-            <CommandGroup>
-              {models.map((model) => (
-                <CommandItem
-                  key={model.id}
-                  value={model.name}
-                  onSelect={() => handleModelSelect(model)}
-                  className="flex flex-col items-start p-3 transition-colors cursor-pointer hover:bg-primary/5"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2">
-                      {model.logo ? (
-                        <img
-                          src={model.logo}
-                          alt={model.name}
-                          className="object-contain w-4 h-4"
-                        />
-                      ) : (
-                        <Sparkles className="w-4 h-4 text-primary" />
-                      )}
-                      <span className="font-medium">{model.name}</span>
-                      {model.isFavorite && (
-                        <span className="text-xs text-yellow-500">★</span>
+          <CommandGroup>
+            <CommandInput placeholder="Search models..." className="h-9" />
+            <CommandList>
+              <CommandEmpty>No model found.</CommandEmpty>
+              <CommandGroup>
+                {models.map((model) => (
+                  <CommandItem
+                    key={model.id}
+                    value={model.name}
+                    onSelect={() => handleModelSelect(model)}
+                    className="flex flex-col items-start p-3 transition-colors cursor-pointer hover:bg-primary/5"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2">
+                        {model.logo ? (
+                          <img
+                            src={model.logo}
+                            alt={model.name}
+                            className="object-contain w-4 h-4"
+                          />
+                        ) : (
+                          <Sparkles className="w-4 h-4 text-primary" />
+                        )}
+                        <span className="font-medium">{model.name}</span>
+                        {model.isFavorite && (
+                          <span className="text-xs text-yellow-500">★</span>
+                        )}
+                      </div>
+                      {selectedModel.id === model.id && (
+                        <Check className="w-4 h-4 text-primary" />
                       )}
                     </div>
-                    {selectedModel.id === model.id && (
-                      <Check className="w-4 h-4 text-primary" />
+                    {model.description && (
+                      <p className="mt-1 text-xs text-muted-foreground">{model.description}</p>
                     )}
-                  </div>
-                  {model.description && (
-                    <p className="mt-1 text-xs text-muted-foreground">{model.description}</p>
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </CommandGroup>
         </Command>
       </PopoverContent>
-    </Popover>
+    </Popover >
   )
 }

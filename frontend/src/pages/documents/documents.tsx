@@ -1,23 +1,13 @@
 "use client"
 
 import { DocumentCard } from "@/components/document-card"
+import { DocumentCardSkeleton } from "@/components/document-card-skeleton"
+import { DocumentTable } from "@/components/document-table"
+import { DocumentTableSkeleton } from "@/components/document-table-skeleton"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
-import { UploadDocumentsModal } from "@/components/upload-documents-modal"
-import { documentsApi } from "@/lib/api"
-import { DocumentStatus, getStatusInfo } from "@/lib/document-status-config"
-import { Document, DocumentFilters, PaginatedResponse, ViewMode } from "@/types"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { FileText, Grid, List, Search, Upload, Filter, LayoutGrid, Tag, Calendar } from "lucide-react"
-import { useState, useEffect } from "react"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { MultiSelect, Option } from "@/components/ui/multi-select"
 import {
   Pagination,
   PaginationContent,
@@ -26,20 +16,28 @@ import {
   PaginationNext,
   PaginationPrevious
 } from "@/components/ui/pagination"
-import { DocumentTable } from "@/components/document-table"
-import { useNavigate, useLocation } from "react-router-dom"
-import { cn } from "@/lib/utils"
-import { Separator } from "@/components/ui/separator"
-import { DocumentCardSkeleton } from "@/components/document-card-skeleton"
-import { DocumentTableSkeleton } from "@/components/document-table-skeleton"
-import { MultiSelect, Option } from "@/components/ui/multi-select"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Badge } from "@/components/ui/badge"
-import { X } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
+import { useToast } from "@/components/ui/use-toast"
+import { UploadDocumentsModal } from "@/components/upload-documents-modal"
+import { documentsApi } from "@/lib/api"
+import { DocumentStatus } from "@/lib/document-status-config"
+import { cn } from "@/lib/utils"
+import { DocumentFilters, ViewMode } from "@/types"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Calendar, FileText, Filter, LayoutGrid, List, Search, Tag, Upload, X } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 
 const PAGE_SIZE = 9
 
@@ -269,14 +267,14 @@ export default function DocumentsPage() {
   return (
     <div className="min-h-screen">
       {/* Hero Header */}
-      <div className="relative py-6 md:py-10 overflow-hidden">
+      <div className="relative py-6 overflow-hidden md:py-10">
         <div className="absolute inset-0 opacity-5">
           <div className="absolute inset-0 bg-grid-primary/[0.1]" style={{ backgroundSize: '30px 30px' }}></div>
         </div>
-        <div className="container relative z-10 mx-auto px-4 md:px-6">
+        <div className="container relative z-10 px-4 mx-auto md:px-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold tracking-tight">Documents</h1>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl lg:text-4xl">Documents</h1>
               <p className="mt-1 text-sm md:text-base text-muted-foreground">
                 Manage and organize your uploaded documents
               </p>
@@ -284,7 +282,7 @@ export default function DocumentsPage() {
             <Button
               onClick={() => setIsDialogOpen(true)}
               size="default"
-              className="gap-2 font-medium transition-all shadow-sm hover:shadow-md mt-4 md:mt-0"
+              className="gap-2 mt-4 font-medium transition-all shadow-sm hover:shadow-md md:mt-0"
             >
               <Upload className="w-4 h-4" />
               <span className="hidden sm:inline">Upload Document</span>
@@ -294,10 +292,10 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      <div className="container py-4 md:py-8 mx-auto px-4 md:px-6">
+      <div className="container px-4 py-4 mx-auto md:py-8 md:px-6">
         {/* Filters and View Mode */}
-        <div className="flex flex-col gap-4 p-4 mb-6 md:mb-8 border rounded-lg shadow-sm bg-card md:flex-row md:items-start md:justify-between">
-          <div className="flex flex-col gap-4 w-full md:flex-row md:items-start">
+        <div className="flex flex-col gap-4 p-4 mb-6 border rounded-lg shadow-sm md:mb-8 bg-card md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col w-full gap-4 md:flex-row md:items-start">
             <form onSubmit={handleSearch} className="relative w-full md:w-80">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -312,14 +310,14 @@ export default function DocumentsPage() {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="w-full md:w-auto flex items-center justify-between gap-2"
+                  className="flex items-center justify-between w-full gap-2 md:w-auto"
                 >
                   <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4" />
                     <span>Filters</span>
                   </div>
                   {activeFilterCount > 0 && (
-                    <Badge variant="secondary" className="rounded-full ml-2">
+                    <Badge variant="secondary" className="ml-2 rounded-full">
                       {activeFilterCount}
                     </Badge>
                   )}
@@ -327,7 +325,7 @@ export default function DocumentsPage() {
               </PopoverTrigger>
               <PopoverContent className="w-80">
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-medium text-sm">Filter Documents</h4>
+                  <h4 className="text-sm font-medium">Filter Documents</h4>
                   {activeFilterCount > 0 && (
                     <Button
                       variant="ghost"
@@ -366,7 +364,7 @@ export default function DocumentsPage() {
 
                   {/* Year filter - now using MultiSelect */}
                   <div className="grid gap-1.5">
-                    <label htmlFor="year-filter" className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1">
+                    <label htmlFor="year-filter" className="flex items-center gap-1 text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                       <Calendar className="h-3.5 w-3.5" />
                       Year
                     </label>
@@ -380,7 +378,7 @@ export default function DocumentsPage() {
 
                   {/* Tags filter */}
                   <div className="grid gap-1.5">
-                    <label htmlFor="tags-filter" className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1">
+                    <label htmlFor="tags-filter" className="flex items-center gap-1 text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                       <Tag className="h-3.5 w-3.5" />
                       Tags
                     </label>
@@ -408,7 +406,7 @@ export default function DocumentsPage() {
               )}
             >
               <LayoutGrid className="w-4 h-4" />
-              <span className="text-xs hidden sm:inline">Grid</span>
+              <span className="hidden text-xs sm:inline">Grid</span>
             </Button>
             <Button
               variant={viewMode === 'table' ? "default" : "ghost"}
@@ -420,7 +418,7 @@ export default function DocumentsPage() {
               )}
             >
               <List className="w-4 h-4" />
-              <span className="text-xs hidden sm:inline">List</span>
+              <span className="hidden text-xs sm:inline">List</span>
             </Button>
           </div>
         </div>
@@ -435,9 +433,9 @@ export default function DocumentsPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => handleStatusFilterChange("all")}
-                  className="h-auto w-auto p-0 ml-1"
+                  className="w-auto h-auto p-0 ml-1"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="w-3 h-3" />
                   <span className="sr-only">Remove status filter</span>
                 </Button>
               </Badge>
@@ -450,9 +448,9 @@ export default function DocumentsPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => handleYearFilterChange(filters.year?.filter(y => y !== year) || [])}
-                  className="h-auto w-auto p-0 ml-1"
+                  className="w-auto h-auto p-0 ml-1"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="w-3 h-3" />
                   <span className="sr-only">Remove year filter</span>
                 </Button>
               </Badge>
@@ -465,9 +463,9 @@ export default function DocumentsPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => handleTagsFilterChange(filters.tags?.filter(t => t !== tag) || [])}
-                  className="h-auto w-auto p-0 ml-1"
+                  className="w-auto h-auto p-0 ml-1"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="w-3 h-3" />
                   <span className="sr-only">Remove tag filter</span>
                 </Button>
               </Badge>
@@ -478,7 +476,7 @@ export default function DocumentsPage() {
                 variant="ghost"
                 size="sm"
                 onClick={clearFilters}
-                className="h-7 text-xs"
+                className="text-xs h-7"
               >
                 Clear all
               </Button>
@@ -519,7 +517,7 @@ export default function DocumentsPage() {
             {/* Pagination */}
             {paginatedDocuments && paginatedDocuments.count > PAGE_SIZE && (
               <div className="flex flex-col items-center mt-6 md:mt-10">
-                <p className="mb-2 md:mb-4 text-xs md:text-sm text-muted-foreground">
+                <p className="mb-2 text-xs md:mb-4 md:text-sm text-muted-foreground">
                   Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, paginatedDocuments.count)} of {paginatedDocuments.count} documents
                 </p>
                 <Pagination>
@@ -592,12 +590,12 @@ export default function DocumentsPage() {
             )}
 
             {paginatedDocuments?.results.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-8 md:py-16 text-center border rounded-lg shadow-inner bg-card/50">
-                <div className="w-16 h-16 md:w-24 md:h-24 p-4 mb-4 md:mb-6 rounded-full bg-muted/50">
+              <div className="flex flex-col items-center justify-center py-8 text-center border rounded-lg shadow-inner md:py-16 bg-card/50">
+                <div className="w-16 h-16 p-4 mb-4 rounded-full md:w-24 md:h-24 md:mb-6 bg-muted/50">
                   <FileText className="w-full h-full text-muted-foreground" />
                 </div>
-                <h3 className="mb-2 text-lg md:text-xl font-semibold">No documents found</h3>
-                <p className="max-w-md mb-4 md:mb-6 text-sm md:text-base text-muted-foreground">
+                <h3 className="mb-2 text-lg font-semibold md:text-xl">No documents found</h3>
+                <p className="max-w-md mb-4 text-sm md:mb-6 md:text-base text-muted-foreground">
                   {searchQuery || filters.status !== "all"
                     ? "Try adjusting your filters to see more results."
                     : "Upload documents to make them available for search and chat."}
