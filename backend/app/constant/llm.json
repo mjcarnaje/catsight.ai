@@ -26,12 +26,5 @@
     "description": "The instruction-tuned Qwen 2.5 7B model is optimized for following directions and completing specific tasks. Quantized for efficiency (Q4_K_M), it maintains high performance while reducing resource requirements. This model excels at structured responses, creative content generation, and detailed explanations across multiple domains.",
     "logo": "https://avatars.githubusercontent.com/u/141221163?s=200&v=4",
     "instruct": true
-  },
-  {
-    "code": "phi4:latest",
-    "name": "Microsoft Phi-4",
-    "description": "Microsoft's Phi-4 represents the cutting edge in small language models, delivering near-SOTA performance with exceptional efficiency. It features enhanced reasoning, coding capabilities, and factual accuracy while requiring significantly fewer resources than larger models. Phi-4 is ideal for applications needing powerful AI capabilities with minimal computational overhead.",
-    "logo": "https://avatars.githubusercontent.com/u/6154722?s=200&v=4",
-    "instruct": false
   }
 ]

@@ -10,30 +10,6 @@ from pathlib import Path
 from .constant import DocumentStatus, UserRole
 
 
-class LLM_MODELS:
-    """Helper class for LLM model choices"""
-    
-    @classmethod
-    def choices(cls):
-        # Load choices from llm.json file
-        json_path = Path(__file__).parent / 'constant' / 'llm.json'
-        with open(json_path, 'r') as f:
-            models = json.load(f)
-        return [(m['code'], m['name']) for m in models]
-    
-    @classmethod
-    def get_default(cls):
-        """Get the default model code from the JSON file (first model)"""
-        json_path = Path(__file__).parent / 'constant' / 'llm.json'
-        with open(json_path, 'r') as f:
-            models = json.load(f)
-        # Use phi4:latest as default if available, otherwise use the first model
-        for model in models:
-            if model['code'] == 'phi4:latest':
-                return model['code']
-        return models[0]['code'] if models else 'phi4:latest'
-
-
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -128,7 +104,7 @@ class Document(models.Model):
     is_failed          = models.BooleanField(default=False)
     task_id            = models.CharField(max_length=255, null=True, blank=True)
     markdown_converter = models.CharField(max_length=100, null=True, blank=True)
-    summarization_model = models.CharField(max_length=100, default=LLM_MODELS.get_default)
+    summarization_model = models.CharField(max_length=100, default="")
     no_of_chunks       = models.IntegerField(default=0)
     created_at         = models.DateTimeField(auto_now_add=True)
     updated_at         = models.DateTimeField(auto_now=True)

@@ -136,6 +136,11 @@ export interface SearchResult {
   max_score: number;
 }
 
+export interface SearchApiResponse {
+  summary: string;
+  sources: import("@/types/message").Source[];
+}
+
 export const chatsApi = {
   getRecent: (limit: number = 5) => {
     console.log(`Fetching recent chats with limit: ${limit}`);
@@ -263,14 +268,10 @@ export const documentsApi = {
   delete: (id: string) => api.delete(`/documents/${id}/delete`),
   chat: (query: string) => api.post<ChatResponse>("/documents/chat", { query }),
   getRecentChats: (limit: number = 5) => chatsApi.getRecent(limit),
-  search: (params: {
-    query: string;
-    title?: string;
-    limit?: number;
-    page?: number;
-    page_size?: number;
-  }) =>
-    api.get<PaginatedResponse<SearchResult>>("/documents/search", { params }),
+  search: (params: { query: string }) =>
+    api
+      .get<SearchApiResponse>("/documents/search", { params })
+      .then((res) => res.data),
   getCount: () => {
     return api
       .get<{ count: number }>("/documents/count")

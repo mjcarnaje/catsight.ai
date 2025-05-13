@@ -3,28 +3,11 @@ from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 from enum import Enum
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-import json
-from pathlib import Path
 
-def map_model_code_to_ollama(model_code):
-    """
-    Map the model code from our database to the actual Ollama model name.
-    Default to phi4:latest if the model code is not found.
-    """
-    model_mapping = {
-        'llama3.1:8b': 'llama3.1:8b',
-        'llama3.2:1b': 'llama3.2:1b',
-        'qwen3:1.7b': 'qwen3:1.7b',
-        'phi4:latest': 'phi4:latest'
-    }
-    return model_mapping.get(model_code, 'phi4:latest')
-
-def get_llm(model_name="phi4:latest"):
+def get_llm(model_name="qwen2.5:7b-instruct-q4_K_M"):
     """Get a language model instance with the specified model name."""
-    ollama_model = map_model_code_to_ollama(model_name)
-    return ChatOllama(model=ollama_model, base_url="http://ollama:11434", temperature=0)
+    return ChatOllama(model=model_name, base_url="http://ollama:11434", temperature=0)
 
-# Default LLM instance
 llm = get_llm()
 
 map_prompt = ChatPromptTemplate.from_messages([
@@ -103,7 +86,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Change this depending on the model you are using
+# Default model name
 TOKEN_MAX = 10000
 CHUNK_SIZE = 3000
 CHUNK_OVERLAP = 300
@@ -115,7 +98,7 @@ summarization_splitter = RecursiveCharacterTextSplitter(
     separators=SEPARATOR
 )
 
-def length_function(documents: List[Document], model_name="phi4:latest") -> int:
+def length_function(documents: List[Document], model_name="qwen2.5:7b-instruct-q4_K_M") -> int:
     return sum(get_llm(model_name).get_num_tokens(doc.page_content) for doc in documents)
 
 class OverallState(TypedDict):
@@ -126,11 +109,11 @@ class OverallState(TypedDict):
     title: str
     year: int
     tags: List[str]
-    model_name: str = "phi4:latest"
+    model_name: str = "qwen2.5:7b-instruct-q4_K_M"
 
 class SummaryState(TypedDict):
     content: str
-    model_name: str = "phi4:latest"
+    model_name: str = "qwen2.5:7b-instruct-q4_K_M"
 
 
 # Nodes:
@@ -144,7 +127,7 @@ and the final summary.
 
 # Generates a summary for a single chunk of text
 async def generate_summary(state: SummaryState):
-    model_name = state.get("model_name", "phi4:latest")
+    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
     prompt = map_prompt.invoke({"content": state["content"]})
     logger.info(f"===================================[GENERATE SUMMARY]===================================")
     logger.info(f"Model name: {model_name}")
@@ -160,7 +143,7 @@ def map_summaries(state: OverallState):
     # We will return a list of `Send` objects
     # Each `Send` object consists of the name of a node in the graph
     # as well as the state to send to that node
-    model_name = state.get("model_name", "phi4:latest")
+    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
     return [
         Send("generate_summary", {"content": content, "model_name": model_name}) 
         for content in state["contents"]
@@ -174,7 +157,7 @@ def collect_summaries(state: OverallState):
     }
 
 
-async def _reduce(input: dict, model_name="phi4:latest") -> str:
+async def _reduce(input: dict, model_name="qwen2.5:7b-instruct-q4_K_M") -> str:
     logger.info(f"===================================[REDUCE]===================================")
     logger.info(input)
     logger.info(f"===================================[END REDUCE]===================================")
@@ -184,7 +167,7 @@ async def _reduce(input: dict, model_name="phi4:latest") -> str:
 
 # Combines the summaries if they exceed a maximum token limit.
 async def collapse_summaries(state: OverallState):
-    model_name = state.get("model_name", "phi4:latest")
+    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
     doc_lists = split_list_of_docs(
         state["collapsed_summaries"], lambda docs: length_function(docs, model_name), TOKEN_MAX
     )
@@ -197,13 +180,13 @@ async def collapse_summaries(state: OverallState):
 
 # Here we will generate the final summary
 async def generate_final_summary(state: OverallState):
-    model_name = state.get("model_name", "phi4:latest")
+    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
     response = await _reduce(state["collapsed_summaries"], model_name)
     return {"final_summary": response}
 
 # Extracts a title from the final summary
 async def generate_title(state: OverallState):
-    model_name = state.get("model_name", "phi4:latest")
+    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
     class TitleModel(BaseModel):
         title: str = Field(..., description="A concise, descriptive title in Title Case, excluding institutional identifiers.")
 
@@ -224,7 +207,7 @@ Return only the title text without extra commentary."""),
 
 # Extracts the document year from the final summary
 async def extract_year(state: OverallState):
-    model_name = state.get("model_name", "phi4:latest")
+    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
     class YearModel(BaseModel):
         year: int = Field(..., description="The four-digit publication year extracted from the document summary.")
 
@@ -245,7 +228,7 @@ async def extract_year(state: OverallState):
 
 # Assigns tags based on the final summary
 async def assign_tags(state: OverallState):
-    model_name = state.get("model_name", "phi4:latest")
+    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
     tags_prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a tag classifier for educational administrative documents. Based on the following summary, select only relevant tags from this list:
 - Special Orders
@@ -306,7 +289,7 @@ Rules:
 def should_collapse(
     state: OverallState,
 ) -> Literal["collapse_summaries", "generate_final_summary"]:
-    model_name = state.get("model_name", "phi4:latest")
+    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
     num_tokens = length_function(state["collapsed_summaries"], model_name)
     if num_tokens > TOKEN_MAX:
         return "collapse_summaries"

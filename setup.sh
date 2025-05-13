@@ -52,24 +52,13 @@ echo "📦  Applying Django migrations..."
 docker compose exec backend python manage.py migrate --noinput
 
 # ──────────────────────────────────────────────────────────
-# 6. Pull Ollama models
+# 6. Pull LLM and Docling models (delegated to pull-llms.sh)
 # ──────────────────────────────────────────────────────────
-echo "🤖  Pulling Ollama models..."
-docker compose exec ollama ollama pull llama3.1:8b
-docker compose exec ollama ollama pull llama3.2:1b
-docker compose exec ollama ollama pull qwen3:1.7b
-docker compose exec ollama ollama pull bge-m3:latest
-docker compose exec ollama ollama pull qwen2.5:7b-instruct-q4_K_M
-docker compose exec ollama ollama pull phi4:latest
+echo "🤖  Pulling LLM and Docling models via pull-llms.sh..."
+./pull-llms.sh
 
 # ──────────────────────────────────────────────────────────
-# 7. Download Docling models
-# ──────────────────────────────────────────────────────────
-echo "📥  Downloading Docling models..."
-docker compose exec backend docling-tools models download
-
-# ──────────────────────────────────────────────────────────
-# 8. Create/update superuser 'admin'
+# 7. Create/update superuser 'admin'
 # ──────────────────────────────────────────────────────────
 echo "🔐  Ensuring superuser 'admin' exists..."
 docker compose exec -T backend python manage.py shell <<'PYCODE'

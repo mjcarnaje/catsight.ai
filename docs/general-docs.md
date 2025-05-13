@@ -274,12 +274,3 @@ To clean the database, run:
 ```bash
 docker compose exec backend python manage.py flush --noinput
 ```
-
-| Available Models   | Size   |
-| ------------------ | ------ |
-| - phi4:latest      | 9.1 GB |
-| - llama3.1:8b      | 4.9 GB |
-| - qwen3:1.7b       | 1.4 GB |
-| - bge-m3:latest    | 1.2 GB |
-| - deepseek-r1:1.5b | 1.1 GB |
-| - llama3.2:1b      | 1.3 GB |
