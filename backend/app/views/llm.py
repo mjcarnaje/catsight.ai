@@ -6,11 +6,16 @@ from app.utils.permissions import AllowAny
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_llm_models(request):
+
+    instruct = request.query_params.get('instruct', 'false')    
+    
     # Add id field to each model based on its position in the list
     with open('app/constant/llm.json', 'r') as f:
         llm_models = json.load(f)
     models_with_ids = []
     for i, model in enumerate(llm_models, 1):
+        if instruct == 'true' and model['instruct'] == False:
+            continue
         model_with_id = model.copy()
         model_with_id['id'] = i
         models_with_ids.append(model_with_id)

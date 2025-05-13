@@ -67,10 +67,10 @@ def get_marker_converter():
         "disable_image_extraction": True,
         "ollama_base_url": os.getenv("OLLAMA_URL"),
         "llm_service": "marker.services.ollama.OllamaService",
-        "ollama_model": "phi4:latest",
+        "ollama_model": "qwen2.5:7b-instruct-q4_K_M",
         "force_ocr": True,
         "strip_existing_ocr": True,
-        "use_llm": False,
+        "use_llm": True,
         "debug": True
     }
     marker_parser = ConfigParser(marker_config)

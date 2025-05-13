@@ -296,10 +296,16 @@ interface LLMModel {
   code: string;
   description: string;
   logo: string;
+  instruct: boolean;
 }
 
 export const llmApi = {
-  getAll: () => api.get<LLMModel[]>("/llm-models").then((res) => res.data),
+  getAll: (instruct: boolean = false) =>
+    api
+      .get<LLMModel[]>("/llm-models", {
+        params: { instruct: instruct.toString() },
+      })
+      .then((res) => res.data),
   getOne: (id: number) =>
     api.get<LLMModel>(`/llm-models/${id}`).then((res) => res.data),
   updateFavorites: (modelCodes: string[]) =>
