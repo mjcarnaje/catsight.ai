@@ -26389,7 +26389,7 @@ In addition to the reasons listed above, for the desktop app there are a few mor
 
 ##### Docker issues
 
-LangGraph Studio (desktop) requires Docker Desktop version 4.24 or higher. Please make sure you have a version of Docker installed that satisfies that requirement and also make sure you have the Docker Desktop app up and running before trying to use LangGraph Studio. In addition, make sure you have docker-compose updated to version 2.22.0 or higher.
+LangGraph Studio (desktop) requires Docker Desktop version 4.24 or higher. Please make sure you have a version of Docker installed that satisfies that requirement and also make sure you have the Docker Desktop app up and running before trying to use LangGraph Studio. In addition, make sure you have docker compose updated to version 2.22.0 or higher.
 
 ##### Incorrect data region
 

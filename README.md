@@ -46,17 +46,17 @@ ollama pull llama2:3.2
 ollama pull bge-m3
 ```
 
-Ensure that the `ollama` service in the `docker-compose.yml` is correctly configured to access the models.
+Ensure that the `ollama` service in the `docker compose.yml` is correctly configured to access the models.
 
 ### 3. Build and Start the Containers
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ## Configuration
 
-Ensure that all services (Redis, PostgreSQL, and Ollama) are running and properly configured. Update any necessary settings directly in your `docker-compose.yml` file or the application code.
+Ensure that all services (Redis, PostgreSQL, and Ollama) are running and properly configured. Update any necessary settings directly in your `docker compose.yml` file or the application code.
 
 ## Running the Application
 
@@ -65,7 +65,7 @@ Ensure that all services (Redis, PostgreSQL, and Ollama) are running and properl
 Start all services using Docker Compose:
 
 ```bash
-docker-compose up
+docker compose up
 ```
 
 ## How It Works

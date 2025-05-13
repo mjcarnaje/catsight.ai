@@ -184,14 +184,14 @@ To make the platform more robust and enterprise-ready, consider adding:
 To enable vector search, you need to create the vector extension on your PostgreSQL database:
 
 ```bash
-docker-compose exec db psql -U postgres -d app_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker compose exec db psql -U postgres -d app_db -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
 Make migrations for the vector extension:
 
 ```bash
-docker-compose exec backend python manage.py makemigrations
-docker-compose exec backend python manage.py migrate
+docker compose exec backend python manage.py makemigrations
+docker compose exec backend python manage.py migrate
 ```
 
 ### Docker Commands
@@ -200,39 +200,39 @@ docker-compose exec backend python manage.py migrate
 
 ```bash
 # Backend container
-docker-compose exec backend <command>
+docker compose exec backend <command>
 
 # Ollama container
-docker-compose exec ollama <command>
+docker compose exec ollama <command>
 
 # Frontend container
-docker-compose exec frontend <command>
+docker compose exec frontend <command>
 
 # Database container
-docker-compose exec db psql -U <username> -d <database> -c <command>
+docker compose exec db psql -U <username> -d <database> -c <command>
 ```
 
 **Building and Managing Services:**
 
 ```bash
 # Build specific services
-docker-compose build <service>
+docker compose build <service>
 
 # Restart services
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 
 # Create a superuser
-docker-compose exec backend python manage.py createsuperuser --username <username> --email <email>
+docker compose exec backend python manage.py createsuperuser --username <username> --email <email>
 
 # Remove all containers
-docker-compose down -v
+docker compose down -v
 
 # Prune all containers
 docker system prune -a -f
 
 # Build and start all services
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 ### Model Management
@@ -240,17 +240,17 @@ docker-compose up -d --build
 **Pull Default Models:**
 
 ```bash
-docker-compose exec ollama ollama pull llama3.1:8b
-docker-compose exec ollama ollama pull llama3.2:1b
-docker-compose exec ollama ollama pull qwen3:1.7b
-docker-compose exec ollama ollama pull bge-m3
-docker-compose exec ollama ollama pull phi4
+docker compose exec ollama ollama pull llama3.1:8b
+docker compose exec ollama ollama pull llama3.2:1b
+docker compose exec ollama ollama pull qwen3:1.7b
+docker compose exec ollama ollama pull bge-m3
+docker compose exec ollama ollama pull phi4
 ```
 
 **To get the list of models available in the ollama container:**
 
 ```bash
-docker-compose exec ollama ollama list
+docker compose exec ollama ollama list
 ```
 
 **Downloading Models for Offline Use:**
@@ -258,21 +258,21 @@ docker-compose exec ollama ollama list
 For air-gapped environments, you can prefetch Docling models:
 
 ```bash
-docker-compose exec backend docling-tools models download
+docker compose exec backend docling-tools models download
 ```
 
 ```bash
-docker-compose exec backend python manage.py makemigrations app --empty --name remove_deepseek_model
+docker compose exec backend python manage.py makemigrations app --empty --name remove_deepseek_model
 ```
 
 ```bash
-docker-compose exec backend python manage.py migrate
+docker compose exec backend python manage.py migrate
 ```
 
 To clean the database, run:
 
 ```bash
-docker-compose exec backend python manage.py flush --noinput
+docker compose exec backend python manage.py flush --noinput
 ```
 
 | Available Models   | Size   |
