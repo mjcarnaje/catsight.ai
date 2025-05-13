@@ -14,7 +14,7 @@ sudo rm -rf backend/media/avatars/* backend/media/docs/* || {
 # 2. Tear down containers & volumes
 # ──────────────────────────────────────────────────────────
 echo "🛑  Stopping and removing containers + volumes..."
-docker-compose down --volumes --remove-orphans
+docker compose down --volumes --remove-orphans
 
 # ──────────────────────────────────────────────────────────
 # 3. Remove Postgres data volume (ignore if missing)
@@ -30,14 +30,14 @@ fi
 # 4. Start containers
 # ──────────────────────────────────────────────────────────
 echo "🚀  Bringing services back up..."
-docker-compose up -d --build
+docker compose up -d --build
 
 # Wait for backend container to be healthy/running
 MAX_RETRIES=20
 RETRY=0
-until docker-compose ps | grep backend | grep -q "Up"; do
+until docker compose ps | grep backend | grep -q "Up"; do
   if [ $RETRY -ge $MAX_RETRIES ]; then
-    echo "❌ Backend container did not start in time. Check logs with 'docker-compose logs backend'."
+    echo "❌ Backend container did not start in time. Check logs with 'docker compose logs backend'."
     exit 1
   fi
   echo "⏳ Waiting for backend container to be up... ($RETRY/$MAX_RETRIES)"
@@ -49,30 +49,30 @@ done
 # 5. Apply migrations
 # ──────────────────────────────────────────────────────────
 echo "📦  Applying Django migrations..."
-docker-compose exec backend python manage.py migrate --noinput
+docker compose exec backend python manage.py migrate --noinput
 
 # ──────────────────────────────────────────────────────────
 # 6. Pull Ollama models
 # ──────────────────────────────────────────────────────────
 echo "🤖  Pulling Ollama models..."
-docker-compose exec ollama ollama pull llama3.1:8b
-docker-compose exec ollama ollama pull llama3.2:1b
-docker-compose exec ollama ollama pull qwen3:1.7b
-docker-compose exec ollama ollama pull bge-m3:latest
-docker-compose exec ollama ollama pull qwen2.5:7b-instruct-q4_K_M
-docker-compose exec ollama ollama pull phi4:latest
+docker compose exec ollama ollama pull llama3.1:8b
+docker compose exec ollama ollama pull llama3.2:1b
+docker compose exec ollama ollama pull qwen3:1.7b
+docker compose exec ollama ollama pull bge-m3:latest
+docker compose exec ollama ollama pull qwen2.5:7b-instruct-q4_K_M
+docker compose exec ollama ollama pull phi4:latest
 
 # ──────────────────────────────────────────────────────────
 # 7. Download Docling models
 # ──────────────────────────────────────────────────────────
 echo "📥  Downloading Docling models..."
-docker-compose exec backend docling-tools models download
+docker compose exec backend docling-tools models download
 
 # ──────────────────────────────────────────────────────────
 # 8. Create/update superuser 'admin'
 # ──────────────────────────────────────────────────────────
 echo "🔐  Ensuring superuser 'admin' exists..."
-docker-compose exec -T backend python manage.py shell <<'PYCODE'
+docker compose exec -T backend python manage.py shell <<'PYCODE'
 from django.contrib.auth import get_user_model
 User = get_user_model()
 email    = "michaeljames.carnaje@g.msuiit.edu.ph"
@@ -95,9 +95,9 @@ echo "✅  Reset complete!"
 # Start services in foreground or add ngrok if needed
 if [ "${1:-}" = "--with-ngrok" ]; then
   echo "🌐  Starting services with ngrok tunnel..."
-  docker-compose up -d
+  docker compose up -d
   ngrok config add-authtoken 2eLYVevP4ZXNVanK4iR20M02eol_29zGNpXFpGsnfyM5exyqs && ngrok http --url=catsightai.ngrok.app 3000
 else
   echo "🚀  Starting services in foreground..."
-  docker-compose up
+  docker compose up
 fi
