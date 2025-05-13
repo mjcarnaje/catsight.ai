@@ -29,6 +29,16 @@ import { cn } from "@/lib/utils";
 import { Blurhash } from "react-blurhash";
 import { useState } from "react";
 import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ModelSelector } from "./chat/model-selector";
+import { ModelInfo } from "@/types";
 
 interface DocumentTableProps {
   documents: Document[];
@@ -39,6 +49,9 @@ export function DocumentTable({ documents }: DocumentTableProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [loadedPreviews, setLoadedPreviews] = useState<Record<number, boolean>>({});
+  const [isModelDialogOpen, setIsModelDialogOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
+  const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
 
   const handleDeleteMutation = useMutation({
     mutationFn: (docId: number) => documentsApi.delete(docId.toString()),
@@ -77,18 +90,21 @@ export function DocumentTable({ documents }: DocumentTableProps) {
   });
 
   const regenerateSummaryMutation = useMutation({
-    mutationFn: (docId: number) => documentsApi.regenerateSummary(docId),
-    onSuccess: (data) => {
+    mutationFn: ({ docId, modelId }: { docId: number; modelId?: string }) =>
+      documentsApi.regenerateSummary(docId, modelId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
-        title: "Success",
-        description: "Document summary regeneration started. This might take a moment.",
+        title: "Summary regeneration started",
+        description: "The document summary is being regenerated.",
       });
+      setIsModelDialogOpen(false);
+      setSelectedDocId(null);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to regenerate document summary. Please try again.",
+        description: "Failed to regenerate summary",
         variant: "destructive",
       });
     },
@@ -130,8 +146,26 @@ export function DocumentTable({ documents }: DocumentTableProps) {
     }));
   };
 
+  const handleModelChange = (model: ModelInfo | null) => {
+    setSelectedModel(model);
+  };
+
+  const handleRegenerateSummary = () => {
+    if (selectedModel && selectedDocId) {
+      regenerateSummaryMutation.mutate({
+        docId: selectedDocId,
+        modelId: selectedModel.id
+      });
+    }
+  };
+
+  const openModelDialog = (docId: number) => {
+    setSelectedDocId(docId);
+    setIsModelDialogOpen(true);
+  };
+
   return (
-    <Table>
+    <Table className="border rounded-md">
       <TableHeader>
         <TableRow className="bg-muted/40 hover:bg-muted/40">
           <TableHead className="w-[50px] font-medium">Preview</TableHead>
@@ -312,11 +346,11 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                         className="flex items-center gap-2"
                         onClick={(e) => {
                           e.stopPropagation();
-                          regenerateSummaryMutation.mutate(doc.id);
+                          openModelDialog(doc.id);
                         }}
-                        disabled={regenerateSummaryMutation.isPending && regenerateSummaryMutation.variables === doc.id}
+                        disabled={regenerateSummaryMutation.isPending}
                       >
-                        {regenerateSummaryMutation.isPending && regenerateSummaryMutation.variables === doc.id ? (
+                        {regenerateSummaryMutation.isPending && regenerateSummaryMutation.variables?.docId === doc.id ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         ) : (
                           <RefreshCw className="w-4 h-4 mr-2" />
@@ -398,6 +432,46 @@ export function DocumentTable({ documents }: DocumentTableProps) {
           </TableRow>
         )}
       </TableBody>
+
+      {/* Model Selection Dialog */}
+      <Dialog open={isModelDialogOpen} onOpenChange={setIsModelDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Regenerate Summary</DialogTitle>
+            <DialogDescription>
+              Select a model to use for regenerating the summary.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Summarization Model</label>
+              <ModelSelector modelId={selectedModel?.id} onModelChange={handleModelChange} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsModelDialogOpen(false)}
+              disabled={regenerateSummaryMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRegenerateSummary}
+              disabled={!selectedModel || regenerateSummaryMutation.isPending}
+            >
+              {regenerateSummaryMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Regenerate"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Table>
   );
 } 

@@ -32,6 +32,16 @@ import {
 import { MoreHorizontal } from "lucide-react";
 import { Markdown } from "./markdown";
 import { cn } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ModelSelector } from "./chat/model-selector";
+import { ModelInfo } from "@/types";
 
 interface DocumentCardProps {
   doc: Document;
@@ -43,6 +53,8 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   const hasStatusHistory = doc.status_history && doc.status_history.length > 0;
   const [imageLoaded, setImageLoaded] = useState(false);
   const queryClient = useQueryClient();
+  const [isModelDialogOpen, setIsModelDialogOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
 
   // Get document year (prefer doc.year if available, otherwise use creation date year)
   const documentYear = doc.year || new Date(doc.created_at).getFullYear();
@@ -94,18 +106,19 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   });
 
   const regenerateSummaryMutation = useMutation({
-    mutationFn: () => documentsApi.regenerateSummary(doc.id),
-    onSuccess: (data) => {
+    mutationFn: (modelId?: string) => documentsApi.regenerateSummary(doc.id, modelId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
-        title: "Success",
-        description: "Document summary regeneration started. This might take a moment.",
+        title: "Summary regeneration started",
+        description: "The document summary is being regenerated.",
       });
+      setIsModelDialogOpen(false);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to regenerate document summary. Please try again.",
+        description: "Failed to regenerate summary",
         variant: "destructive",
       });
     },
@@ -143,6 +156,16 @@ export function DocumentCard({ doc }: DocumentCardProps) {
     ? MARKDOWN_CONVERTERS[doc.markdown_converter].icon
     : undefined;
   const previewImageUrl = getDocumentPreviewUrl(doc.preview_image);
+
+  const handleModelChange = (model: ModelInfo | null) => {
+    setSelectedModel(model);
+  };
+
+  const handleRegenerateSummary = () => {
+    if (selectedModel) {
+      regenerateSummaryMutation.mutate(selectedModel.id);
+    }
+  };
 
   return (
     <Card
@@ -323,7 +346,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
 
           <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
             <Tag className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-            <span className="font-medium truncate">{doc.file_type}</span>
+            <span className="font-medium truncate">{doc.summarization_model}</span>
           </div>
         </div>
       </div>
@@ -354,7 +377,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               className="flex items-center gap-2"
               onClick={(e) => {
                 e.stopPropagation();
-                regenerateSummaryMutation.mutate();
+                setIsModelDialogOpen(true);
               }}
               disabled={regenerateSummaryMutation.isPending}
             >
@@ -423,6 +446,46 @@ export function DocumentCard({ doc }: DocumentCardProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Model Selection Dialog */}
+      <Dialog open={isModelDialogOpen} onOpenChange={setIsModelDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Regenerate Summary</DialogTitle>
+            <DialogDescription>
+              Select a model to use for regenerating the summary.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Summarization Model</label>
+              <ModelSelector modelId={selectedModel?.id} onModelChange={handleModelChange} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsModelDialogOpen(false)}
+              disabled={regenerateSummaryMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRegenerateSummary}
+              disabled={!selectedModel || regenerateSummaryMutation.isPending}
+            >
+              {regenerateSummaryMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Regenerate"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

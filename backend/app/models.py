@@ -3,32 +3,35 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Case, When, Value, IntegerField
+import json
+import os
+from pathlib import Path
 
 from .constant import DocumentStatus, UserRole
 
 
-class LLMModel(models.Model):
-    code        = models.CharField(max_length=32, unique=True)
-    name        = models.CharField(max_length=64)
-    description = models.TextField(blank=True)
-    logo        = models.URLField(blank=True)
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        ordering = ["name"]
-
-
 class LLM_MODELS:
-    """Helper constants and choices for forms"""
-    LLAMA_3_2_1B    = 'llama3.2:1b'
-    DEEPSEEK_R1_1_5B = 'deepseek-r1:1.5b'
-
+    """Helper class for LLM model choices"""
+    
     @classmethod
     def choices(cls):
-        # Populate choices dynamically from the LLMModel table
-        return [(m.code, m.name) for m in LLMModel.objects.all()]
+        # Load choices from llm.json file
+        json_path = Path(__file__).parent / 'constant' / 'llm.json'
+        with open(json_path, 'r') as f:
+            models = json.load(f)
+        return [(m['code'], m['name']) for m in models]
+    
+    @classmethod
+    def get_default(cls):
+        """Get the default model code from the JSON file (first model)"""
+        json_path = Path(__file__).parent / 'constant' / 'llm.json'
+        with open(json_path, 'r') as f:
+            models = json.load(f)
+        # Use phi4:latest as default if available, otherwise use the first model
+        for model in models:
+            if model['code'] == 'phi4:latest':
+                return model['code']
+        return models[0]['code'] if models else 'phi4:latest'
 
 
 class UserManager(BaseUserManager):
@@ -60,11 +63,11 @@ class User(AbstractUser):
     avatar              = models.CharField(max_length=255, null=True, blank=True)
     google_id           = models.CharField(max_length=255, null=True, blank=True)
     is_onboarded        = models.BooleanField(default=False, help_text="Whether the user has completed the onboarding process")
-    favorite_llm_models = models.ManyToManyField(
-        LLMModel,
-        blank=True,
-        related_name='favored_by',
-        help_text="Which LLMs this user has favorited"
+    favorite_llm_models = models.JSONField(
+        blank=True, 
+        null=True,
+        default=list,
+        help_text="List of LLM model codes that this user has favorited"
     )
 
     USERNAME_FIELD  = 'email'
@@ -125,6 +128,7 @@ class Document(models.Model):
     is_failed          = models.BooleanField(default=False)
     task_id            = models.CharField(max_length=255, null=True, blank=True)
     markdown_converter = models.CharField(max_length=100, null=True, blank=True)
+    summarization_model = models.CharField(max_length=100, default=LLM_MODELS.get_default)
     no_of_chunks       = models.IntegerField(default=0)
     created_at         = models.DateTimeField(auto_now_add=True)
     updated_at         = models.DateTimeField(auto_now=True)

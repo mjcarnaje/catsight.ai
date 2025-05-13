@@ -55,10 +55,12 @@ export default function DocumentsPage() {
     mutationFn: ({
       files,
       markdown_converter,
+      summarization_model,
     }: {
       files: File[];
       markdown_converter: string;
-    }) => documentsApi.upload(files, markdown_converter),
+      summarization_model: string;
+    }) => documentsApi.upload(files, markdown_converter, summarization_model),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       setIsDialogOpen(false);
@@ -111,7 +113,9 @@ export default function DocumentsPage() {
         <UploadDocumentsModal
           open={isDialogOpen}
           onOpenChange={setIsDialogOpen}
-          onUpload={(files, markdown_converter) => uploadMutation.mutate({ files, markdown_converter })}
+          onUpload={(files, markdown_converter, summarization_model) =>
+            uploadMutation.mutate({ files, markdown_converter, summarization_model })
+          }
           isUploading={uploadMutation.isPending}
         />
       </div>

@@ -19,11 +19,13 @@ import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui
 import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ModelSelector } from "./chat/model-selector"
+import { ModelInfo } from "@/types"
 
 interface UploadDocumentsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onUpload: (files: File[], markdown_converter: "marker" | "markitdown" | "docling") => void
+  onUpload: (files: File[], markdown_converter: "marker" | "markitdown" | "docling", summarization_model?: string) => void
   isUploading: boolean
 }
 
@@ -33,6 +35,7 @@ export function UploadDocumentsModal({ open, onOpenChange, onUpload, isUploading
   const [popoverOpen, setPopoverOpen] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [fileError, setFileError] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null)
 
   // Simulate progress when uploading
   if (isUploading && uploadProgress < 95) {
@@ -67,10 +70,13 @@ export function UploadDocumentsModal({ open, onOpenChange, onUpload, isUploading
   })
 
   const handleUpload = () => {
-    if (selectedFiles.length > 0) {
+    if (selectedFiles.length > 0 && selectedModel) {
       setUploadProgress(5) // Start progress
-      onUpload(selectedFiles, selectedConverter)
-      setSelectedFiles([]) // Clear selected files after upload
+      onUpload(
+        selectedFiles,
+        selectedConverter,
+        selectedModel.id
+      )
     }
   }
 
@@ -96,6 +102,10 @@ export function UploadDocumentsModal({ open, onOpenChange, onUpload, isUploading
     }
   }
 
+  const handleModelChange = (model: ModelInfo) => {
+    setSelectedModel(model);
+  };
+
   const SelectedConverterIcon = selectedConverter ? MARKDOWN_CONVERTERS[selectedConverter].icon : null
 
   return (
@@ -106,88 +116,95 @@ export function UploadDocumentsModal({ open, onOpenChange, onUpload, isUploading
           <DialogDescription>Choose your converter and upload your documents.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Markdown Converter</label>
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen} modal={true}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={popoverOpen}
-                  className={cn("justify-between w-full h-12 transition-all", {
-                    "font-normal text-gray-500": !selectedConverter,
-                    "ring-1 ring-primary": selectedConverter,
-                  })}
-                  type="button"
-                  disabled={isUploading}
-                >
-                  <div className="flex items-center">
-                    {SelectedConverterIcon && (
-                      <SelectedConverterIcon className={cn("w-4 h-4 mr-2", {
-                        "text-primary": selectedConverter === "marker",
-                        "text-amber-500": selectedConverter === "markitdown",
-                        "text-emerald-500": selectedConverter === "docling",
-                      })} />
-                    )}
-                    {selectedConverter
-                      ? MARKDOWN_CONVERTERS[selectedConverter].label
-                      : "Select Converter"}
-                  </div>
-                  <ChevronDownIcon className="w-4 h-4 ml-2 opacity-50 shrink-0" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] rounded-lg border p-0 shadow-lg">
-                <Command>
-                  <CommandGroup>
-                    <CommandList>
-                      {Object.values(MARKDOWN_CONVERTERS).map((converter) => (
-                        <CommandItem
-                          key={converter.value}
-                          value={converter.value}
-                          onSelect={(currentValue) => {
-                            setSelectedConverter(currentValue as "marker" | "markitdown" | "docling")
-                            setPopoverOpen(false)
-                          }}
-                          className="flex flex-col items-start p-3 transition-colors cursor-pointer hover:bg-primary/5"
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <div className="flex items-center">
-                              {converter.icon && (
-                                <converter.icon className={cn("w-4 h-4 mr-2", {
-                                  "text-primary": converter.value === "marker",
-                                  "text-amber-500": converter.value === "markitdown",
-                                  "text-emerald-500": converter.value === "docling",
-                                })} />
-                              )}
-                              <span className="font-medium">{converter.label}</span>
+          <div className="grid grid-cols-1">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Markdown Converter</label>
+              <Popover open={popoverOpen} onOpenChange={setPopoverOpen} modal={true}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={popoverOpen}
+                    className={cn("justify-between w-full h-10 transition-all", {
+                      "font-normal text-gray-500": !selectedConverter,
+                      "ring-1 ring-primary": selectedConverter,
+                    })}
+                    type="button"
+                    disabled={isUploading}
+                  >
+                    <div className="flex items-center">
+                      {SelectedConverterIcon && (
+                        <SelectedConverterIcon className={cn("w-4 h-4 mr-2", {
+                          "text-primary": selectedConverter === "marker",
+                          "text-amber-500": selectedConverter === "markitdown",
+                          "text-emerald-500": selectedConverter === "docling",
+                        })} />
+                      )}
+                      {selectedConverter
+                        ? MARKDOWN_CONVERTERS[selectedConverter].label
+                        : "Select Converter"}
+                    </div>
+                    <ChevronDownIcon className="w-4 h-4 ml-2 opacity-50 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] rounded-lg border p-0 shadow-lg">
+                  <Command>
+                    <CommandGroup>
+                      <CommandList>
+                        {Object.values(MARKDOWN_CONVERTERS).map((converter) => (
+                          <CommandItem
+                            key={converter.value}
+                            value={converter.value}
+                            onSelect={(currentValue) => {
+                              setSelectedConverter(currentValue as "marker" | "markitdown" | "docling")
+                              setPopoverOpen(false)
+                            }}
+                            className="flex flex-col items-start p-3 transition-colors cursor-pointer hover:bg-primary/5"
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center">
+                                {converter.icon && (
+                                  <converter.icon className={cn("w-4 h-4 mr-2", {
+                                    "text-primary": converter.value === "marker",
+                                    "text-amber-500": converter.value === "markitdown",
+                                    "text-emerald-500": converter.value === "docling",
+                                  })} />
+                                )}
+                                <span className="font-medium">{converter.label}</span>
+                              </div>
+                              {selectedConverter === converter.value && <Check className="w-4 h-4 text-primary" />}
                             </div>
-                            {selectedConverter === converter.value && <Check className="w-4 h-4 text-primary" />}
-                          </div>
-                          <p className="mt-1 text-xs text-muted-foreground">{converter.description}</p>
-                          <div className="flex gap-1 mt-2">
-                            {converter.tags.map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant="outline"
-                                className={cn("text-xs", {
-                                  "bg-green-50 border-green-200 text-green-700": tag === "accurate",
-                                  "bg-blue-50 border-blue-200 text-blue-700": tag === "fast" || tag === "reliable",
-                                  "bg-yellow-50 border-yellow-200 text-yellow-700": tag === "slow" || tag === "slower",
-                                  "bg-indigo-50 border-indigo-200 text-indigo-700": tag === "detailed" || tag === "semantic",
-                                  "bg-gray-50 border-gray-200 text-gray-700": tag === "lightweight",
-                                })}
-                              >
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandList>
-                  </CommandGroup>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                            <p className="mt-1 text-xs text-muted-foreground">{converter.description}</p>
+                            <div className="flex gap-1 mt-2">
+                              {converter.tags.map((tag) => (
+                                <Badge
+                                  key={tag}
+                                  variant="outline"
+                                  className={cn("text-xs", {
+                                    "bg-green-50 border-green-200 text-green-700": tag === "accurate",
+                                    "bg-blue-50 border-blue-200 text-blue-700": tag === "fast" || tag === "reliable",
+                                    "bg-yellow-50 border-yellow-200 text-yellow-700": tag === "slow" || tag === "slower",
+                                    "bg-indigo-50 border-indigo-200 text-indigo-700": tag === "detailed" || tag === "semantic",
+                                    "bg-gray-50 border-gray-200 text-gray-700": tag === "lightweight",
+                                  })}
+                                >
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandList>
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Summarization Model</label>
+              <ModelSelector modelId={selectedModel?.id} onModelChange={handleModelChange} />
+            </div>
           </div>
 
           <div
@@ -288,7 +305,7 @@ export function UploadDocumentsModal({ open, onOpenChange, onUpload, isUploading
           <Button
             type="button"
             onClick={handleUpload}
-            disabled={selectedFiles.length === 0 || isUploading}
+            disabled={selectedFiles.length === 0 || isUploading || !selectedModel}
             className={cn("transition-all", isUploading && "bg-primary/80")}
           >
             {isUploading ? (
@@ -297,7 +314,12 @@ export function UploadDocumentsModal({ open, onOpenChange, onUpload, isUploading
                 Uploading...
               </>
             ) : (
-              "Upload"
+              <>
+                Upload
+                {selectedFiles.length > 0 && (
+                  <span className="ml-1">({selectedFiles.length})</span>
+                )}
+              </>
             )}
           </Button>
         </DialogFooter>

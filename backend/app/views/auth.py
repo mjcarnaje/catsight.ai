@@ -15,6 +15,7 @@ import uuid
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -189,11 +190,9 @@ class UserProfileView(APIView):
             full_url = request.build_absolute_uri(settings.MEDIA_URL + path)
             data['avatar'] = full_url
         
-        # Handle favorite_llm_models - convert to LLMModel instances if provided
+        # Handle favorite_llm_models if provided
         if 'favorite_llm_models' in data:
-            # Convert model codes to model instances
             try:
-                from app.models import LLMModel
                 model_codes = data['favorite_llm_models']
                 if isinstance(model_codes, str):
                     # Handle potential string JSON input
@@ -202,14 +201,17 @@ class UserProfileView(APIView):
                     except json.JSONDecodeError:
                         model_codes = [model_codes]  # Single string value
                 
-                # Clear current favorites and set new ones
-                request.user.favorite_llm_models.clear()
-                if model_codes:
-                    models = LLMModel.objects.filter(code__in=model_codes)
-                    request.user.favorite_llm_models.add(*models)
+                # Validate model codes against available models
+                json_path = Path(__file__).parent.parent / 'constant' / 'llm.json'
+                with open(json_path, 'r') as f:
+                    available_models = json.load(f)
                 
-                # Remove from data since we've handled it manually
-                data.pop('favorite_llm_models')
+                available_codes = [model['code'] for model in available_models]
+                valid_codes = [code for code in model_codes if code in available_codes]
+                
+                # Update user's favorite models
+                data['favorite_llm_models'] = valid_codes
+                
             except Exception as e:
                 logger.error(f"Error updating favorite_llm_models: {e}")
                 return Response(

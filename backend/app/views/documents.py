@@ -93,6 +93,7 @@ def upload_doc(request):
     """
     uploaded_files = request.FILES.getlist('files')
     markdown_converter = request.data.get('markdown_converter')
+    summarization_model = request.data.get('summarization_model')
 
     if not uploaded_files:
         return Response({"status": "error", "message": "No files provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -114,6 +115,8 @@ def upload_doc(request):
                     document.preview_image = preview_path
                     document.blurhash = blurhash_string
                     document.markdown_converter = markdown_converter
+                    if summarization_model:
+                        document.summarization_model = summarization_model
                     document.file_name = file.name
                     document.file_type = file.content_type
                     document.save()
@@ -801,9 +804,17 @@ def get_docs_count(request):
 def regenerate_summary(request, doc_id):
     """
     Regenerate the summary, title, tags, and year for a document.
+    Optionally update the summarization model to use.
     """
     try:
         document = Document.objects.get(id=doc_id)
+        
+        # Check if a new summarization model is provided
+        summarization_model = request.data.get('summarization_model')
+        if summarization_model:
+            document.summarization_model = summarization_model
+            document.save(update_fields=["summarization_model"])
+            logger.info(f"Updated summarization model to {summarization_model} for document {doc_id}")
         
         # Kick off the summary generation task
         task = generate_document_summary_task.delay(doc_id)
@@ -836,6 +847,7 @@ def reextract_doc(request, doc_id):
     """
     Re-extract the document text using a different markdown converter.
     Deletes existing chunks and full text, then starts the extraction process again.
+    Optionally update the summarization model to use.
     """
     try:
         # Get the document
@@ -848,6 +860,12 @@ def reextract_doc(request, doc_id):
                 {"detail": "No markdown converter provided"}, status=400
             )
 
+        # Check if a new summarization model is provided
+        summarization_model = request.data.get('summarization_model')
+        if summarization_model:
+            document.summarization_model = summarization_model
+            logger.info(f"Updated summarization model to {summarization_model} for document {doc_id}")
+
         # 1) Delete old vectors
         vector_store.delete(filter={"doc_id": doc_id})
 
@@ -856,7 +874,10 @@ def reextract_doc(request, doc_id):
 
         # 3) Update document's markdown converter and reset status
         document.markdown_converter = markdown_converter
-        update_document_status(document, DocumentStatus.PENDING, update_fields=["status", "markdown_converter"])
+        update_fields = ["status", "markdown_converter"]
+        if summarization_model:
+            update_fields.append("summarization_model")
+        update_document_status(document, DocumentStatus.PENDING, update_fields=update_fields)
 
         # 4) Kick off extraction tasks chain
         task_chain = chain(
