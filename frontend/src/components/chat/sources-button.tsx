@@ -2,10 +2,21 @@ import React, { useState } from "react";
 import { Source } from "@/types/message";
 import { SourcesPanel } from "./sources-panel";
 import { cn } from "@/lib/utils";
-import { BookOpen } from "lucide-react";
-import { getDocumentPreviewUrl } from "@/lib/api";
+import { BookOpen, ExternalLink, ChevronDown } from "lucide-react";
+import { getDocumentPreviewUrl, getDocumentUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface SourcesButtonProps {
   sources: Source[];
@@ -21,19 +32,25 @@ export function SourcesButton({ sources, className }: SourcesButtonProps) {
   const displaySources = sources.slice(0, 3);
   const hasMoreSources = sources.length > 3;
 
+  const openFirstDocument = () => {
+    if (sources.length > 0) {
+      window.open(getDocumentUrl(sources[0].id), '_blank');
+    }
+  };
+
   return (
     <>
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              onClick={() => setSheetOpen(true)}
               size="sm"
               variant="outline"
               className={cn(
                 "h-8 gap-1.5 text-xs",
                 className
               )}
+              onClick={() => setSheetOpen(true)}
             >
               <div className="flex items-center mr-1">
                 {displaySources.map((source, index) => (
@@ -53,7 +70,7 @@ export function SourcesButton({ sources, className }: SourcesButtonProps) {
                         className="object-cover w-full h-full"
                       />
                     ) : (
-                      <div className="flex items-center justify-center w-full h-full bg-pink-500 text-white">
+                      <div className="flex items-center justify-center w-full h-full text-white bg-pink-500">
                         {source.title.charAt(0).toUpperCase()}
                       </div>
                     )}

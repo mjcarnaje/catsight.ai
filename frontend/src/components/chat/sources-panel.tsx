@@ -6,8 +6,9 @@ import {
 } from "@/components/ui/sheet";
 import { Source } from "@/types/message";
 import { format } from "date-fns";
-import { FileText } from "lucide-react";
-import { getDocumentPreviewUrl } from "@/lib/api";
+import { FileText, ExternalLink } from "lucide-react";
+import { getDocumentPreviewUrl, getDocumentUrl } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 
 interface SourcesPanelProps {
   sources: Source[];
@@ -56,7 +57,7 @@ export function SourcesPanel({ sources, isOpen, onOpenChange }: SourcesPanelProp
 
               {/* Content Section */}
               <div className="p-3">
-                <div className="mb-2 text-sm font-medium">{source.description}</div>
+                <div className="mb-2 text-sm font-medium">{source.summary}</div>
 
                 <div className="p-3 text-sm rounded-md bg-muted/50">
                   {source.contents && source.contents.length > 0 && (
@@ -75,9 +76,20 @@ export function SourcesPanel({ sources, isOpen, onOpenChange }: SourcesPanelProp
                   )}
                 </div>
 
-                <div className="flex justify-between mt-3 text-xs text-muted-foreground">
-                  <span>{source.file_name}</span>
-                  <span>{source.file_type.toUpperCase()}</span>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="text-xs text-muted-foreground">
+                    <span>{source.file_name}</span>
+                    <span className="ml-2">{source.file_type.toUpperCase()}</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => window.open(getDocumentUrl(source.id), '_blank')}
+                  >
+                    <ExternalLink className="w-3 h-3 mr-1" />
+                    View Document
+                  </Button>
                 </div>
               </div>
             </div>

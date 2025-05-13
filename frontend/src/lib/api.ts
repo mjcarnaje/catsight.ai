@@ -1,23 +1,16 @@
+import { Chat, Document, PaginatedResponse } from "@/types";
 import axios from "axios";
-import { DocumentStatus } from "./document-status-config";
-import { Document, PaginatedResponse, Chat } from "@/types";
 
-// API endpoint prefix
 const API_PREFIX = "/api";
 
-// Utility function to get the full URL for document preview images
 export const getDocumentPreviewUrl = (
   previewPath: string | undefined
 ): string => {
-  if (!previewPath) return "";
+  return `/media/${previewPath}`;
+};
 
-  if (previewPath.startsWith("http")) return previewPath;
-
-  // Just return the relative path, proxy handles it
-  const fullUrl = `/media/${previewPath}`;
-  console.log("Preview image path:", previewPath);
-  console.log("Constructed proxy URL:", fullUrl);
-  return fullUrl;
+export const getDocumentUrl = (documentId: number): string => {
+  return `/documents/${documentId}`;
 };
 
 export const api = axios.create({

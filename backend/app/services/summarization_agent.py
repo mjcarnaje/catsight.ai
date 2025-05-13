@@ -3,8 +3,8 @@ from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 from enum import Enum
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-llm = ChatOllama(model="phi4:latest", base_url="http://ollama:11434", temperature=0)
 
+llm = ChatOllama(model="phi4:latest", base_url="http://ollama:11434", temperature=0)
 
 map_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are a professional summarizer specializing in educational administrative documents. Your task is to extract structured notes and provide a clear, concise summary in markdown format.

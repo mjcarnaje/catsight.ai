@@ -85,7 +85,9 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
         tool_result: undefined,
       };
 
-      dispatch({ type: "ADD_MESSAGE", payload: userMessage });
+      if (!chatId) {
+        dispatch({ type: "ADD_MESSAGE", payload: userMessage });
+      }
 
       fetch(`/api/documents/chat`, {
         method: "POST",
@@ -145,12 +147,12 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
                   const startData =
                     typeof dataLine === "string" ? JSON.parse(dataLine) : data;
 
-                  const { chat_id, title } = startData;
+                  const { chat_id } = startData;
 
                   if (!chatId) {
                     addNewChat({
                       id: Number(chat_id),
-                      title: title || "New Chat",
+                      title: "New Chat",
                       created_at: new Date().toISOString(),
                       updated_at: new Date().toISOString(),
                     });
@@ -188,7 +190,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
           }
         });
     },
-    [updateChatTitle, addNewChat, messages, navigate]
+    [updateChatTitle, addNewChat, navigate]
   );
 
   useEffect(

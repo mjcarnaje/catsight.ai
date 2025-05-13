@@ -19,9 +19,9 @@ semchunk
 tiktoken
 marker-pdf
 marker
-torch
-torchvision
-torchaudio
+# torch
+# torchvision
+# torchaudio
 python-dotenv
 psycopg2-binary>=2.8
 markitdown
