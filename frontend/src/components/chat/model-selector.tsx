@@ -1,6 +1,6 @@
-'use client'
+"use client";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -8,28 +8,25 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
+} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
-import { llmApi } from "@/lib/api"
-import { useUser } from "@/lib/auth"
-import { cn } from "@/lib/utils"
-import { ModelInfo } from "@/types"
-import { Check, ChevronDown, Loader2, Sparkles } from 'lucide-react'
-import { useEffect, useState } from "react"
+} from "@/components/ui/popover";
+import { llmApi } from "@/lib/api";
+import { useUser } from "@/lib/auth";
+import { cn } from "@/lib/utils";
+import { ModelInfo } from "@/types";
+import { Check, ChevronDown, Loader2, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface ModelSelectorProps {
-  modelId?: string | null
-  onModelChange: (model: ModelInfo) => void
+  modelId?: string | null;
+  onModelChange: (model: ModelInfo) => void;
 }
 
-export function ModelSelector({
-  modelId,
-  onModelChange
-}: ModelSelectorProps) {
+export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
   const { data: user } = useUser();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,15 +39,15 @@ export function ModelSelector({
       setLoading(true);
       setError(null);
       try {
-        const apiModels = await llmApi.getAll();
+        const apiModels = await llmApi.getAll(true);
 
         // Transform API models to our ModelInfo type and mark favorites
-        const transformedModels: ModelInfo[] = apiModels.map(model => ({
+        const transformedModels: ModelInfo[] = apiModels.map((model) => ({
           id: model.code,
           name: model.name,
           description: model.description,
           logo: model.logo,
-          isFavorite: user?.favorite_llm_models?.includes(model.code) || false
+          isFavorite: user?.favorite_llm_models?.includes(model.code) || false,
         }));
 
         // Sort models to show favorites first
@@ -79,13 +76,13 @@ export function ModelSelector({
 
       // If modelId is provided, try to find it in the models list
       if (modelId) {
-        initialModel = models.find(model => model.id === modelId);
+        initialModel = models.find((model) => model.id === modelId);
       }
 
       // If no model with modelId was found or no modelId was provided
       if (!initialModel) {
         // Try to find a favorite model or use the first model
-        initialModel = models.find(m => m.isFavorite) || models[0];
+        initialModel = models.find((m) => m.isFavorite) || models[0];
       }
 
       if (initialModel) {
@@ -145,7 +142,10 @@ export function ModelSelector({
           <ChevronDown className="w-4 h-4 ml-1 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] min-w-96 p-0 rounded-lg border shadow-lg" align="start">
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] min-w-96 p-0 rounded-lg border shadow-lg"
+        align="start"
+      >
         <Command>
           <CommandGroup>
             <CommandInput placeholder="Search models..." className="h-9" />
@@ -180,7 +180,9 @@ export function ModelSelector({
                       )}
                     </div>
                     {model.description && (
-                      <p className="mt-1 text-xs text-muted-foreground">{model.description}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {model.description}
+                      </p>
                     )}
                   </CommandItem>
                 ))}
@@ -189,6 +191,6 @@ export function ModelSelector({
           </CommandGroup>
         </Command>
       </PopoverContent>
-    </Popover >
-  )
+    </Popover>
+  );
 }
