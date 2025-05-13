@@ -479,7 +479,7 @@ def chat_with_docs(request):
                 yield f"event: error\ndata: {{\"error\": \"Chat not found: {chat_id}\"}}\n\n"
                 return
 
-        yield f"event: start\ndata: {{\"chat_id\": \"{chat_id}\", \"title\": \"{chat.title}\"}}\n\n"
+        yield f"event: start\ndata: {{\"chat_id\": \"{chat_id}\"}}\n\n"
 
         thread_id = f"thread_{chat_id}"
         config = {"configurable": {"model": model_id, "thread_id": thread_id}}
@@ -492,22 +492,20 @@ def chat_with_docs(request):
         try:
             _printed = set()
             streamed = set()
+            
             for state in catsight_agent.stream(
                 input=input_state,
                 config=config,
                 stream_mode="values"
             ):               
                 _print_event(state, _printed)
-
-                title = state.get("title")
-                should_generate_title = state.get("should_generate_title")
                 
-                if should_generate_title is False and title:
-                    chat.title = title
+                if "title" in state and state.get("should_generate_title") is False and state["title"]:
+                    chat.title = state["title"]
                     chat.save()
                     
-                    # Send title event to frontend
-                    yield f"event: title\ndata: {{\"title\": \"{title}\"}}\n\n"
+                    yield f"event: title\ndata: {{\"title\": \"{state['title']}\"}}\n\n"
+
                 
                 messages = state.get("messages")
                 if messages:

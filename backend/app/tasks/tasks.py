@@ -2,18 +2,16 @@ import logging
 import os
 import asyncio
 from celery import shared_task
-from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from langchain.docstore.document import Document as Doc
-from langchain.text_splitter import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from functools import lru_cache
 
 from ..constant import DocumentStatus, MarkdownConverter
 from ..models import Document, DocumentStatusHistory, DocumentFullText
 from ..services.vectorstore import vector_store
-from docling.document_converter import DocumentConverter
 from ..services.summarization_agent import summarization_agent, summarization_splitter
-
-converter = DocumentConverter()
+    
 logger = logging.getLogger(__name__)
 
 def update_document_status(document, status, update_fields=None, failed=False):
@@ -57,14 +55,13 @@ def save_document_chunks(document, docs):
     
     return len(docs)
 
-
-def convert_pdf_with_marker(file_path: str) -> str:
+@lru_cache(maxsize=1)
+def get_marker_converter():
     from marker.config.parser import ConfigParser
     from marker.converters.pdf import PdfConverter
     from marker.models import create_model_dict
-    from marker.output import text_from_rendered
-
-    config = {
+    
+    marker_config = {
         "output_format": "markdown",
         "disable_multiprocessing": False,
         "disable_image_extraction": True,
@@ -76,29 +73,41 @@ def convert_pdf_with_marker(file_path: str) -> str:
         "use_llm": False,
         "debug": True
     }
-    parser = ConfigParser(config)
-    pdf_conv = PdfConverter(
-        config=parser.generate_config_dict(),
+    marker_parser = ConfigParser(marker_config)
+    return PdfConverter(
+        config=marker_parser.generate_config_dict(),
         artifact_dict=create_model_dict(),
-        processor_list=parser.get_processors(),
-        renderer=parser.get_renderer(),
-        llm_service=parser.get_llm_service()
+        processor_list=marker_parser.get_processors(),
+        renderer=marker_parser.get_renderer(),
+        llm_service=marker_parser.get_llm_service()
     )
-    rendered = pdf_conv(file_path)
+
+def convert_pdf_with_marker(file_path: str) -> str:
+    from marker.output import text_from_rendered
+    
+    marker_pdf_converter = get_marker_converter()
+    rendered = marker_pdf_converter(file_path)
     text, _, _ = text_from_rendered(rendered)
     return text
 
+@lru_cache(maxsize=1)
+def get_markitdown_converter():
+    from markitdown import MarkItDown
+    return MarkItDown()
 
 def convert_pdf_with_markitdown(file_path: str) -> str:
-    from markitdown import MarkItDown
-    md = MarkItDown()
-    return md.convert(file_path).text_content
+    markitdown_converter = get_markitdown_converter()
+    return markitdown_converter.convert(file_path).text_content
 
+@lru_cache(maxsize=1)
+def get_docling_converter():
+    from docling.document_converter import DocumentConverter
+    return DocumentConverter()
 
 def convert_pdf_with_docling(file_path: str) -> str:
-    result = converter.convert(file_path)
+    docling_converter = get_docling_converter()
+    result = docling_converter.convert(file_path)
     return result.document.export_to_markdown()
-
 
 @shared_task(bind=True)
 def extract_text_task(self, document_id):

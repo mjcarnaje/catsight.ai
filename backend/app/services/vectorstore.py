@@ -1,3 +1,4 @@
+import json
 from langchain_postgres import PGVector
 from app.services.ollama import BGEM3_EMBEDDINGS
 from langchain_core.tools.simple import Tool
@@ -73,8 +74,7 @@ def get_documents(query: str, retriever) -> List[Dict[str, Any]]:
             "chunk_index": chunk_index,
         })
 
-    # Return list of documents
-    return list(sources_map.values())
+    return json.dumps(list(sources_map.values()))
 
 
 def create_retriever_tool(name: str, description: str, retriever) -> Tool:

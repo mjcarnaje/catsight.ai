@@ -1,162 +1,112 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useEffect } from "react"
+import type React from "react";
+import { useEffect } from "react";
 
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useToast } from "@/components/ui/use-toast"
-import { useGoogleAuth, useLogin, authApi } from "@/lib/auth"
-import axios from "axios"
-import { useState } from "react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Eye, EyeOff } from "lucide-react"
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
+import { authApi, LoginCredentials } from "@/lib/auth";
+import { useMutation } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-const GOOGLE_CLIENT_ID = "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
-const REDIRECT_URI = "https://catsightai.ngrok.app/auth/login"
+const GOOGLE_CLIENT_ID =
+  "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
+const REDIRECT_URI = "https://catsightai.ngrok.app/auth/login";
 
 export default function LoginPage() {
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const { toast } = useToast()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [loginError, setLoginError] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Clear any previous errors when form changes
-  useEffect(() => {
-    setLoginError("")
-  }, [email, password])
-
-  // Handle Google OAuth redirect
-  useEffect(() => {
-    const code = searchParams.get("code")
-    if (code) {
-      handleGoogleCallback(code)
-    }
-  }, [])
-
-  const login = useLogin();
-
-  const googleAuth = useGoogleAuth({
-    onSuccess: () => {
-      navigate("/dashboard");
-    }
+  const loginMutation = useMutation({
+    mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
+    onSuccess: (data) => {
+      const { tokens, user } = data;
+      if (tokens) {
+        localStorage.setItem("access_token", tokens.access);
+        localStorage.setItem("refresh_token", tokens.refresh);
+      }
+      localStorage.setItem("user", JSON.stringify(user || data.user));
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 500);
+    },
+    onError: (error) => {
+      toast({
+        title: "Login failed",
+        description: "Invalid email or password.",
+        variant: "destructive",
+      });
+    },
   });
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoginError("")
+  const googleAuthMutation = useMutation({
+    mutationFn: (code: string) => authApi.googleAuth(code),
+    onSuccess: (data) => {
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 500);
+    },
+    onError: (error) => {
+      toast({
+        title: "Login failed",
+        description: "Invalid email or password.",
+        variant: "destructive",
+      });
+    },
+  });
 
-    // Check if email has the required domain
+  useEffect(() => {
+    const code = searchParams.get("code");
+    if (code) {
+      handleGoogleCallback(code);
+    }
+  }, [searchParams]);
+
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     if (!email.endsWith("@g.msuiit.edu.ph")) {
-      setLoginError("Only @g.msuiit.edu.ph email addresses are allowed.")
       toast({
         title: "Invalid email",
         description: "Only @g.msuiit.edu.ph email addresses are allowed.",
         variant: "destructive",
-      })
-      return
+      });
+      return;
     }
 
-    try {
-      console.log("Attempting login with:", { email, password: "********" })
+    await loginMutation.mutateAsync({ email, password });
 
-      // Call the login mutation and wait for it to complete
-      const result = await login.mutateAsync({ email, password })
-      console.log("Login successful:", result)
-
-      // Check if we have the tokens stored properly
-      const accessToken = localStorage.getItem("access_token")
-      if (!accessToken) {
-        console.error("No access token after login")
-        throw new Error("Authentication failed. Please try again.")
-      }
-
-      // Verify authentication state
-      if (!authApi.isAuthenticated()) {
-        console.error("Auth state not updated after successful login")
-        throw new Error("Authentication state error. Please try again.")
-      }
-
-      // Navigate to dashboard after successful login
-      navigate("/dashboard")
-    } catch (error: unknown) {
-      console.error("Login error:", error)
-
-      let errorMessage = "Authentication failed. Please check your credentials."
-
-      if (axios.isAxiosError(error)) {
-        // Get detailed error message from the axios error
-        errorMessage = error.response?.data?.detail ||
-          error.response?.data?.message ||
-          error.response?.data?.error ||
-          "Authentication failed. Please check your credentials."
-
-        console.error("Response status:", error.response?.status)
-        console.error("Response data:", error.response?.data)
-      } else if (error instanceof Error) {
-        errorMessage = error.message
-      }
-
-      setLoginError(errorMessage)
-      toast({
-        title: "Login failed",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    }
-  }
+  };
 
   const handleGoogleLogin = () => {
     // Redirect to Google OAuth
     // The redirect_uri must exactly match one of the authorized redirect URIs in Google OAuth Console
-    const scope = "email profile"
+    const scope = "email profile";
 
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`
-  }
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+  };
 
   const handleGoogleCallback = async (code: string) => {
-    try {
-      console.log("Processing Google authentication code...")
-      const result = await googleAuth.mutateAsync(code)
-      console.log("Google auth successful:", result)
-
-      // Double-check if tokens were stored properly
-      const accessToken = localStorage.getItem("access_token")
-      if (!accessToken) {
-        console.error("No access token after Google login")
-        throw new Error("Google authentication failed. Please try again.")
-      }
-
-      // Verify authentication state
-      if (!authApi.isAuthenticated()) {
-        console.error("Auth state not updated after successful Google login")
-        throw new Error("Authentication state error. Please try again.")
-      }
-
-      // We have the onSuccess callback in googleAuth hook, but let's make sure navigation happens
-      navigate("/dashboard")
-    } catch (error) {
-      console.error("Google login error:", error)
-      const errorMessage = error instanceof Error
-        ? error.message
-        : (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Could not authenticate with Google. Please try again."
-
-      toast({
-        title: "Google login failed",
-        description: errorMessage,
-        variant: "destructive",
-      })
-
-      // Clear the URL after failed login
-      navigate("/login")
-    }
-  }
+    await googleAuthMutation.mutateAsync(code);
+  };
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
@@ -174,7 +124,9 @@ export default function LoginPage() {
               </span>
             </div>
           </CardTitle>
-          <CardDescription className="text-sm">Sign in to access the document management system</CardDescription>
+          <CardDescription className="text-sm">
+            Sign in to access the document management system
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="email" className="w-full">
@@ -185,7 +137,9 @@ export default function LoginPage() {
             <TabsContent value="email">
               <form onSubmit={handleEmailLogin} className="mt-3 space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-sm">Email</Label>
+                  <Label htmlFor="email" className="text-sm">
+                    Email
+                  </Label>
                   <Input
                     id="email"
                     type="email"
@@ -193,12 +147,13 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="h-9"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-sm">Password</Label>
+                    <Label htmlFor="password" className="text-sm">
+                      Password
+                    </Label>
                     <Button variant="link" className="h-auto px-0 py-0 text-xs">
                       Forgot password?
                     </Button>
@@ -210,7 +165,6 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className="h-9"
                     />
                     <Button
                       type="button"
@@ -230,21 +184,29 @@ export default function LoginPage() {
                     </Button>
                   </div>
                 </div>
-                {loginError && (
-                  <div className="text-sm text-destructive">
-                    {loginError}
-                  </div>
-                )}
-                <Button type="submit" className="w-full mt-2 h-9" disabled={login.isPending}>
-                  {login.isPending ? "Signing in..." : "Sign In"}
+                <Button
+                  type="submit"
+                  className="w-full h-10 mt-4"
+                  disabled={loginMutation.isPending}
+                >
+                  {loginMutation.isPending ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
             </TabsContent>
             <TabsContent value="google">
               <div className="mt-3 space-y-4">
-                <p className="text-sm text-center text-muted-foreground">Sign in with your MSU-IIT Google account</p>
-                <Button onClick={handleGoogleLogin} className="w-full h-9" variant="outline" disabled={googleAuth.isPending}>
-                  {googleAuth.isPending ? "Signing in..." : "Sign in with Google"}
+                <p className="text-sm text-center text-muted-foreground">
+                  Sign in with your MSU-IIT Google account
+                </p>
+                <Button
+                  onClick={handleGoogleLogin}
+                  className="w-full h-10"
+                  variant="outline"
+                  disabled={googleAuthMutation.isPending}
+                >
+                  {googleAuthMutation.isPending
+                    ? "Signing in..."
+                    : "Sign in with Google"}
                 </Button>
               </div>
             </TabsContent>
@@ -263,5 +225,5 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }

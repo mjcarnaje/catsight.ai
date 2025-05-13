@@ -81,112 +81,25 @@ export const authApi = {
   },
 };
 
-// React Query hooks
-export const useLogin = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
-    onSuccess: (data) => {
-      // Handle token format from login response
-      const { tokens, user } = data;
-      if (tokens) {
-        // Backend returns tokens object
-        localStorage.setItem("access_token", tokens.access);
-        localStorage.setItem("refresh_token", tokens.refresh);
-      } else if (data.tokens) {
-        // Fallback for direct token access
-        localStorage.setItem("access_token", data.tokens.access);
-        localStorage.setItem("refresh_token", data.tokens.refresh);
-      }
-      localStorage.setItem("user", JSON.stringify(user || data.user));
-      queryClient.setQueryData(["user"], user || data.user);
-    },
-  });
-};
-
-export const useRegister = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: RegisterCredentials) => authApi.register(data),
-    onSuccess: (data) => {
-      // Handle token format from register response
-      const { tokens, user } = data;
-      if (tokens) {
-        // Backend returns tokens object
-        localStorage.setItem("access_token", tokens.access);
-        localStorage.setItem("refresh_token", tokens.refresh);
-      }
-      localStorage.setItem("user", JSON.stringify(user || data.user));
-      queryClient.setQueryData(["user"], user || data.user);
-    },
-  });
-};
-
-export const useGoogleAuth = (options?: { onSuccess?: () => void }) => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (code: string) => authApi.googleAuth(code),
-    onSuccess: (data) => {
-      // Handle token format from Google auth response
-      if (data.tokens) {
-        // Store tokens in localStorage
-        localStorage.setItem("access_token", data.tokens.access);
-        localStorage.setItem("refresh_token", data.tokens.refresh);
-      }
-
-      // Store user data
-      if (data.user) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        queryClient.setQueryData(["user"], data.user);
-      }
-
-      if (options?.onSuccess) {
-        options.onSuccess();
-      }
-    },
-  });
-};
-
 export const useUser = () => {
   return useQuery({
     queryKey: ["user"],
     queryFn: async () => {
-      // Always try to get user from localStorage first
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
-        try {
-          return JSON.parse(userStr) as User;
-        } catch (e) {
-          // If parsing fails, clear the invalid data
-          localStorage.removeItem("user");
-        }
-      }
-
-      // Only attempt to fetch profile if we have a token
       if (localStorage.getItem("access_token")) {
         try {
           const response = await authApi.getProfile();
-          // Store the user data for future use
-          localStorage.setItem("user", JSON.stringify(response));
           return response;
         } catch (error) {
-          // If the request fails, clear auth state to prevent loops
           if (axios.isAxiosError(error) && error.response?.status === 401) {
             authApi.logout();
           }
           throw error;
         }
       }
-
-      // If no user data and no token, throw error
       throw new Error("Not authenticated");
     },
     enabled: authApi.isAuthenticated(),
-    retry: false, // Don't retry on failure to prevent loops
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: false,
   });
 };
 
@@ -204,17 +117,7 @@ export const useUpdateProfile = () => {
         .then((res) => res.data);
     },
     onSuccess: (updatedUser) => {
-      const currentUserStr = localStorage.getItem("user");
-      if (currentUserStr) {
-        try {
-          const currentUser = JSON.parse(currentUserStr);
-          const newUserData = { ...currentUser, ...updatedUser };
-          localStorage.setItem("user", JSON.stringify(newUserData));
-          queryClient.setQueryData(["user"], newUserData);
-        } catch (e) {
-          console.error("Failed to update user in localStorage", e);
-        }
-      }
+      queryClient.setQueryData(["user"], updatedUser);
     },
   });
 };

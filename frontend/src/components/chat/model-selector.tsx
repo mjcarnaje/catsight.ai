@@ -128,7 +128,15 @@ export function ModelSelector({
           className="justify-between w-[180px] bg-white border-gray-200 text-gray-800 hover:bg-gray-50"
         >
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-pink-500" />
+            {selectedModel.logo ? (
+              <img
+                src={selectedModel.logo}
+                alt={selectedModel.name}
+                className="object-contain w-4 h-4"
+              />
+            ) : (
+              <Sparkles className="w-4 h-4 text-pink-500" />
+            )}
             <span className="truncate">{selectedModel.name}</span>
           </div>
           <ChevronDown className="w-4 h-4 ml-1 text-gray-400 shrink-0" />
@@ -147,16 +155,27 @@ export function ModelSelector({
                   onSelect={() => handleModelSelect(model)}
                   className="flex items-start justify-between py-2 cursor-pointer"
                 >
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center">
-                      <span className="text-sm font-medium">{model.name}</span>
-                      {model.isFavorite && (
-                        <span className="ml-2 text-xs text-yellow-500">★</span>
+                  <div className="flex gap-2">
+                    {model.logo ? (
+                      <img
+                        src={model.logo}
+                        alt={model.name}
+                        className="w-5 h-5 object-contain mt-0.5"
+                      />
+                    ) : (
+                      <Sparkles className="w-5 h-5 text-pink-500 mt-0.5" />
+                    )}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center">
+                        <span className="text-sm font-medium">{model.name}</span>
+                        {model.isFavorite && (
+                          <span className="ml-2 text-xs text-yellow-500">★</span>
+                        )}
+                      </div>
+                      {model.description && (
+                        <span className="text-xs text-gray-500 line-clamp-2">{model.description}</span>
                       )}
                     </div>
-                    {model.description && (
-                      <span className="text-xs text-gray-500 line-clamp-2">{model.description}</span>
-                    )}
                   </div>
                   {selectedModel.id === model.id && (
                     <Check className="w-4 h-4 text-pink-500" />

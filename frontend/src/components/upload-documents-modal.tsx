@@ -70,6 +70,7 @@ export function UploadDocumentsModal({ open, onOpenChange, onUpload, isUploading
     if (selectedFiles.length > 0) {
       setUploadProgress(5) // Start progress
       onUpload(selectedFiles, selectedConverter)
+      setSelectedFiles([]) // Clear selected files after upload
     }
   }
 

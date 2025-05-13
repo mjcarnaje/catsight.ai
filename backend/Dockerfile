@@ -24,7 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --user --upgrade pip setuptools wheel \
-    && pip install --user -r requirements.txt
+    && pip install --user -r requirements.txt \
+    && pip install --user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 
 # Final stage
 FROM python:3.11-slim

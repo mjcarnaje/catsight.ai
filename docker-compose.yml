@@ -31,7 +31,7 @@ services:
       - 7869:11434
     environment:
       - OLLAMA_KEEP_ALIVE=24h
-      - OLLAMA_DEBUG=0
+      - OLLAMA_DEBUG=1
     networks:
       - app-network
     deploy:
@@ -39,7 +39,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all
               capabilities: [gpu]
   backend:
     build: ./backend
@@ -57,6 +57,7 @@ services:
       - GOOGLE_OAUTH_CLIENT_ID=283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com
       - GOOGLE_OAUTH_CLIENT_SECRET=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
       - GOOGLE_REDIRECT_URI=http://localhost:3000/auth/login
+      - TORCH_DEVICE=cuda
     depends_on:
       - db
       - redis
@@ -70,16 +71,24 @@ services:
                python manage.py makemigrations &&
                python manage.py migrate &&
                python manage.py runserver 0.0.0.0:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   celery_worker:
     build: ./backend
     command: >
       bash -c "mkdir -p /usr/src/app/logs &&
-               celery -A inteldocs worker --loglevel=info --concurrency=3"
+               celery -A inteldocs worker --loglevel=info --concurrency=1"
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
       - OLLAMA_URL=http://host.docker.internal:7869
+      - TORCH_DEVICE=cuda
 
     depends_on:
       - backend
@@ -89,6 +98,13 @@ services:
       - app-network
     extra_hosts:
       - host.docker.internal:host-gateway
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   frontend:
     build: ./frontend
