@@ -3,8 +3,29 @@ from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 from enum import Enum
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+import json
+from pathlib import Path
 
-llm = ChatOllama(model="phi4:latest", base_url="http://ollama:11434", temperature=0)
+def map_model_code_to_ollama(model_code):
+    """
+    Map the model code from our database to the actual Ollama model name.
+    Default to phi4:latest if the model code is not found.
+    """
+    model_mapping = {
+        'llama3.1:8b': 'llama3.1:8b',
+        'llama3.2:1b': 'llama3.2:1b',
+        'qwen3:1.7b': 'qwen3:1.7b',
+        'phi4:latest': 'phi4:latest'
+    }
+    return model_mapping.get(model_code, 'phi4:latest')
+
+def get_llm(model_name="phi4:latest"):
+    """Get a language model instance with the specified model name."""
+    ollama_model = map_model_code_to_ollama(model_name)
+    return ChatOllama(model=ollama_model, base_url="http://ollama:11434", temperature=0)
+
+# Default LLM instance
+llm = get_llm()
 
 map_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are a professional summarizer specializing in educational administrative documents. Your task is to extract structured notes and provide a clear, concise summary in markdown format.
@@ -94,8 +115,8 @@ summarization_splitter = RecursiveCharacterTextSplitter(
     separators=SEPARATOR
 )
 
-def length_function(documents: List[Document]) -> int:
-    return sum(llm.get_num_tokens(doc.page_content) for doc in documents)
+def length_function(documents: List[Document], model_name="phi4:latest") -> int:
+    return sum(get_llm(model_name).get_num_tokens(doc.page_content) for doc in documents)
 
 class OverallState(TypedDict):
     contents: List[str]
@@ -105,9 +126,11 @@ class OverallState(TypedDict):
     title: str
     year: int
     tags: List[str]
+    model_name: str = "phi4:latest"
 
 class SummaryState(TypedDict):
     content: str
+    model_name: str = "phi4:latest"
 
 
 # Nodes:
@@ -121,8 +144,13 @@ and the final summary.
 
 # Generates a summary for a single chunk of text
 async def generate_summary(state: SummaryState):
+    model_name = state.get("model_name", "phi4:latest")
     prompt = map_prompt.invoke({"content": state["content"]})
-    response = await llm.ainvoke(prompt)
+    logger.info(f"===================================[GENERATE SUMMARY]===================================")
+    logger.info(f"Model name: {model_name}")
+    logger.info(f"Prompt: {prompt}")
+    logger.info(f"===================================[END GENERATE SUMMARY]===================================")
+    response = await get_llm(model_name).ainvoke(prompt)
 
     return {"summaries": [response.content]}
 
@@ -132,8 +160,9 @@ def map_summaries(state: OverallState):
     # We will return a list of `Send` objects
     # Each `Send` object consists of the name of a node in the graph
     # as well as the state to send to that node
+    model_name = state.get("model_name", "phi4:latest")
     return [
-        Send("generate_summary", {"content": content}) 
+        Send("generate_summary", {"content": content, "model_name": model_name}) 
         for content in state["contents"]
     ]
 
@@ -145,33 +174,36 @@ def collect_summaries(state: OverallState):
     }
 
 
-async def _reduce(input: dict) -> str:
+async def _reduce(input: dict, model_name="phi4:latest") -> str:
     logger.info(f"===================================[REDUCE]===================================")
     logger.info(input)
     logger.info(f"===================================[END REDUCE]===================================")
     prompt = reduce_prompt.invoke({"docs": input})
-    response = await llm.ainvoke(prompt)
+    response = await get_llm(model_name).ainvoke(prompt)
     return response.content
 
 # Combines the summaries if they exceed a maximum token limit.
 async def collapse_summaries(state: OverallState):
+    model_name = state.get("model_name", "phi4:latest")
     doc_lists = split_list_of_docs(
-        state["collapsed_summaries"], length_function, TOKEN_MAX
+        state["collapsed_summaries"], lambda docs: length_function(docs, model_name), TOKEN_MAX
     )
     results = []
     for doc_list in doc_lists:
-        results.append(await acollapse_docs(doc_list, _reduce))
+        results.append(await acollapse_docs(doc_list, lambda x: _reduce(x, model_name)))
 
     return {"collapsed_summaries": results}
 
 
 # Here we will generate the final summary
 async def generate_final_summary(state: OverallState):
-    response = await _reduce(state["collapsed_summaries"])
+    model_name = state.get("model_name", "phi4:latest")
+    response = await _reduce(state["collapsed_summaries"], model_name)
     return {"final_summary": response}
 
 # Extracts a title from the final summary
 async def generate_title(state: OverallState):
+    model_name = state.get("model_name", "phi4:latest")
     class TitleModel(BaseModel):
         title: str = Field(..., description="A concise, descriptive title in Title Case, excluding institutional identifiers.")
 
@@ -184,7 +216,7 @@ Return only the title text without extra commentary."""),
         ("human", "Summary:\n\n{summary}")
     ])
 
-    prompt = title_prompt | llm.with_structured_output(TitleModel)
+    prompt = title_prompt | get_llm(model_name).with_structured_output(TitleModel)
     response = await prompt.ainvoke({"summary": state["final_summary"]})
     
     logger.info(f"Extracted title: {response.title}")
@@ -192,6 +224,7 @@ Return only the title text without extra commentary."""),
 
 # Extracts the document year from the final summary
 async def extract_year(state: OverallState):
+    model_name = state.get("model_name", "phi4:latest")
     class YearModel(BaseModel):
         year: int = Field(..., description="The four-digit publication year extracted from the document summary.")
 
@@ -203,7 +236,7 @@ async def extract_year(state: OverallState):
         ("human", "Summary:\n\n{summary}")
     ])
 
-    prompt = year_prompt | llm.with_structured_output(YearModel)
+    prompt = year_prompt | get_llm(model_name).with_structured_output(YearModel)
     response = await prompt.ainvoke({"summary": state["final_summary"]})
     
     logger.info(f"Extracted year: {response.year}")
@@ -212,6 +245,7 @@ async def extract_year(state: OverallState):
 
 # Assigns tags based on the final summary
 async def assign_tags(state: OverallState):
+    model_name = state.get("model_name", "phi4:latest")
     tags_prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a tag classifier for educational administrative documents. Based on the following summary, select only relevant tags from this list:
 - Special Orders
@@ -263,11 +297,21 @@ Rules:
     class TagsModel(BaseModel):
         tags: List[TagEnum] = Field(description="Relevant document tags")
     
-    prompt = tags_prompt | llm.with_structured_output(TagsModel)
+    prompt = tags_prompt | get_llm(model_name).with_structured_output(TagsModel)
     response = await prompt.ainvoke({"summary": state["final_summary"]})
     
     logger.info(f"Tags selected: {response.tags}")
     return {"tags": response.tags}
+
+def should_collapse(
+    state: OverallState,
+) -> Literal["collapse_summaries", "generate_final_summary"]:
+    model_name = state.get("model_name", "phi4:latest")
+    num_tokens = length_function(state["collapsed_summaries"], model_name)
+    if num_tokens > TOKEN_MAX:
+        return "collapse_summaries"
+    else:
+        return "generate_final_summary"
 
 graph = StateGraph(OverallState)
 graph.add_node("generate_summary", generate_summary)
@@ -278,15 +322,6 @@ graph.add_node("generate_title", generate_title)
 graph.add_node("extract_year", extract_year)
 graph.add_node("assign_tags", assign_tags)
 
-
-def should_collapse(
-    state: OverallState,
-) -> Literal["collapse_summaries", "generate_final_summary"]:
-    num_tokens = length_function(state["collapsed_summaries"])
-    if num_tokens > TOKEN_MAX:
-        return "collapse_summaries"
-    else:
-        return "generate_final_summary"
 
 # Edges:
 graph.add_conditional_edges(START, map_summaries, ["generate_summary"])

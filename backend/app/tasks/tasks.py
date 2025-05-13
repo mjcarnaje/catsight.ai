@@ -285,10 +285,13 @@ def generate_document_summary_task(self, document_id):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         
+        model_name = document.summarization_model
+        logger.info(f"Using model {model_name} for summarization of document {document_id}")
+        
         async def process_summarization():
             final_state = None
             async for state in summarization_agent.astream(
-                input={"contents": chunks},
+                input={"contents": chunks, "model_name": model_name},
                 stream_mode="values"
             ):
                 final_state = state

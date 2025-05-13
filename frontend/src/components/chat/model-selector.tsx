@@ -103,7 +103,7 @@ export function ModelSelector({
 
   if (loading || !selectedModel) {
     return (
-      <div className="flex items-center gap-1.5 h-10 px-4 py-2 text-sm font-medium bg-gray-100 rounded-md text-gray-700">
+      <div className="flex items-center gap-1.5 h-10 px-4 py-2 text-sm font-medium bg-background border rounded-md text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" />
         <span>Loading models...</span>
       </div>
@@ -125,7 +125,10 @@ export function ModelSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="justify-between w-[180px] bg-white border-gray-200 text-gray-800 hover:bg-gray-50"
+          className={cn("justify-between w-full h-10 transition-all", {
+            "ring-1 ring-primary": selectedModel,
+          })}
+          type="button"
         >
           <div className="flex items-center gap-2">
             {selectedModel.logo ? (
@@ -135,14 +138,14 @@ export function ModelSelector({
                 className="object-contain w-4 h-4"
               />
             ) : (
-              <Sparkles className="w-4 h-4 text-pink-500" />
+              <Sparkles className="w-4 h-4 text-primary" />
             )}
             <span className="truncate">{selectedModel.name}</span>
           </div>
-          <ChevronDown className="w-4 h-4 ml-1 text-gray-400 shrink-0" />
+          <ChevronDown className="w-4 h-4 ml-1 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-0" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0 rounded-lg border shadow-lg" align="start">
         <Command>
           <CommandInput placeholder="Search models..." className="h-9" />
           <CommandList>
@@ -153,32 +156,30 @@ export function ModelSelector({
                   key={model.id}
                   value={model.name}
                   onSelect={() => handleModelSelect(model)}
-                  className="flex items-start justify-between py-2 cursor-pointer"
+                  className="flex flex-col items-start p-3 transition-colors cursor-pointer hover:bg-primary/5"
                 >
-                  <div className="flex gap-2">
-                    {model.logo ? (
-                      <img
-                        src={model.logo}
-                        alt={model.name}
-                        className="w-5 h-5 object-contain mt-0.5"
-                      />
-                    ) : (
-                      <Sparkles className="w-5 h-5 text-pink-500 mt-0.5" />
-                    )}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium">{model.name}</span>
-                        {model.isFavorite && (
-                          <span className="ml-2 text-xs text-yellow-500">★</span>
-                        )}
-                      </div>
-                      {model.description && (
-                        <span className="text-xs text-gray-500 line-clamp-2">{model.description}</span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      {model.logo ? (
+                        <img
+                          src={model.logo}
+                          alt={model.name}
+                          className="object-contain w-4 h-4"
+                        />
+                      ) : (
+                        <Sparkles className="w-4 h-4 text-primary" />
+                      )}
+                      <span className="font-medium">{model.name}</span>
+                      {model.isFavorite && (
+                        <span className="text-xs text-yellow-500">★</span>
                       )}
                     </div>
+                    {selectedModel.id === model.id && (
+                      <Check className="w-4 h-4 text-primary" />
+                    )}
                   </div>
-                  {selectedModel.id === model.id && (
-                    <Check className="w-4 h-4 text-pink-500" />
+                  {model.description && (
+                    <p className="mt-1 text-xs text-muted-foreground">{model.description}</p>
                   )}
                 </CommandItem>
               ))}

@@ -1,16 +1,14 @@
 from rest_framework import serializers
-from .models import User, Document, LLMModel, DocumentStatusHistory, Chat
+from .models import User, Document, DocumentStatusHistory, Chat
 import json
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 class UserSerializer(serializers.ModelSerializer):
-    favorite_llm_models = serializers.SerializerMethodField()
-    
-    def get_favorite_llm_models(self, obj):
-        return [model.code for model in obj.favorite_llm_models.all()]
+    favorite_llm_models = serializers.ListField(child=serializers.CharField(), required=False)
     
     class Meta:
         model = User
@@ -72,16 +70,9 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = Document
         fields = ['id', 'title', 'summary', 'year', 'tags', 'file', 'file_name', 'file_type', 
                  'preview_image', 'blurhash', 'status', 'is_failed', 'task_id', 
-                 'markdown_converter', 'no_of_chunks', 'created_at', 'updated_at', 
+                 'markdown_converter', 'summarization_model', 'no_of_chunks', 'created_at', 'updated_at', 
                  'uploaded_by', 'status_history']
 
-
-class LLMModelSerializer(serializers.ModelSerializer):
-    logo = serializers.CharField(read_only=True)
-
-    class Meta:
-        model = LLMModel
-        fields = ['id', 'code', 'name', 'description', 'logo']
 
 class ChatSerializer(serializers.ModelSerializer):
     

@@ -230,20 +230,30 @@ export const documentsApi = {
       preview_image: string;
       blurhash: string | null;
     }>(`/documents/${id}/regenerate-preview`),
-  regenerateSummary: (id: number) =>
+  regenerateSummary: (id: number, summarization_model?: string) =>
     api.post<{
       status: string;
       message: string;
-    }>(`/documents/${id}/regenerate-summary`),
+    }>(
+      `/documents/${id}/regenerate-summary`,
+      summarization_model ? { summarization_model } : undefined
+    ),
   reextract: (id: number, markdown_converter: string) =>
     api.post<{
       status: string;
       message: string;
     }>(`/documents/${id}/reextract`, { markdown_converter }),
-  upload: (files: File[], markdown_converter: string) => {
+  upload: (
+    files: File[],
+    markdown_converter: string,
+    summarization_model?: string
+  ) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
     formData.append("markdown_converter", markdown_converter);
+    if (summarization_model) {
+      formData.append("summarization_model", summarization_model);
+    }
     return api.post("/documents/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",

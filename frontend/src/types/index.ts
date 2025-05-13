@@ -28,6 +28,7 @@ export interface Document {
   file: string;
   file_name: string;
   file_type: string;
+  summarization_model: string;
   summary: string;
   year?: number;
   tags?: string[];
