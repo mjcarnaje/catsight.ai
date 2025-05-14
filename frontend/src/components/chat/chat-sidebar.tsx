@@ -58,26 +58,28 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
           </div>
         ) : recentChats.results.length > 0 ? (
           <>
-            <ChatGroup
-              title="Today"
-              chats={groupedChats.today}
-              currentChatId={currentChatId}
-            />
-            <ChatGroup
-              title="Last 7 Days"
-              chats={groupedChats.last7Days}
-              currentChatId={currentChatId}
-            />
-            <ChatGroup
-              title="Last 30 Days"
-              chats={groupedChats.last30Days}
-              currentChatId={currentChatId}
-            />
-            <ChatGroup
-              title="Older"
-              chats={groupedChats.older}
-              currentChatId={currentChatId}
-            />
+            <div className="space-y-6">
+              <ChatGroup
+                title="Today"
+                chats={groupedChats.today}
+                currentChatId={currentChatId}
+              />
+              <ChatGroup
+                title="Last 7 Days"
+                chats={groupedChats.last7Days}
+                currentChatId={currentChatId}
+              />
+              <ChatGroup
+                title="Last 30 Days"
+                chats={groupedChats.last30Days}
+                currentChatId={currentChatId}
+              />
+              <ChatGroup
+                title="Older"
+                chats={groupedChats.older}
+                currentChatId={currentChatId}
+              />
+            </div>
             {hasMore && (
               <div className="px-4 py-2">
                 <Button

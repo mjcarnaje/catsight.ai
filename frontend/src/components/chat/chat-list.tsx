@@ -1,12 +1,19 @@
 // components/ChatList.tsx
-import { Markdown } from "@/components/markdown";
-import { cn } from "@/lib/utils";
 import { Message } from "@/types/message";
-import { CalendarDays, Check, Copy, Eye, EyeOff, FileText, Landmark, Loader2, Megaphone, PickaxeIcon, RefreshCw, Scroll, Users } from "lucide-react";
+import {
+  CalendarDays,
+  FileText,
+  Landmark,
+  Megaphone,
+  PickaxeIcon,
+  Scroll,
+  Users,
+} from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
-import { SourcesButton } from "./sources-button";
 import { AIMessage } from "./ai-message";
+import { AIMessageSkeleton } from "./ai-message-skeleton";
 import { HumanMessage } from "./human-message";
+import { TitleGenerationIndicator } from "./title-generation-indicator";
 
 interface QuestionSuggestion {
   icon: React.ElementType;
@@ -82,11 +89,13 @@ export function ChatList({
   messages,
   isStreaming = false,
   onRegenerateMessage,
-  onSelectSuggestion
+  onSelectSuggestion,
 }: ChatListProps) {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [thinkingVisibility, setThinkingVisibility] = useState<Record<string, boolean>>({});
+  const [thinkingVisibility, setThinkingVisibility] = useState<
+    Record<string, boolean>
+  >({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>(messages);
 
@@ -98,61 +107,49 @@ export function ChatList({
     navigator.clipboard.writeText(text).then(() => {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
-    })
+    });
   };
 
   const handleEdit = (newContent: string, id: string) => {
-    setLocalMessages((prev) => prev.map(m => m.id === id ? { ...m, content: newContent } : m));
+    setLocalMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, content: newContent } : m))
+    );
     setEditingId(null);
-    // TODO: Call API to persist edit here
-  };
-
-  useEffect(() => {
-    if (endOfMessagesRef.current) {
-      endOfMessagesRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, isStreaming]);
-
-  const extractThinking = (content: string) => {
-    const thinkRegex = /<think>([\s\S]*?)<\/think>/;
-    const match = content.match(thinkRegex);
-
-    if (match && match[1]) {
-      const cleanContent = content.replace(thinkRegex, '').trim();
-      return {
-        hasThinking: true,
-        content: cleanContent || "",
-        thinking: match[1].trim()
-      };
-    }
-
-    return {
-      hasThinking: false,
-      content,
-      thinking: ""
-    };
   };
 
   const toggleThinking = (messageId: string) => {
-    setThinkingVisibility(prev => ({
+    setThinkingVisibility((prev) => ({
       ...prev,
-      [messageId]: !prev[messageId]
+      [messageId]: !prev[messageId],
     }));
   };
+
+  const shouldShowTitleGeneration =
+    isStreaming &&
+    messages.length > 0 &&
+    messages[messages.length - 1].role === "assistant" &&
+    messages[messages.length - 1].message_type !== "tool_call";
 
   if (!messages || messages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 w-full max-w-4xl p-8 mx-auto">
-        <h2 className="mb-6 text-2xl font-semibold text-center text-gray-800">How can I help you today?</h2>
+        <h2 className="mb-6 text-2xl font-semibold text-center text-gray-800">
+          How can I help you today?
+        </h2>
 
         <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
           {questionSuggestions.map((category, idx) => {
             const Icon = category.icon;
             return (
-              <div key={idx} className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <div
+                key={idx}
+                className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm"
+              >
                 <div className="flex items-center gap-2 mb-3">
                   <Icon className="w-5 h-5 text-pink-500" />
-                  <h3 className="font-medium text-gray-800">{category.label}</h3>
+                  <h3 className="font-medium text-gray-800">
+                    {category.label}
+                  </h3>
                 </div>
                 <div className="space-y-2">
                   {category.prompts.map((prompt, pIdx) => (
@@ -178,7 +175,9 @@ export function ChatList({
       {localMessages.map((msg, idx) => {
         const previousMessage = localMessages[idx - 1];
         const isCopied = copiedId === msg.id;
-        const hasSources = previousMessage?.role === "tool" && previousMessage.tool_result?.sources.length > 0;
+        const hasSources =
+          previousMessage?.role === "tool" &&
+          previousMessage.tool_result?.sources.length > 0;
         const sources = hasSources ? previousMessage.tool_result?.sources : [];
 
         if (msg.role === "tool") {
@@ -187,11 +186,18 @@ export function ChatList({
 
         if (msg.role === "assistant" && msg.message_type === "tool_call") {
           return (
-            <div key={msg.id} className="flex items-center gap-4 p-2 bg-gray-100 rounded-md">
+            <div
+              key={msg.id}
+              className="flex items-center gap-4 p-2 bg-gray-100 rounded-md"
+            >
               <PickaxeIcon className="w-5 h-5 text-primary" />
               <div className="flex flex-col">
-                <span className="font-medium text-gray-800 capitalize">{msg.tool_call?.name}</span>
-                <span className="text-xs text-gray-500">Query: {msg.tool_call?.query}</span>
+                <span className="font-medium text-gray-800 capitalize">
+                  {msg.tool_call?.name}
+                </span>
+                <span className="text-xs text-gray-500">
+                  Query: {msg.tool_call?.query}
+                </span>
               </div>
             </div>
           );
@@ -228,17 +234,8 @@ export function ChatList({
         return null;
       })}
 
-      {/* Better AI thinking placeholder with animation */}
-      {isStreaming && (
-        <div className="flex justify-start">
-          <div className="p-3 border border-gray-100 rounded-lg shadow-sm bg-gray-50">
-            <div className="flex items-center space-x-3">
-              <Loader2 className="w-5 h-5 text-pink-500 animate-spin" />
-              <span className="text-gray-700">AI is generating response...</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {isStreaming && !shouldShowTitleGeneration && <AIMessageSkeleton />}
+      {shouldShowTitleGeneration && <TitleGenerationIndicator />}
 
       <div ref={endOfMessagesRef} />
     </div>

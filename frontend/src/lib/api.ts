@@ -257,7 +257,7 @@ export const documentsApi = {
   delete: (id: string) => api.delete(`/documents/${id}/delete`),
   chat: (query: string) => api.post<ChatResponse>("/documents/chat", { query }),
   getRecentChats: (limit: number = 5) => chatsApi.getRecent(limit),
-  search: (params: { query: string }) =>
+  search: (params: { query: string; accurate?: boolean }) =>
     api
       .get<SearchApiResponse>("/documents/search", { params })
       .then((res) => res.data),
