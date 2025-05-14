@@ -3,7 +3,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { ProtectedRoute } from "./components/protected-route";
-import { SessionProvider } from "./lib/session";
+import { PublicRoute } from "./components/public-route";
+import { SessionProvider } from "./contexts/session-context";
 import LoginPage from "./pages/auth/login";
 import RegisterPage from "./pages/auth/register";
 import ChatPage from "./pages/chat/chat";
@@ -20,8 +21,8 @@ import { SearchPage } from "./pages/search";
 import SettingsPage from "./pages/settings/settings";
 import { DocumentViewPage } from "./pages/documents/view-document";
 import { OnboardingPage } from "./pages/onboarding/onboarding";
-import { ChatProvider } from "./contexts/ChatContext";
-import { ChatStreamProvider } from "./contexts/ChatStreamContext";
+import { ChatProvider } from "./contexts/chat-context";
+import { ChatStreamProvider } from "./contexts/chat-stream-context";
 import { GraphPage } from "./pages/graph/graph-page";
 
 const queryClient = new QueryClient();
@@ -36,14 +37,31 @@ export default function App() {
               <Routes>
                 {/* Public Landing Pages - No Layout/Sidebar */}
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/terms-and-conditions" element={<TermsAndConditionPage />} />
+                <Route
+                  path="/terms-and-conditions"
+                  element={<TermsAndConditionPage />}
+                />
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                 <Route path="/graph" element={<GraphPage />} />
 
                 {/* Auth & Protected Pages - With Layout */}
                 <Route element={<Layout />}>
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
+                  <Route
+                    path="/login"
+                    element={
+                      <PublicRoute>
+                        <LoginPage />
+                      </PublicRoute>
+                    }
+                  />
+                  <Route
+                    path="/register"
+                    element={
+                      <PublicRoute>
+                        <RegisterPage />
+                      </PublicRoute>
+                    }
+                  />
                   <Route
                     path="/onboarding"
                     element={

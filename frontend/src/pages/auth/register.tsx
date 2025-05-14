@@ -17,7 +17,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { authApi, RegisterCredentials } from "@/lib/auth";
 import { useMutation } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function RegisterPage() {
@@ -35,9 +35,12 @@ export default function RegisterPage() {
   const registerMutation = useMutation({
     mutationFn: (data: RegisterCredentials) => authApi.register(data),
     onSuccess: (data) => {
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
+      const { tokens } = data;
+      if (tokens) {
+        localStorage.setItem("access_token", tokens.access);
+        localStorage.setItem("refresh_token", tokens.refresh);
+        window.dispatchEvent(new Event("storage"));
+      }
     },
     onError: (error) => {
       toast({
@@ -47,12 +50,6 @@ export default function RegisterPage() {
       });
     },
   });
-
-  useEffect(() => {
-    if (authApi.isAuthenticated()) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [navigate]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();

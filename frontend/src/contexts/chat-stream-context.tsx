@@ -8,7 +8,7 @@ import React, {
   ReactNode,
   useReducer,
 } from "react";
-import { useChatContext } from "@/contexts/ChatContext";
+import { useChatContext } from "@/contexts/chat-context";
 import { generateId } from "@/lib/utils";
 import { Message } from "@/types/message";
 import { useNavigate } from "react-router-dom";
@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 type ChatAction =
   | { type: "ADD_MESSAGE"; payload: Message }
   | { type: "SET_MESSAGES"; payload: Message[] }
-  | { type: "SET_ERROR"; error: string }
+  | { type: "SET_ERROR"; error: string };
 
 const chatReducer = (state: Message[], action: ChatAction): Message[] => {
   console.log(`=== CALLING ${action.type} ===`);

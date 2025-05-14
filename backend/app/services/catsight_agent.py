@@ -19,31 +19,23 @@ from langchain_core.runnables import RunnableConfig
 import logging
 from typing import Any, Dict
 from ..models import Document
+from ..services.postgres import get_psycopg_connection_string
 
 logger = logging.getLogger(__name__)
 
-# --- Connection Pool Setup ------------------------------------------------
-# Connection parameters for PostgreSQL
 CONNECTION_KWARGS = {
     "application_name": "langgraph_app",
     "autocommit": True,
 }
 
-# Format DB_URI for psycopg (removing the +psycopg part if present)
-def get_psycopg_connection_string(uri):
-    """Convert SQLAlchemy URI to psycopg compatible format"""
-    if uri.startswith("postgresql+psycopg://"):
-        return uri.replace("postgresql+psycopg://", "postgresql://")
-    return uri
-
 PSYCOPG_DB_URI = get_psycopg_connection_string(DB_URI)
 
-# Global connection pool
 _connection_pool = None
 
 def get_connection_pool():
     """Get or initialize the connection pool"""
     global _connection_pool
+
     if _connection_pool is None:
         _connection_pool = ConnectionPool(
             conninfo=PSYCOPG_DB_URI,
@@ -71,21 +63,6 @@ def create_tool_node_with_fallback(tools: list) -> dict:
     return ToolNode(tools).with_fallbacks(
         [RunnableLambda(handle_tool_error)], exception_key="error"
     )
-
-def _print_event(event: dict, _printed: set, max_length=1500):
-    current_state = event.get("dialog_state")
-    if current_state:
-        print("Currently in: ", current_state[-1])
-    message = event.get("messages")
-    if message:
-        if isinstance(message, list):
-            message = message[-1]
-        if message.id not in _printed:
-            msg_repr = message.pretty_repr(html=True)
-            if len(msg_repr) > max_length:
-                msg_repr = msg_repr[:max_length] + " ... (truncated)"
-            print(msg_repr)
-            _printed.add(message.id)
 
 # --- State Definition -------------------------------------------------------
 class State(TypedDict):
@@ -133,26 +110,31 @@ primary_assistant_prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             """
+<system_description>
 You are CATSight.AI, an AI assistant built specifically for Mindanao State University – Iligan Institute of Technology (MSU-IIT).
 
 Your purpose is to provide accurate, reliable, and document-based information about MSU-IIT. You support students, faculty, and staff by helping them understand institutional processes, policies, and official communications. Your responses must be grounded in retrieved content from MSU-IIT’s official document repository.
+<system_description>
 
 <role_and_capabilities>
 - You specialize in MSU-IIT's administrative documents such as Special Orders, Memorandums, University Policies, Academic Calendars, and internal notices.
 - You extract and synthesize relevant information from retrieved documents to answer user queries.
 - You support institutional transparency by helping users interpret and understand official MSU-IIT content.
 - You do not respond to fictional, creative, or entertainment-based requests unless directly related to MSU-IIT.
+<role_and_capabilities>
 
 <retrieval_guidance>
 - Retrieved documents may contain irrelevant or noisy content.
 - Prioritize answering the user's question clearly and directly.
 - Ignore unrelated or low-value text in the retrievals unless it supports the response.
 - Do not summarize the entire context if only a portion is needed to address the query effectively.
+<retrieval_guidelines>
 
 <interaction_style>
 - Be clear, respectful, and supportive. Use a professional tone with a friendly edge.
 - Your goal is to make university processes and policies easier to understand.
 - If there is not enough information in the retrieved documents, respond: “I don't have enough information to answer that question completely.”
+<interaction_style>
 
 <formatting_guidelines>
 Use Markdown formatting to improve clarity:
@@ -162,16 +144,16 @@ Use Markdown formatting to improve clarity:
 - Bullet points or numbered lists for structured information
 - ### Headings to organize longer responses
 - [Hyperlinks](URL) to link to source documents when appropriate
+<formatting_guidelines>
 
 <response_guidelines>
 - Only use information from retrieved MSU-IIT documents or content.
 - Do not use outside general knowledge unless it is explicitly supported by the retrieved context.
-- If a query is unrelated to MSU-IIT's administrative scope (e.g., about celebrities, fiction, games), respond:
+- If a query is unrelated to MSU-IIT's administrative scope (e.g., about celebrities, fiction, games, like asking general knowledge questions (e.g. how to make a password, how to make a cake, etc.)), respond:
   “I specialize in MSU-IIT administrative information like Special Orders, Memorandums, University policies, Academic calendars, and other institutional documents. I’d be happy to help with questions related to the university instead.”
 - For academic or educational queries related to MSU-IIT, be as helpful and explanatory as possible.
 - Focus responses on the user's intent, not just document summarization.
-
-You exist to assist with MSU-IIT's institutional clarity—prioritize helpfulness, precision, and relevance.
+<response_guidelines>
 """,
         ),
         ("placeholder", "{messages}"),

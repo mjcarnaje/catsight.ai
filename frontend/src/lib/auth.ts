@@ -73,11 +73,7 @@ export const authApi = {
   logout: () => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
-    localStorage.removeItem("user");
-  },
-
-  isAuthenticated: () => {
-    return !!localStorage.getItem("access_token");
+    window.dispatchEvent(new Event("storage"));
   },
 };
 
@@ -98,8 +94,7 @@ export const useUser = () => {
       }
       throw new Error("Not authenticated");
     },
-    enabled: authApi.isAuthenticated(),
-    retry: false,
+    enabled: !!localStorage.getItem("access_token"),
   });
 };
 
@@ -120,13 +115,4 @@ export const useUpdateProfile = () => {
       queryClient.setQueryData(["user"], updatedUser);
     },
   });
-};
-
-export const useLogout = () => {
-  const queryClient = useQueryClient();
-
-  return () => {
-    authApi.logout();
-    queryClient.removeQueries({ queryKey: ["user"] });
-  };
 };
