@@ -1,7 +1,5 @@
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { LogIn, UserPlus, User, LogOut, Settings } from "lucide-react"
-import { Link } from "react-router-dom"
-import { useSession } from "@/lib/session"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +8,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useSession } from "@/lib/session"
+import { LogIn, LogOut, Settings, UserPlus } from "lucide-react"
+import { Link } from "react-router-dom"
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useSession()

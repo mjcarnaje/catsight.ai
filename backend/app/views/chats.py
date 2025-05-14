@@ -14,37 +14,47 @@ logger = logging.getLogger(__name__)
 @permission_classes([IsAuthenticated])
 def get_recent_chats(request):
     """
-    Retrieve recent chat sessions for the authenticated user.
+    Retrieve all chats for the authenticated user with pagination.
     """
     try:
-        limit = int(request.GET.get('limit', 5))
-        user = request.user
-        
-        logger.info(f"Fetching recent chats for user: {user.email}, limit: {limit}")
-        
-        # Get the most recent chats by updated_at
-        chats = Chat.objects.filter(user=user).order_by('-updated_at')[:limit]
-        logger.info(f"Found {len(chats)} chats for user {user.email}")
-        
-        serializer = ChatSerializer(chats, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error in get_recent_chats: {str(e)}", exc_info=True)
-        return Response(
-        {"status": "error", "message": f"Failed to retrieve recent chats: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        page_size = int(request.GET.get('page_size', 10))
+        page_number = int(request.GET.get('page', 1))
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_chats(request):
-    """
-    Retrieve all chats for the authenticated user.
-    """
-    try:
+        # Get all chats for the user ordered by most recent
         chats = Chat.objects.filter(user=request.user).order_by('-updated_at')
-        serializer = ChatSerializer(chats, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        # Create paginator instance
+        paginator = Paginator(chats, page_size)
+        
+        try:
+            paginated_chats = paginator.page(page_number)
+        except Exception as e:
+            logger.warning(f"Invalid page number {page_number}: {str(e)}")
+            return Response(
+                {"status": "error", "message": "Invalid page number"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Serialize the paginated data
+        serializer = ChatSerializer(paginated_chats, many=True)
+        
+        # Prepare pagination metadata
+        response_data = {
+            "results": serializer.data,
+            "total_pages": paginator.num_pages,
+            "current_page": page_number,
+            "total_count": paginator.count,
+            "has_next": paginated_chats.has_next(),
+            "has_previous": paginated_chats.has_previous(),
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+    except ValueError as e:
+        logger.error(f"Invalid pagination parameters: {str(e)}", exc_info=True)
+        return Response(
+            {"status": "error", "message": "Invalid pagination parameters"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     except Exception as e:
         logger.error(f"Error in get_chats: {str(e)}", exc_info=True)
         return Response(

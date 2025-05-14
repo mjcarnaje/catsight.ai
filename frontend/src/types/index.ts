@@ -78,11 +78,11 @@ export type ViewMode = "card" | "table";
 
 export interface PaginatedResponse<T> {
   results: T[];
-  count: number;
-  num_pages: number;
-  page: number;
-  next: number | null;
-  previous: number | null;
+  total_pages: number;
+  current_page: number;
+  total_count: number;
+  has_next: boolean;
+  has_previous: boolean;
 }
 
 export interface LLMModel {
