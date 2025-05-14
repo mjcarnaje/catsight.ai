@@ -19,6 +19,7 @@ class IsRelevant(BaseModel):
     is_relevant: bool
 
 class State(TypedDict):
+    is_accurate: bool
     should_answer: bool
     query: str
     documents: List[Doc]
@@ -198,6 +199,12 @@ class ShouldAnswerSchema(BaseModel):
 
 def should_answer_query(state: State):
     query = state.get("query")
+    is_accurate = state.get("is_accurate")
+    
+    if not is_accurate:
+        return {
+            "should_answer": False,
+        }
 
     system_prompt = """
     You are an intelligent assistant. Your role is to evaluate whether the provided query is a coherent and meaningful question that deserves a response.
@@ -227,22 +234,35 @@ def should_summarize(state: State):
     else:
         return END
 
+def should_filter_documents(state: State):
+    if state.get("is_accurate"):
+        return "filter_relevant_documents"
+    else:
+        return "format_sources"
+
 def create_rag_agent():
     builder = StateGraph(State)
 
     builder.add_node("retrieve_documents", retrieve)
-    builder.add_node("check_should_answer", should_answer_query)
+    builder.add_node("check_should_summarize", should_answer_query)
     builder.add_node("filter_relevant_documents", grade_relevance)
     builder.add_node("format_sources", transform_documents)
     builder.add_node("generate_summary", summarize)
     
     builder.add_edge(START, "retrieve_documents")
-    builder.add_edge("retrieve_documents", "filter_relevant_documents")
+    builder.add_conditional_edges(
+        "retrieve_documents",
+        should_filter_documents,
+        {
+            "filter_relevant_documents": "filter_relevant_documents",
+            "format_sources": "format_sources",
+        }
+    )
 
     builder.add_edge("filter_relevant_documents", "format_sources")
-    builder.add_edge("format_sources", "check_should_answer")
+    builder.add_edge("format_sources", "check_should_summarize")
     builder.add_conditional_edges(
-        "check_should_answer",
+        "check_should_summarize",
         should_summarize,
         {
             "generate_summary": "generate_summary",

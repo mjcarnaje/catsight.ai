@@ -10,7 +10,6 @@ from rest_framework.decorators import api_view, parser_classes, permission_class
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from langchain_core.runnables.graph import MermaidDrawMethod
 
 from ..models import Document, DocumentFullText, Chat
 from ..serializers import DocumentSerializer, ChatSerializer
@@ -18,18 +17,13 @@ from ..tasks.tasks import (generate_document_summary_task,
                           extract_text_task,
                           chunk_and_embed_text_task,
                           update_document_status)
-from ..utils.extractor import make_snippet
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsSuperAdmin, IsOwnerOrAdmin, AllowAny
 from ..services.vectorstore import vector_store
 from ..services.catsight_agent import catsight_agent, _print_event
 from ..models import DocumentStatus
 import json
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langchain_core.runnables.graph_mermaid import MermaidDrawMethod
-from langchain_core.documents import Document as LangchainDocument
-from IPython.display import Image
-from ..utils import pretty_print_messages
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, AIMessageChunk
 from ..services.rag_agent import rag_agent
 from ..services.summarization_agent import summarization_agent
 
@@ -363,6 +357,8 @@ def update_doc_markdown(request, doc_id):
 @permission_classes([IsAuthenticated])
 def search_docs(request):
     query = request.GET.get("query", "").strip()
+    is_accurate = request.GET.get("accurate", "false") == "true"
+    
     if not query:
         return Response(
             {"error": "The 'query' parameter is required."},
@@ -370,7 +366,7 @@ def search_docs(request):
         )
 
     try:
-        result = rag_agent.invoke({"query": query})
+        result = rag_agent.invoke({"query": query, "is_accurate": is_accurate})
 
         return Response({
             'summary': result.get("summary", ""),
@@ -432,7 +428,7 @@ def chat_with_docs(request):
                 input=input_state,
                 config=config,
                 stream_mode="values"
-            ):               
+            ):
                 _print_event(state, _printed)
                 
                 if "title" in state and state.get("should_generate_title") is False and state["title"]:
@@ -484,9 +480,6 @@ def chat_with_docs(request):
                             continue
 
                         if role == "tool":
-                            if message["content"].startswith("Error"):
-                                continue
-
                             sources = json.loads(message["content"])
                             message["content"] = ""
                             message["tool_result"] = {
@@ -569,9 +562,6 @@ def get_chat_history(request, chat_id):
                     args = tool_calls[0].get("args", {})
                     query = args.get("query", "")
 
-                    if tool_name == "grade_relevance":
-                        continue
-                    
                     message["tool_call"] = {
                         "name": tool_name,
                         "query": query,
@@ -580,12 +570,6 @@ def get_chat_history(request, chat_id):
                     continue
                 
                 if role == "tool":
-                    if tool_name == "grade_relevance":
-                        continue
-                    
-                    if message["content"].startswith("Error"):
-                        continue
-
                     sources = json.loads(message["content"])
                     message["content"] = ""
                     message["tool_result"] = {

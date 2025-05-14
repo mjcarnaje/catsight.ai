@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { documentsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -20,16 +21,19 @@ export function SearchPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [searchParams, setSearchParams] = useState<{ query: string } | null>(
+  const [isAccurate, setIsAccurate] = useState(false);
+  const [searchParams, setSearchParams] = useState<{ query: string; accurate?: boolean } | null>(
     null
   );
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const queryParam = params.get("query");
+    const accurateParam = params.get("accurate") === "true";
     if (queryParam) {
       setQuery(queryParam);
-      setSearchParams({ query: queryParam });
+      setIsAccurate(accurateParam);
+      setSearchParams({ query: queryParam, accurate: accurateParam });
     }
   }, [location.search]);
 
@@ -44,26 +48,17 @@ export function SearchPage() {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
 
-    const newParams = { query: trimmedQuery };
+    const newParams = { query: trimmedQuery, accurate: isAccurate };
     setSearchParams(newParams);
     // Update URL with search parameters
     const urlParams = new URLSearchParams();
     urlParams.set("query", trimmedQuery);
+    urlParams.set("accurate", String(isAccurate));
     navigate({ pathname: location.pathname, search: urlParams.toString() });
   };
 
   return (
     <div className="container max-w-4xl py-8 mx-auto">
-      <div className="flex flex-col items-center mb-12">
-        <h1 className="mb-3 text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
-          Document Search
-        </h1>
-        <p className="max-w-2xl text-center text-muted-foreground">
-          Search across your entire document collection with advanced semantic
-          searching
-        </p>
-      </div>
-
       <Card
         className={cn(
           "mb-8 border-0 shadow-md bg-white",
@@ -73,26 +68,41 @@ export function SearchPage() {
         <CardContent className="pt-6">
           <form
             onSubmit={handleSearch}
-            className="flex flex-col gap-4 md:flex-row"
+            className="flex flex-col gap-4"
           >
-            <div className="relative flex-1 group">
-              <SearchIcon className="absolute w-5 h-5 transition-colors transform -translate-y-1/2 left-3 top-1/2 text-muted-foreground group-focus-within:text-primary" />
-              <Input
-                placeholder="Search documents..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="h-12 pl-10 transition-all focus-visible:ring-2 focus-visible:ring-primary"
-                autoFocus
-              />
+            <div className="flex flex-col gap-4 md:flex-row">
+              <div className="relative flex-1 group">
+                <SearchIcon className="absolute w-5 h-5 transition-colors transform -translate-y-1/2 left-3 top-1/2 text-muted-foreground group-focus-within:text-primary" />
+                <Input
+                  placeholder="Search documents..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="h-12 pl-10 transition-all focus-visible:ring-2 focus-visible:ring-primary"
+                  autoFocus
+                />
+              </div>
+              <Button
+                type="submit"
+                className="h-12 px-6 transition-all shadow-md"
+                disabled={!query.trim()}
+              >
+                <SearchIcon className="w-4 h-4 mr-2" />
+                Search
+              </Button>
             </div>
-            <Button
-              type="submit"
-              className="h-12 px-6 transition-all shadow-md"
-              disabled={!query.trim()}
-            >
-              <SearchIcon className="w-4 h-4 mr-2" />
-              Search
-            </Button>
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              <Switch
+                id="accurate-mode"
+                checked={isAccurate}
+                onCheckedChange={setIsAccurate}
+              />
+              <label htmlFor="accurate-mode" className="cursor-pointer select-none">
+                Use accurate mode{" "}
+                <span className="text-xs">
+                  (may take longer but provides more precise results)
+                </span>
+              </label>
+            </div>
           </form>
         </CardContent>
       </Card>
