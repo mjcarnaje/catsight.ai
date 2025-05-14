@@ -26,5 +26,12 @@
     "description": "The instruction-tuned Qwen 2.5 7B model is optimized for following directions and completing specific tasks. Quantized for efficiency (Q4_K_M), it maintains high performance while reducing resource requirements. This model excels at structured responses, creative content generation, and detailed explanations across multiple domains.",
     "logo": "https://avatars.githubusercontent.com/u/141221163?s=200&v=4",
     "instruct": true
+  },
+  {
+    "code": "phi4:latest",
+    "name": "Phi-4 14B",
+    "description": "Phi-4 14B is a large-scale language model that combines the strengths of Phi-1.5 and Llama 3.1. It offers a balance between context length and model size, making it suitable for a wide range of applications requiring both breadth and depth of knowledge.",
+    "logo": "https://avatars.githubusercontent.com/u/6154722?s=200&v=4",
+    "instruct": false
   }
 ]
