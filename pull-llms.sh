@@ -31,6 +31,7 @@ docker compose exec ollama ollama pull llama3.2:1b
 docker compose exec ollama ollama pull qwen3:1.7b
 docker compose exec ollama ollama pull bge-m3:latest
 docker compose exec ollama ollama pull qwen2.5:7b-instruct-q4_K_M
+docker compose exec ollama ollama pull phi4:latest
 
 # ──────────────────────────────────────────────────────────
 # 3. Download Docling models
