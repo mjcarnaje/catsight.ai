@@ -79,11 +79,9 @@ api.interceptors.response.use(
         }
       } catch (error) {
         console.error("Token refresh failed:", error);
-        // If refresh fails, logout user
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
-        localStorage.removeItem("user");
-        window.location.href = "/login";
+        window.dispatchEvent(new Event("storage"));
         return Promise.reject(error);
       }
     }

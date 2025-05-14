@@ -2,7 +2,7 @@ import { ChatInput } from "@/components/chat/chat-input";
 import { ChatList } from "@/components/chat/chat-list";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { useToast } from "@/components/ui/use-toast";
-import { useChatStream } from "@/contexts/ChatStreamContext";
+import { useChatStream } from "@/contexts/chat-stream-context";
 import { chatsApi, llmApi } from "@/lib/api";
 import { LLMModel } from "@/types";
 import { Message } from "@/types/message";
@@ -106,11 +106,11 @@ export default function ChatPage() {
     }
   }, [llmModels]);
 
-  const handleRegenerateMessage = (messageId: string) => { };
+  const handleRegenerateMessage = (messageId: string) => {};
 
   useEffect(() => {
     if (newChatId == chatId) {
-      return
+      return;
     }
     setNewChatId(null);
 

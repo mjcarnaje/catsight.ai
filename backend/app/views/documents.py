@@ -20,12 +20,13 @@ from ..tasks.tasks import (generate_document_summary_task,
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsSuperAdmin, IsOwnerOrAdmin, AllowAny
 from ..services.vectorstore import vector_store
-from ..services.catsight_agent import catsight_agent, _print_event
+from ..services.catsight_agent import catsight_agent
 from ..models import DocumentStatus
 import json
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, AIMessageChunk
 from ..services.rag_agent import rag_agent
 from ..services.summarization_agent import summarization_agent
+from ..utils.langgraph import _print_event
 
 logger = logging.getLogger(__name__)
 

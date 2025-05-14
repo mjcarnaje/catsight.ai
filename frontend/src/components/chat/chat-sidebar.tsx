@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useChatContext } from "@/contexts/ChatContext";
+import { useChatContext } from "@/contexts/chat-context";
 import { groupChatsByDate } from "@/lib/chat-utils";
 import { ChevronDown, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";

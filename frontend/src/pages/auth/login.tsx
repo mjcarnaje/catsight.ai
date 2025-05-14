@@ -41,8 +41,8 @@ export default function LoginPage() {
       if (tokens) {
         localStorage.setItem("access_token", tokens.access);
         localStorage.setItem("refresh_token", tokens.refresh);
+        window.dispatchEvent(new Event("storage"));
       }
-      localStorage.setItem("user", JSON.stringify(user || data.user));
       setTimeout(() => {
         navigate("/dashboard");
       }, 500);
@@ -59,9 +59,12 @@ export default function LoginPage() {
   const googleAuthMutation = useMutation({
     mutationFn: (code: string) => authApi.googleAuth(code),
     onSuccess: (data) => {
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
+      const { tokens, user } = data;
+      if (tokens) {
+        localStorage.setItem("access_token", tokens.access);
+        localStorage.setItem("refresh_token", tokens.refresh);
+        window.dispatchEvent(new Event("storage"));
+      }
     },
     onError: (error) => {
       toast({
@@ -79,7 +82,6 @@ export default function LoginPage() {
     }
   }, [searchParams]);
 
-
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -93,7 +95,6 @@ export default function LoginPage() {
     }
 
     await loginMutation.mutateAsync({ email, password });
-
   };
 
   const handleGoogleLogin = () => {

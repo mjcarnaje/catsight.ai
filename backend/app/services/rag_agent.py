@@ -50,7 +50,7 @@ Respond with ONLY **True** or **False** — no explanations or additional text.
     return response.is_relevant
     
 
-def grade_relevance(state: State):
+def filter_relevant_documents(state: State):
     """
     Filters documents based on their relevance to the query.
 
@@ -67,7 +67,6 @@ def grade_relevance(state: State):
     filtered_documents = []
     for doc in docs:
         is_relevant = classify_snippet(query, doc.page_content)
-        logger.info(f"==GRADE_RELEVANCE== Is the snippet relevant to the query? {is_relevant}")
         if is_relevant:
             filtered_documents.append(doc)
     return {
@@ -143,17 +142,26 @@ def transform_documents(state: State):
 
 def summarize(state: State):
     system_prompt = """
-You are a helpful assistant tasked with summarizing a set of documents to answer a specific query.
+<system_description>
+You are a CATSight.AI, an AI assistant for Mindanao State University – Iligan Institute of Technology (MSU-IIT), providing accurate, document-based information to summarize documents to answer a specific query.
+</system_description>
 
-<summary_requirements>
-- Focus on answering the query using only the information found in the provided documents.
-- Ignore irrelevant or unrelated content.
-- Be concise, clear, and directly responsive to the query.
-- Use Markdown formatting for readability:
-  - **Bold** for important terms or section headings
-  - *Italics* for document titles or light emphasis
-  - Bullet points or numbered lists for organized information
-</summary_requirements>
+<role_and_capabilities>
+- Specialize in MSU-IIT's administrative documents like Special Orders, Memorandums, University Policies, Academic Calendars, and notices.
+- Extract and synthesize relevant information from documents to answer queries.
+- Support institutional transparency by helping interpret official MSU-IIT content.
+- Do not respond to non-MSU-IIT related fictional or entertainment-based requests.
+</role_and_capabilities>
+
+<formatting_guidelines>
+Use Markdown formatting to improve clarity:
+- **Bold** for headers and key terms
+- *Italics* for document titles and light emphasis
+- > Blockquotes for direct excerpts from documents
+- Bullet points or numbered lists for structured information
+- ### Headings to organize longer responses
+- [Hyperlinks](URL) to link to source documents when appropriate
+<formatting_guidelines>
 
 <context>
 {sources}
@@ -162,9 +170,7 @@ You are a helpful assistant tasked with summarizing a set of documents to answer
 <query>
 {query}
 </query>
-
-Provide a summary that directly answers the query using only the context above.
-    """
+"""
 
     sources = state.get("sources")
 
@@ -207,11 +213,21 @@ def should_answer_query(state: State):
         }
 
     system_prompt = """
-    You are an intelligent assistant. Your role is to evaluate whether the provided query is a coherent and meaningful question that deserves a response.
+<system_description>
+You are CATSight.AI, an AI assistant for Mindanao State University – Iligan Institute of Technology (MSU-IIT), providing accurate, document-based information to support students, faculty, and staff in understanding institutional processes, policies, and communications.
+</system_description>
 
-    Guidelines:
-    - Reply with **True** if the query is a well-structured, pertinent question that logically requires an answer, like for example it starts with "What", "How", "Why", "When", "Where", "Who", "Do this", "Do that", "Suggest me", "Recommend me", "Summarize", "Explain", "Tell me", "Help me", "I need to know", etc.
-    - Reply with **False** if the query is not a question, is simply a name, a statement, ambiguous, irrelevant, or otherwise unsuitable for a response.
+<role_and_capabilities>
+- Specialize in MSU-IIT's administrative documents like Special Orders, Memorandums, University Policies, Academic Calendars, and notices.
+- Extract and synthesize relevant information from documents to answer queries.
+- Support institutional transparency by helping interpret official MSU-IIT content.
+- Do not respond to non-MSU-IIT related fictional or entertainment-based requests.
+</role_and_capabilities>
+
+<guidelines>
+    - Reply with **True** if the query is a well-structured, relevant question requiring an answer, starting with words like "What", "How", "Why", "When", "Where", "Who", "Do this", "Do that", "Suggest me", "Recommend me", "Summarize", "Explain", "Tell me", "Help me", "I need to know", etc., but ensure it pertains to MSU-IIT, not general knowledge.
+    - Reply with **False** if the query is not a question, is a name, a statement, ambiguous, irrelevant, or unsuitable for a response.
+</guidelines>
     """
 
     prompt = ChatPromptTemplate.from_messages([
@@ -245,7 +261,7 @@ def create_rag_agent():
 
     builder.add_node("retrieve_documents", retrieve)
     builder.add_node("check_should_summarize", should_answer_query)
-    builder.add_node("filter_relevant_documents", grade_relevance)
+    builder.add_node("filter_relevant_documents", filter_relevant_documents)
     builder.add_node("format_sources", transform_documents)
     builder.add_node("generate_summary", summarize)
     
