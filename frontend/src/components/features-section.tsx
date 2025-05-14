@@ -1,22 +1,49 @@
-
-import { Search, BookOpen, Users } from "lucide-react"
+import {
+  FileText,
+  Bot,
+  Layers3,
+  Sparkles,
+  SearchCheck,
+  Settings2,
+} from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 
 const features = [
   {
-    name: "Semantic Search",
-    description: "Advanced content-based search across your document collection using state-of-the-art embedding models.",
-    icon: Search,
+    name: "Smart Document Conversion",
+    description:
+      "Converts scanned PDFs and complex layouts into clean, readable text using AI-powered tools for accuracy and structure.",
+    icon: FileText,
   },
   {
-    name: "Conversational AI",
-    description: "Chat with your documents using our powerful Llama 3.2-powered chatbot with contextual understanding.",
-    icon: BookOpen,
+    name: "Automatic Summaries",
+    description:
+      "Summarizes documents into clear overviews, titles, topics, and dates so you can understand the key points in seconds.",
+    icon: Layers3,
   },
   {
-    name: "Role-Based Access",
-    description: "Secure access control with predefined roles - SuperAdmin, Admin, and User levels.",
-    icon: Users,
+    name: "Interactive Chat Assistant",
+    description:
+      "Ask questions about your documents and get instant, accurate answers — just like chatting with a helpful expert.",
+    icon: Bot,
+  },
+  {
+    name: "Meaningful Search",
+    description:
+      "Find exactly what you need with smart search that understands the meaning behind your questions, not just keywords.",
+    icon: SearchCheck,
+  },
+  {
+    name: "Smarter Answers You Can Trust",
+    description:
+      "Behind the scenes, the assistant double-checks sources and picks the best information before answering your questions.",
+    icon: Settings2,
+  },
+  {
+    name: "Answers with References",
+    description:
+      "Every answer includes clear sources, so you always know where the information came from in your documents.",
+    icon: Sparkles,
   },
 ]
 
@@ -30,12 +57,15 @@ const FeaturesSection = () => {
             Powerful Features
           </h2>
           <p className="mt-6 text-lg leading-8 text-muted-foreground">
-            Discover the capabilities that make CATSight.AI the perfect solution for MSU-IIT's document management needs.
+            Discover what makes CATSight.AI the smarter way to manage, explore, and understand your documents.
           </p>
         </div>
         <div className="grid grid-cols-1 gap-8 mx-auto mt-16 max-w-7xl sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
-            <Card key={feature.name} className="relative transition-transform duration-300 group hover:scale-105 border-primary/10 bg-gradient-to-br from-background to-primary/5">
+            <Card
+              key={feature.name}
+              className="relative transition-transform duration-300 group hover:scale-105 border-primary/10 bg-gradient-to-br from-background to-primary/5"
+            >
               <div className="absolute inset-0 transition-opacity duration-300 rounded-lg opacity-0 bg-gradient-to-br from-primary/10 via-accent/5 to-transparent group-hover:opacity-100"></div>
               <CardContent className="relative p-6">
                 <div className="flex flex-col items-start gap-4">
@@ -54,4 +84,4 @@ const FeaturesSection = () => {
   )
 }
 
-export default FeaturesSection; 
+export default FeaturesSection;

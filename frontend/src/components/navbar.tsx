@@ -15,55 +15,68 @@ import { Link } from "react-router-dom"
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useSession()
 
+  const initials = user
+    ? `${user.first_name?.[0] || ""}${user.last_name?.[0] || ""}`.toUpperCase()
+    : ""
+
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex items-center justify-between h-16 mx-auto">
-        <Link to="/">
-          <div className="flex items-center gap-2 transition-transform duration-75 hover:scale-[1.01]">
-            <img
-              src="/icon.png"
-              alt="CATSight.AI Logo"
-              className="w-auto h-8"
-            />
-            <span className="text-xl font-bold text-transparent bg-gradient-to-r from-primary to-accent bg-clip-text">
-              CATSight.AI
-            </span>
-          </div>
+        {/* Brand Logo */}
+        <Link to="/" className="flex items-center gap-2 transition-transform duration-100 hover:scale-[1.01]">
+          <img
+            src="/icon.png"
+            alt="CATSight.AI Logo"
+            className="w-auto h-8"
+          />
+          <span className="text-xl font-bold text-transparent bg-gradient-to-r from-primary to-accent bg-clip-text">
+            CATSight.AI
+          </span>
         </Link>
+
+        {/* Auth Options */}
         <div className="flex items-center gap-4">
           {isAuthenticated && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative w-8 h-8 rounded-full">
+                <Button variant="ghost" className="w-8 h-8 p-0 rounded-full">
                   <Avatar className="w-8 h-8">
                     <AvatarImage src={user.avatar} alt={`${user.first_name} ${user.last_name}`} />
-                    <AvatarFallback>{user.first_name?.[0]}{user.last_name?.[0]}</AvatarFallback>
+                    <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
+
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user.first_name} {user.last_name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                    <p className="text-sm font-medium leading-none">
+                      {user.first_name} {user.last_name}
+                    </p>
+                    <p className="text-xs truncate text-muted-foreground">{user.email}</p>
                   </div>
                 </DropdownMenuLabel>
+
                 <DropdownMenuSeparator />
+
                 <DropdownMenuItem asChild>
-                  <Link to="/dashboard" className="w-full cursor-pointer">
+                  <Link to="/dashboard" className="w-full">
                     Dashboard
                   </Link>
                 </DropdownMenuItem>
+
                 <DropdownMenuItem asChild>
-                  <Link to="/settings" className="w-full cursor-pointer">
-                    <Settings className="w-4 h-4 mr-2" />
-                    <span>Settings</span>
+                  <Link to="/settings" className="flex items-center w-full gap-2">
+                    <Settings className="w-4 h-4" />
+                    Settings
                   </Link>
                 </DropdownMenuItem>
+
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="cursor-pointer">
-                  <LogOut className="w-4 h-4 mr-2" />
-                  <span>Log out</span>
+
+                <DropdownMenuItem onClick={logout} className="flex items-center gap-2 cursor-pointer text-destructive">
+                  <LogOut className="w-4 h-4" />
+                  Log Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

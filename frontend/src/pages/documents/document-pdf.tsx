@@ -5,7 +5,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { Document } from "@/types";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Edit, FileText, FilePlus2, Grid3X3, LayoutPanelTop } from "lucide-react";
+import {
+  ArrowLeft,
+  Edit,
+  FileText,
+  FilePlus2,
+  Grid3X3,
+  LayoutPanelTop,
+  Loader2Icon,
+} from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
@@ -15,7 +23,8 @@ export function DocumentPdfPage() {
 
   const { isLoading: isDocLoading, data: documentData } = useQuery({
     queryKey: ["document", id],
-    queryFn: () => api.get<Document>(`/documents/${id}`).then((res) => res.data),
+    queryFn: () =>
+      api.get<Document>(`/documents/${id}`).then((res) => res.data),
   });
 
   const { isLoading: isPdfLoading, data: blobUrl } = useQuery({
@@ -35,7 +44,8 @@ export function DocumentPdfPage() {
   const handleBackClick = () => navigate(`/documents/${id}`);
   const handleEditClick = () => navigate(`/documents/${id}/edit`);
   const handleMarkdownViewClick = () => navigate(`/documents/${id}/markdown`);
-  const handleComparisonViewClick = () => navigate(`/documents/${id}/comparison`);
+  const handleComparisonViewClick = () =>
+    navigate(`/documents/${id}/comparison`);
 
   if (isDocLoading) {
     return (
@@ -66,7 +76,9 @@ export function DocumentPdfPage() {
             <FileText className="w-12 h-12 text-muted-foreground" />
           </div>
           <h3 className="mb-2 text-2xl font-semibold">Document Not Found</h3>
-          <p className="mb-6 text-muted-foreground">The document you're looking for doesn't exist or has been deleted.</p>
+          <p className="mb-6 text-muted-foreground">
+            The document you're looking for doesn't exist or has been deleted.
+          </p>
           <Button
             variant="outline"
             onClick={() => navigate("/documents")}
@@ -95,7 +107,9 @@ export function DocumentPdfPage() {
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{documentData.title}</h1>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                {documentData.title}
+              </h1>
               <Badge
                 variant="outline"
                 className="rounded-full px-3 py-0.5 font-medium text-xs bg-blue-500/10 text-blue-600 border-blue-200"
@@ -146,8 +160,7 @@ export function DocumentPdfPage() {
             {isPdfLoading ? (
               <div className="flex items-center justify-center w-full h-full">
                 <div className="relative w-12 h-12">
-                  <div className="absolute w-12 h-12 rounded-full opacity-25 animate-ping bg-primary"></div>
-                  <div className="w-12 h-12 border-4 rounded-full animate-spin border-primary border-t-transparent"></div>
+                  <Loader2Icon className="w-12 h-12 animate-spin text-primary" />
                 </div>
               </div>
             ) : blobUrl ? (
@@ -173,4 +186,4 @@ export function DocumentPdfPage() {
       </Card>
     </div>
   );
-} 
+}
