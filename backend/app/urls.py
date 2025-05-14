@@ -30,7 +30,6 @@ from .views.llm import (
     get_llm_model,
 )
 from .views.chats import (
-    get_chats,
     get_recent_chats,
     get_chat,
     create_chat,
@@ -66,11 +65,10 @@ urlpatterns = [
     path('documents/search', search_docs, name='search_docs'),
     path('documents/chat', chat_with_docs, name='chat_with_docs'),
     path('documents/delete_all', delete_all_docs, name='delete_all_docs'),
-    path('documents/graph/image', get_graph_image, name='get_graph_image'),
+    path('documents/graph', get_graph_image, name='get_graph_image'),
     path('chats/<str:chat_id>/history', get_chat_history, name='get_chat_history'),
     
     # Chat URLs
-    path('chats', get_chats, name='get_chats'),
     path('chats/count', get_chats_count, name='get_chats_count'),
     path('chats/recent', get_recent_chats, name='get_recent_chats'),
     path('chats/<int:chat_id>', get_chat, name='get_chat'),

@@ -91,8 +91,7 @@ def _print_event(event: dict, _printed: set, max_length=1500):
 class State(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     title: Optional[str]
-    should_generate_title: bool = True
-    is_msu_iit_related: bool = False
+    should_generate_title: bool = True  
 
 # --- Helper Classes -------------------------------------------------------
 class Title(BaseModel):

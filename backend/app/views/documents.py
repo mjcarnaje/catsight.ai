@@ -31,6 +31,7 @@ from langchain_core.documents import Document as LangchainDocument
 from IPython.display import Image
 from ..utils import pretty_print_messages
 from ..services.rag_agent import rag_agent
+from ..services.summarization_agent import summarization_agent
 
 logger = logging.getLogger(__name__)
 
@@ -617,33 +618,36 @@ def get_chat_history(request, chat_id):
 @permission_classes([AllowAny])
 def get_graph_image(request):
     try:
-        agent = request.GET.get("agent", "catsight")
+        agent = request.GET.get("agent")
 
-        if agent == "catsight":
-            # Get the Mermaid string
-            mermaid_text = catsight_agent.get_graph().draw_mermaid()
+        if agent == "summary":
+            mermaid_text = summarization_agent.get_graph().draw_mermaid()
         elif agent == "rag":
-            # Get the Mermaid string
             mermaid_text = rag_agent.get_graph().draw_mermaid()
+        else:
+            mermaid_text = catsight_agent.get_graph().draw_mermaid()
         
-        # Create a simple HTML page with the mermaid diagram
         html_content = f"""
         <!DOCTYPE html>
-        <html>
+        <html lang="en">
         <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>LangGraph Visualization</title>
             <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
             <script>
-                mermaid.initialize({{ startOnLoad: true, theme: 'default' }});
+                document.addEventListener('DOMContentLoaded', function() {{
+                    mermaid.initialize({{ startOnLoad: true, theme: 'default' }});
+                }});
             </script>
             <style>
-                body {{ margin: 0; padding: 0; }}
-                .mermaid {{ max-width: 100%; }}
+                body, html {{ margin: 0; padding: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }}
+                .mermaid {{ max-width: 100%; height: auto; }}
             </style>
         </head>
         <body>
             <div class="mermaid">
-            {mermaid_text}
+                {mermaid_text}
             </div>
         </body>
         </html>

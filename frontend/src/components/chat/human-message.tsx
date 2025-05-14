@@ -54,7 +54,7 @@ export const HumanMessage: React.FC<HumanMessageProps> = ({
           {editing ? (
             <div className="flex flex-col gap-2">
               <textarea
-                className="w-full max-w-full p-2 text-black border border-gray-300 rounded resize-none"
+                className="w-full max-w-full p-2.5 text-white rounded-lg resize-none bg-[#711c2a] focus:outline-none"
                 value={editValue}
                 onChange={e => setEditValue(e.target.value)}
                 rows={3}

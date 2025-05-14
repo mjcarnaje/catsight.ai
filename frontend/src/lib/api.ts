@@ -142,22 +142,6 @@ export interface SearchApiResponse {
 }
 
 export const chatsApi = {
-  getRecent: (limit: number = 5) => {
-    console.log(`Fetching recent chats with limit: ${limit}`);
-    return api
-      .get<Chat[]>("/chats/recent", {
-        params: { limit },
-      })
-      .then((response) => {
-        console.log(`Received ${response.data.length} chats`);
-        return response;
-      })
-      .catch((error) => {
-        console.error("Error fetching recent chats:", error);
-        throw error;
-      });
-  },
-
   getCount: () => {
     return api
       .get<{ count: number }>("/chats/count")
@@ -204,6 +188,11 @@ export const chatsApi = {
     api.patch<Chat>(`/chats/${id}/update`, data),
 
   delete: (id: number) => api.delete(`/chats/${id}/delete`),
+
+  getRecent: (pageSize: number = 10, page: number = 1) =>
+    api.get<PaginatedResponse<Chat>>(
+      `/chats/recent?page_size=${pageSize}&page=${page}`
+    ),
 };
 
 export const documentsApi = {
