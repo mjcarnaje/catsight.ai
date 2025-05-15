@@ -9,3 +9,14 @@ export function cn(...inputs: ClassValue[]) {
 export function generateId() {
   return uuidv4();
 }
+
+// get_today_date -> Get Today's Date
+// retrieve -> Retrieve Documents
+
+export function getToolName(tool?: string): string {
+  if (!tool) return "";
+  return tool
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}

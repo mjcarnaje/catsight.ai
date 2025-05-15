@@ -89,7 +89,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "ADD_MESSAGE", payload: userMessage });
       }
 
-      fetch(`/api/documents/chat`, {
+      fetch(`/api/documents/chat/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

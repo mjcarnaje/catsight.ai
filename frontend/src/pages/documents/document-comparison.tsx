@@ -54,7 +54,7 @@ export function DocumentComparisonPage() {
   const { isLoading: isPdfLoading, data: blobUrl } = useQuery({
     queryKey: ["pdf", id],
     queryFn: async () => {
-      const res = await fetch(`/api/documents/${id}/raw`, {
+      const res = await fetch(`/api/documents/${id}/raw/`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },

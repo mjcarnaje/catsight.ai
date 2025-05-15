@@ -14,6 +14,7 @@ import { AIMessage } from "./ai-message";
 import { AIMessageSkeleton } from "./ai-message-skeleton";
 import { HumanMessage } from "./human-message";
 import { TitleGenerationIndicator } from "./title-generation-indicator";
+import { getToolName } from "@/lib/utils";
 
 interface QuestionSuggestion {
   icon: React.ElementType;
@@ -193,7 +194,7 @@ export function ChatList({
               <PickaxeIcon className="w-5 h-5 text-primary" />
               <div className="flex flex-col">
                 <span className="font-medium text-gray-800 capitalize">
-                  {msg.tool_call?.name}
+                  {getToolName(msg.tool_call?.name)}
                 </span>
                 <span className="text-xs text-gray-500">
                   Query: {msg.tool_call?.query}

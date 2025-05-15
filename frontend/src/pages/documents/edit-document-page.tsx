@@ -66,8 +66,8 @@ export function EditDocumentPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Skeleton className="w-24 h-9 rounded-full" />
-            <Skeleton className="w-24 h-9 rounded-full" />
+            <Skeleton className="w-24 rounded-full h-9" />
+            <Skeleton className="w-24 rounded-full h-9" />
           </div>
         </div>
         <Skeleton className="w-full h-[calc(100vh-180px)] rounded-lg" />
@@ -250,7 +250,7 @@ export function DocPdfViewer({ id }: { id: string }) {
   const { isLoading, data: blobUrl } = useQuery({
     queryKey: ["pdf", id],
     queryFn: async () => {
-      const res = await fetch(`/api/documents/${id}/raw`, {
+      const res = await fetch(`/api/documents/${id}/raw/`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
