@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { chatsApi } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { useChatContext } from "@/contexts/chat-context";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,10 +25,12 @@ interface ChatItemProps {
 export function ChatItem({ chat, currentChatId }: ChatItemProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { removeChat } = useChatContext();
 
   const deleteChatMutation = useMutation({
     mutationFn: (chatId: number) => chatsApi.delete(chatId),
     onSuccess: (_, chatId) => {
+      removeChat(chatId);
       toast({
         title: "Chat deleted",
         description: "The chat has been deleted successfully",
@@ -54,8 +57,8 @@ export function ChatItem({ chat, currentChatId }: ChatItemProps) {
   return (
     <div
       className={`flex items-center justify-between px-2 py-2 rounded ${String(chat.id) === currentChatId
-          ? "bg-gray-100 text-gray-900"
-          : "hover:bg-gray-100 text-gray-700"
+        ? "bg-gray-100 text-gray-900"
+        : "hover:bg-gray-100 text-gray-700"
         }`}
     >
       <Link to={`/chat/${chat.id}`} className="flex-1 block text-sm truncate">
