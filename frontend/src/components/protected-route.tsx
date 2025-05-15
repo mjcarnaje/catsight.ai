@@ -1,15 +1,13 @@
+import { useSession } from "@/contexts/session-context";
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useSession } from "@/contexts/session-context";
-import { useUser } from "@/lib/auth";
 
 interface ProtectedRouteProps {
   children: ReactNode;
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { hasToken } = useSession();
-  const { data: user } = useUser();
+  const { hasToken, user } = useSession();
   const location = useLocation();
 
   // If not authenticated, redirect to login

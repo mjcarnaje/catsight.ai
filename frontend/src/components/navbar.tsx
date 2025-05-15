@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSession } from "@/contexts/session-context";
-import { LogIn, LogOut, Settings, UserPlus, Dashboard } from "lucide-react";
+import { LogIn, LogOut, Settings, UserPlus, Home } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Navbar = () => {
@@ -65,7 +65,7 @@ const Navbar = () => {
 
                 <DropdownMenuItem asChild>
                   <Link to="/dashboard" className="w-full">
-                    <Dashboard className="w-4 h-4" />
+                    <Home className="w-4 h-4" />
                     Dashboard
                   </Link>
                 </DropdownMenuItem>

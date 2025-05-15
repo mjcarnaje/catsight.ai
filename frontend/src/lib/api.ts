@@ -14,13 +14,20 @@ export const getDocumentUrl = (documentId: number): string => {
 };
 
 export const api = axios.create({
-  baseURL: `${API_PREFIX}`,
+  baseURL: API_PREFIX,
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 30000,
 });
 
 api.interceptors.request.use((config) => {
+  // Add trailing slash to the URL if it's missing
+
+  if (!config.url?.endsWith("/")) {
+    config.url = config.url + "/";
+  }
+
   const token = localStorage.getItem("access_token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -28,22 +35,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Setup response interceptor to refresh token if expired
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    console.log(`API error:`, {
-      url: originalRequest?.url,
-      status: error.response?.status,
-      message: error.message,
-    });
-
-    // Only try to refresh token if:
-    // 1. Response is a 401 (unauthorized)
-    // 2. We haven't tried to refresh for this request yet
-    // 3. The request is not already trying to refresh tokens
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
@@ -59,18 +55,17 @@ api.interceptors.response.use(
           throw new Error("No refresh token available");
         }
 
-        // Use axios directly to avoid triggering the interceptor again
-        const tokenResponse = await axios.post(`/api/auth/token/refresh`, {
-          refresh: refreshToken,
-        });
+        const tokenResponse = await axios.post(
+          `${API_PREFIX}/auth/token/refresh`,
+          {
+            refresh: refreshToken,
+          }
+        );
 
-        // Check if we received the expected response format
         if (tokenResponse.data.access) {
           console.log("Token refreshed successfully");
-          // Store the new tokens
           localStorage.setItem("access_token", tokenResponse.data.access);
 
-          // Update the auth header and retry the original request
           originalRequest.headers.Authorization = `Bearer ${tokenResponse.data.access}`;
           return axios(originalRequest);
         } else {
@@ -83,6 +78,22 @@ api.interceptors.response.use(
         localStorage.removeItem("refresh_token");
         window.dispatchEvent(new Event("storage"));
         return Promise.reject(error);
+      }
+    }
+
+    if (error.response?.data) {
+      if (typeof error.response.data === "object") {
+        const errorMessage = Object.entries(error.response.data)
+          .map(([key, value]) => {
+            if (Array.isArray(value)) {
+              return `${key}: ${value.join(", ")}`;
+            }
+            return `${key}: ${value}`;
+          })
+          .join("; ");
+        error.message = errorMessage;
+      } else if (typeof error.response.data === "string") {
+        error.message = error.response.data;
       }
     }
 
@@ -188,9 +199,12 @@ export const chatsApi = {
   delete: (id: number) => api.delete(`/chats/${id}/delete`),
 
   getRecent: (pageSize: number = 10, page: number = 1) =>
-    api.get<PaginatedResponse<Chat>>(
-      `/chats/recent?page_size=${pageSize}&page=${page}`
-    ),
+    api.get<PaginatedResponse<Chat>>("/chats/recent/", {
+      params: {
+        page_size: pageSize.toString(),
+        page: page.toString(),
+      },
+    }),
 };
 
 export const documentsApi = {

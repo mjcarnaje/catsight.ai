@@ -14,8 +14,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useSession } from "@/contexts/session-context";
 import { llmApi } from "@/lib/api";
-import { useUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { ModelInfo } from "@/types";
 import { Check, ChevronDown, Loader2, Sparkles } from "lucide-react";
@@ -27,7 +27,7 @@ interface ModelSelectorProps {
 }
 
 export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
-  const { data: user } = useUser();
+  const { user } = useSession();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);

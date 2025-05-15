@@ -16,22 +16,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
-import { authApi, LoginCredentials } from "@/lib/auth";
+import { useSession } from "@/contexts/session-context";
+import { authApi } from "@/lib/auth";
 import { useMutation } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { LoginCredentials } from "@/types/auth";
 
 const GOOGLE_CLIENT_ID =
   "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
 const REDIRECT_URI = "https://catsightai.ngrok.app/auth/login";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { setHasTokenAndUser } = useSession();
+  const [email, setEmail] = useState("michaeljames.carnaje@g.msuiit.edu.ph");
+  const [password, setPassword] = useState("password");
   const [showPassword, setShowPassword] = useState(false);
 
   const loginMutation = useMutation({
@@ -39,13 +42,8 @@ export default function LoginPage() {
     onSuccess: (data) => {
       const { tokens, user } = data;
       if (tokens) {
-        localStorage.setItem("access_token", tokens.access);
-        localStorage.setItem("refresh_token", tokens.refresh);
-        window.dispatchEvent(new Event("storage"));
+        setHasTokenAndUser(tokens.access, tokens.refresh, user);
       }
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
     },
     onError: (error) => {
       toast({
@@ -57,13 +55,11 @@ export default function LoginPage() {
   });
 
   const googleAuthMutation = useMutation({
-    mutationFn: (code: string) => authApi.googleAuth(code),
+    mutationFn: (code: string) => authApi.googleAuth({ token: code }),
     onSuccess: (data) => {
       const { tokens, user } = data;
       if (tokens) {
-        localStorage.setItem("access_token", tokens.access);
-        localStorage.setItem("refresh_token", tokens.refresh);
-        window.dispatchEvent(new Event("storage"));
+        setHasTokenAndUser(tokens.access, tokens.refresh, user);
       }
     },
     onError: (error) => {
@@ -110,8 +106,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
-      <Card className="w-full max-w-sm shadow-lg sm:max-w-md lg:max-w-lg">
+    <div className="relative flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
+      <Card className="z-10 w-full max-w-sm shadow-lg sm:max-w-md lg:max-w-lg">
         <CardHeader className="pb-4 space-y-1 text-center">
           <CardTitle className="flex items-center justify-center">
             <div className="flex items-center gap-2 transition-transform duration-75 hover:scale-[1.01]">
