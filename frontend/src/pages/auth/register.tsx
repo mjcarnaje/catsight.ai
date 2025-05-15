@@ -14,15 +14,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { authApi, RegisterCredentials } from "@/lib/auth";
+import { authApi } from "@/lib/auth";
+import type { RegisterCredentials } from "@/types/auth";
 import { useMutation } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useSession } from "@/contexts/session-context";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { setHasTokenAndUser } = useSession();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
@@ -35,17 +38,19 @@ export default function RegisterPage() {
   const registerMutation = useMutation({
     mutationFn: (data: RegisterCredentials) => authApi.register(data),
     onSuccess: (data) => {
-      const { tokens } = data;
+      const { tokens, user } = data;
       if (tokens) {
-        localStorage.setItem("access_token", tokens.access);
-        localStorage.setItem("refresh_token", tokens.refresh);
-        window.dispatchEvent(new Event("storage"));
+        setHasTokenAndUser(tokens.access, tokens.refresh, user);
+        toast({
+          title: "Success",
+          description: "Account created successfully!",
+        });
       }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Registration failed",
-        description: error.message || "Invalid email or password.",
+        description: error.message,
         variant: "destructive",
       });
     },
@@ -72,14 +77,16 @@ export default function RegisterPage() {
       return;
     }
 
-    await registerMutation.mutateAsync({
+    const credentials: RegisterCredentials = {
       first_name: firstName,
       last_name: lastName,
       username,
       email,
       password,
       password_confirm: confirmPassword,
-    });
+    };
+
+    await registerMutation.mutateAsync(credentials);
   };
 
   return (

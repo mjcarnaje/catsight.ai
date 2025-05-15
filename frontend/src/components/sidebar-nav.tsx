@@ -1,16 +1,4 @@
-import { useLogout, useUser } from "@/lib/auth";
-import { cn } from "@/lib/utils";
-import { FileText, LogOut, User, Settings, LayoutDashboard, MessageSquare, Search } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,10 +7,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
+import { useSession } from "@/contexts/session-context";
+import { cn } from "@/lib/utils";
+import {
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  MessageSquare,
+  Search,
+  Settings,
+  User,
+} from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 export function SidebarNav() {
-  const { data: user } = useUser();
-  const logout = useLogout();
+  const { logout, user } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -99,7 +104,11 @@ export function SidebarNav() {
         {user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="justify-start w-full gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start w-full gap-2"
+              >
                 <User className="w-4 h-4" />
                 <span className="hidden truncate sidebar-expanded:inline">
                   {user.first_name} {user.last_name}
@@ -109,13 +118,18 @@ export function SidebarNav() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{user.first_name} {user.last_name}</p>
+                  <p className="text-sm font-medium">
+                    {user.first_name} {user.last_name}
+                  </p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link to="/settings" className="flex items-center cursor-pointer">
+                <Link
+                  to="/settings"
+                  className="flex items-center cursor-pointer"
+                >
                   <Settings className="w-4 h-4 mr-2" />
                   <span>Settings</span>
                 </Link>
@@ -134,4 +148,4 @@ export function SidebarNav() {
       </SidebarFooter>
     </Sidebar>
   );
-} 
+}

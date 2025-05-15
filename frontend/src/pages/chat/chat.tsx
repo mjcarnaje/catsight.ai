@@ -4,6 +4,7 @@ import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { useToast } from "@/components/ui/use-toast";
 import { useChatStream } from "@/contexts/chat-stream-context";
 import { chatsApi, llmApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { LLMModel } from "@/types";
 import { Message } from "@/types/message";
 import { useQuery } from "@tanstack/react-query";
@@ -106,7 +107,7 @@ export default function ChatPage() {
     }
   }, [llmModels]);
 
-  const handleRegenerateMessage = (messageId: string) => {};
+  const handleRegenerateMessage = (messageId: string) => { };
 
   useEffect(() => {
     if (newChatId == chatId) {
@@ -151,7 +152,15 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen bg-white">
+    <div className="relative flex h-screen">
+      <div
+        className={cn(
+          "absolute inset-0 pointer-events-none",
+          "[background-size:40px_40px]",
+          "[background-image:radial-gradient(#d4d4d4_1px,transparent_1px)]",
+          "z-0"
+        )}
+      />
       <ChatSidebar currentChatId={chatId} />
       <div className="flex flex-col flex-1 overflow-hidden">
         {isLoadingHistory ? (

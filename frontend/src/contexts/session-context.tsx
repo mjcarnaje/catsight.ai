@@ -1,11 +1,15 @@
+import { User } from "@/types";
+import axios from "axios";
 import { createContext, useContext, useEffect, useState } from "react";
-import { User, useUser } from "../lib/auth";
+import { authApi } from "../lib/auth";
 
 interface SessionContextValue {
   user: User | null;
+  setUser: (user: User) => void;
   isLoading: boolean;
   hasToken: boolean;
   logout: () => void;
+  setHasTokenAndUser: (token: string | null, refreshToken: string | null, newUser: User | null) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(
@@ -13,39 +17,80 @@ const SessionContext = createContext<SessionContextValue | undefined>(
 );
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [hasToken, setHasToken] = useState<boolean>(false);
-  const { data: user, isLoading, error } = useUser();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasToken, setHasToken] = useState<boolean>(() => !!localStorage.getItem("access_token"));
 
-  const logout = () => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    setHasToken(false);
-  };
-
-  const value = {
-    user: user || null,
-    isLoading,
-    hasToken,
-    logout,
+  const getUser = async () => {
+    try {
+      const response = await authApi.getProfile();
+      return response;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        authApi.logout();
+      }
+      throw error;
+    }
   };
 
   useEffect(() => {
-    window.addEventListener("storage", (e) => {
+    const accessToken = localStorage.getItem("access_token");
+    setHasToken(!!accessToken);
+
+    if (accessToken && !user) {
+      getUser().then((response) => {
+        setUser(response);
+        setIsLoading(false);
+      });
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const setHasTokenAndUser = (token: string | null, refreshToken: string | null, newUser: User | null) => {
+    if (token) {
+      localStorage.setItem("access_token", token);
+      if (refreshToken) {
+        localStorage.setItem("refresh_token", refreshToken);
+      }
+    } else {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+    }
+    setHasToken(!!token);
+    setUser(newUser);
+  };
+
+  const logout = () => {
+    setHasTokenAndUser(null, null, null);
+  };
+
+  useEffect(() => {
+    const updateTokenStatus = (e: StorageEvent) => {
       if (e.key === "access_token") {
         setHasToken(!!e.newValue);
       }
-    });
-    return () => {
-      window.removeEventListener("storage", (e) => {
-        if (e.key === "access_token") {
-          setHasToken(!!e.newValue);
-        }
-      });
     };
-  }, [hasToken]);
+
+    window.addEventListener("storage", updateTokenStatus);
+    return () => {
+      window.removeEventListener("storage", updateTokenStatus);
+    };
+  }, []);
 
   return (
-    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+    <SessionContext.Provider
+      value={{
+        user: user || null,
+        setUser,
+        isLoading,
+        hasToken,
+        logout,
+        setHasTokenAndUser,
+      }}
+    >
+      {children}
+    </SessionContext.Provider>
   );
 }
 

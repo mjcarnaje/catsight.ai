@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import { useSession } from "@/contexts/session-context";
 import { llmApi } from "@/lib/api";
-import { useUpdateProfile, useUser } from "@/lib/auth";
+import { useUpdateProfile } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,7 +18,6 @@ import { useDropzone } from "react-dropzone";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
-// Define form schema
 const formSchema = z.object({
   username: z.string().optional(),
   first_name: z.string().optional(),
@@ -27,7 +27,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const SettingsPage = () => {
-  const { data: user, isLoading: userLoading } = useUser();
+  const { user, isLoading: userLoading } = useSession();
   const updateProfile = useUpdateProfile();
   const { toast } = useToast();
   const [avatarDialogOpen, setAvatarDialogOpen] = useState(false);
@@ -253,7 +253,7 @@ export default SettingsPage;
 const FavoriteModelsForm = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: user } = useUser();
+  const { user } = useSession();
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 

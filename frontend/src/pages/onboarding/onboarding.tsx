@@ -1,25 +1,35 @@
-import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useUser, useUpdateProfile } from "@/lib/auth";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/contexts/session-context";
+import { useUpdateProfile } from "@/lib/auth";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export function OnboardingPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { data: user, isLoading, isError } = useUser();
+  const { user, isLoading } = useSession();
   const updateProfile = useUpdateProfile();
 
   const [avatar, setAvatar] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | undefined>(user?.avatar);
+  const [avatarPreview, setAvatarPreview] = useState<string | undefined>(
+    user?.avatar
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fullName, setFullName] = useState<string>(`${user?.first_name || ''} ${user?.last_name || ''}`);
+  const [fullName, setFullName] = useState<string>(
+    `${user?.first_name || ""} ${user?.last_name || ""}`
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -53,10 +63,11 @@ export function OnboardingPage() {
       onError: (error) => {
         toast({
           title: "Error updating profile",
-          description: error instanceof Error ? error.message : "An error occurred",
+          description:
+            error instanceof Error ? error.message : "An error occurred",
           variant: "destructive",
         });
-      }
+      },
     });
   };
 
@@ -86,7 +97,8 @@ export function OnboardingPage() {
     } catch (error) {
       toast({
         title: "Error updating profile",
-        description: error instanceof Error ? error.message : "An error occurred",
+        description:
+          error instanceof Error ? error.message : "An error occurred",
         variant: "destructive",
       });
     } finally {
@@ -95,27 +107,33 @@ export function OnboardingPage() {
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-full">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center h-full">Loading...</div>
+    );
   }
 
-  if (isError) {
-    return <div className="flex items-center justify-center h-full">Error loading user data</div>;
-  }
-
-  const initials = user ?
-    `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}` : 'U';
+  const initials = user
+    ? `${user.first_name?.[0] || ""}${user.last_name?.[0] || ""}`
+    : "U";
 
   return (
     <div className="flex items-center justify-center min-h-[80vh]">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Complete Your Profile</CardTitle>
-          <CardDescription>Let's add a profile picture to complete your account setup</CardDescription>
+          <CardTitle className="text-2xl font-bold">
+            Complete Your Profile
+          </CardTitle>
+          <CardDescription>
+            Let's add a profile picture to complete your account setup
+          </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-6">
             <div className="flex flex-col items-center space-y-4">
-              <Avatar className="w-32 h-32 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+              <Avatar
+                className="w-32 h-32 cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <AvatarImage src={avatarPreview} />
                 <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
               </Avatar>
@@ -154,19 +172,11 @@ export function OnboardingPage() {
 
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input
-                value={user?.email || ''}
-                disabled
-                className="bg-muted"
-              />
+              <Input value={user?.email || ""} disabled className="bg-muted" />
             </div>
           </CardContent>
           <CardFooter className="flex justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSkip}
-            >
+            <Button type="button" variant="outline" onClick={handleSkip}>
               Skip for Now
             </Button>
             <Button type="submit" disabled={isSubmitting}>
@@ -177,4 +187,4 @@ export function OnboardingPage() {
       </Card>
     </div>
   );
-} 
+}

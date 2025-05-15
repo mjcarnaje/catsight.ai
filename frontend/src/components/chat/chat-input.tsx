@@ -3,9 +3,9 @@ import { ModelSelector } from "@/components/chat/model-selector";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { LLMModel, ModelInfo } from "@/types";
+import { LLMModel } from "@/types";
 import { AlertCircle, Loader2, Send, Sparkles } from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef } from "react";
 
 interface ChatInputProps {
   text: string;
@@ -60,7 +60,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="relative w-full px-4 py-4 border-t border-gray-100 bg-white/95 backdrop-blur-md">
+    <div className="relative w-full max-w-4xl px-5 py-5 mx-auto bg-white border-t border-gray-100 shadow-md rounded-t-3xl">
       {!modelId && !disabled && (
         <div className="flex items-center gap-2 p-3 mb-4 text-sm border rounded-lg bg-amber-50 border-amber-200 text-amber-800">
           <AlertCircle size={16} className="shrink-0" />
@@ -79,7 +79,7 @@ export function ChatInput({
           >
             <div
               className={cn(
-                "relative flex-1 overflow-hidden rounded-2xl border border-gray-200 focus-within:border-pink-300 focus-within:ring-2 focus-within:ring-pink-100 shadow-sm transition-all",
+                "relative flex-1 overflow-hidden rounded-2xl border border-gray-200 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 shadow-sm transition-all",
                 disabled ? "opacity-60" : ""
               )}
             >
@@ -96,7 +96,7 @@ export function ChatInput({
                 type="submit"
                 size="icon"
                 disabled={disabled || !modelId || !text.trim()}
-                className="absolute w-10 h-10 text-white transition-colors bg-pink-500 shadow-sm right-2 bottom-2 rounded-xl hover:bg-pink-600 disabled:opacity-50"
+                className="absolute w-10 h-10 text-white transition-colors shadow-sm bg-primary right-2 bottom-2 rounded-xl hover:bg-primary/90 disabled:opacity-50"
               >
                 {disabled ? (
                   <Loader2 className="w-5 h-5 animate-spin" />

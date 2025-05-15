@@ -1,8 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { Chat, PaginatedResponse } from "@/types";
-import { chatsApi } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
-import { useUser } from "@/lib/auth";
+import { chatsApi } from "@/lib/api";
+import { Chat, PaginatedResponse } from "@/types";
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { useSession } from "./session-context";
 
 interface ChatContextType {
   recentChats: PaginatedResponse<Chat>;
@@ -22,7 +28,7 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const { data: user } = useUser();
+  const { user } = useSession();
   const { toast } = useToast();
   const [recentChats, setRecentChats] = useState<PaginatedResponse<Chat>>({
     results: [],
@@ -129,7 +135,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   const addNewChat = (chat: Chat) => {
-    const exists = recentChats.results.some((c) => String(c.id) === String(chat.id));
+    const exists = recentChats.results.some(
+      (c) => String(c.id) === String(chat.id)
+    );
 
     if (!exists) {
       setRecentChats((prevChats) => ({
@@ -143,7 +151,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const removeChat = (chatId: number | string) => {
     setRecentChats((prevChats) => ({
       ...prevChats,
-      results: prevChats.results.filter((chat) => String(chat.id) !== String(chatId)),
+      results: prevChats.results.filter(
+        (chat) => String(chat.id) !== String(chatId)
+      ),
       total_count: prevChats.total_count - 1,
     }));
   };
@@ -182,4 +192,4 @@ export const useChatContext = () => {
     throw new Error("useChatContext must be used within a ChatProvider");
   }
   return context;
-}; 
+};

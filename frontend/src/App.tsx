@@ -35,7 +35,6 @@ export default function App() {
           <ChatProvider>
             <ChatStreamProvider>
               <Routes>
-                {/* Public Landing Pages - No Layout/Sidebar */}
                 <Route path="/" element={<LandingPage />} />
                 <Route
                   path="/terms-and-conditions"
@@ -44,7 +43,6 @@ export default function App() {
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                 <Route path="/graph" element={<GraphPage />} />
 
-                {/* Auth & Protected Pages - With Layout */}
                 <Route element={<Layout />}>
                   <Route
                     path="/login"
