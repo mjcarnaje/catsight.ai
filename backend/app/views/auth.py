@@ -172,7 +172,7 @@ class UserProfileView(APIView):
         """
         serializer = UserSerializer(request.user)
         user_data = serializer.data
-        full_url = f"https://catsightai.ngrok.app{settings.MEDIA_URL}{user_data['avatar']}"
+        full_url = f"https://catsightai.ngrok.app{user_data['avatar']}"
         user_data['avatar'] = full_url
         return Response(user_data, status=status.HTTP_200_OK)
     
@@ -196,7 +196,7 @@ class UserProfileView(APIView):
         if serializer.is_valid():
             serializer.save()
             user_data = serializer.data
-            full_url = f"https://catsightai.ngrok.app{settings.MEDIA_URL}{user_data['avatar']}"
+            full_url = f"https://catsightai.ngrok.app{user_data['avatar']}"
             user_data['avatar'] = full_url
             return Response(user_data, status=status.HTTP_200_OK)
         

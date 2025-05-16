@@ -3,6 +3,7 @@ import { ChatList } from "@/components/chat/chat-list";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { useToast } from "@/components/ui/use-toast";
 import { useChatStream } from "@/contexts/chat-stream-context";
+import { useSession } from "@/contexts/session-context";
 import { chatsApi, llmApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { LLMModel } from "@/types";
@@ -17,7 +18,7 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id: chatId } = useParams<{ id: string }>();
-
+  const { user } = useSession();
   const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
   const [text, setText] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
@@ -156,8 +157,8 @@ export default function ChatPage() {
       <div
         className={cn(
           "absolute inset-0 pointer-events-none",
-          "[background-size:40px_40px]",
-          "[background-image:radial-gradient(#d4d4d4_1px,transparent_1px)]",
+          "[background-size:20px_20px]",
+          "[background-image:radial-gradient(#e8e8e8_1px,transparent_1px)]",
           "z-0"
         )}
       />
@@ -166,7 +167,7 @@ export default function ChatPage() {
         {isLoadingHistory ? (
           <div className="flex items-center justify-center flex-1">
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-sm text-gray-500">Loading conversation...</p>
             </div>
           </div>
@@ -187,6 +188,7 @@ export default function ChatPage() {
           onModelChange={(model) => setSelectedModel(model)}
           onSend={handleSend}
           disabled={isStreaming || isLoadingModels}
+          showModelSelector={user?.is_dev_mode}
         />
       </div>
     </div>

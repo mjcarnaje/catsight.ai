@@ -36,6 +36,8 @@ class User(AbstractUser):
         choices=UserRole.choices(),
         default=UserRole.USER
     )
+    first_name          = models.CharField(max_length=255, null=True, blank=True)
+    last_name           = models.CharField(max_length=255, null=True, blank=True)
     avatar              = models.CharField(max_length=255, default="/media/default-avatar.jpg")
     google_id           = models.CharField(max_length=255, null=True, blank=True)
     is_onboarded        = models.BooleanField(default=False, help_text="Whether the user has completed the onboarding process")

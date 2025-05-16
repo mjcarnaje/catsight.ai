@@ -51,7 +51,7 @@ export const AIMessage: React.FC<AIMessageProps> = ({
   const showThinking = thinkingVisibility && processedContent.hasThinking;
 
   return (
-    <div className={cn("flex", "justify-start")}>
+    <div className={cn("flex z-10 justify-start")}>
       <div className={cn(
         "max-w-sm sm:max-w-md md:max-w-lg relative group text-gray-800"
       )}>

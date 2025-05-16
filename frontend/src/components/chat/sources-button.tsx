@@ -70,7 +70,7 @@ export function SourcesButton({ sources, className }: SourcesButtonProps) {
                         className="object-cover w-full h-full"
                       />
                     ) : (
-                      <div className="flex items-center justify-center w-full h-full text-white bg-pink-500">
+                      <div className="flex items-center justify-center w-full h-full text-white bg-primary">
                         {source.title.charAt(0).toUpperCase()}
                       </div>
                     )}
