@@ -7,5 +7,8 @@ export interface User {
   role: string;
   avatar: string | null;
   is_onboarded: boolean;
-  favorite_llm_models: string[];
+  is_dev_mode: boolean;
+  default_markdown_converter: string;
+  default_summarization_model: string;
+  default_chat_model: string;
 }

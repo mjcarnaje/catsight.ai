@@ -1,7 +1,7 @@
-import { User } from "@/types";
 import axios from "axios";
 import { createContext, useContext, useEffect, useState } from "react";
 import { authApi } from "../lib/auth";
+import { User } from "@/types/user";
 
 interface SessionContextValue {
   user: User | null;

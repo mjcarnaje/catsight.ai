@@ -1,20 +1,8 @@
 import { DocumentStatus } from "@/lib/document-status-config";
 import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
+import { User } from "./user";
 export * from "./llm";
 export * from "./message";
-
-export interface User {
-  id: string | number;
-  email: string;
-  role: string;
-  name?: string;
-  avatar?: string;
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  is_onboarded?: boolean;
-  favorite_llm_models?: string[];
-}
 
 export interface StatusHistory {
   id: number;
@@ -78,11 +66,11 @@ export type ViewMode = "card" | "table";
 
 export interface PaginatedResponse<T> {
   results: T[];
-  total_pages: number;
-  current_page: number;
-  total_count: number;
-  has_next: boolean;
-  has_previous: boolean;
+  count: number;
+  num_pages: number;
+  page: number;
+  next: number | null;
+  previous: number | null;
 }
 
 export interface LLMModel {

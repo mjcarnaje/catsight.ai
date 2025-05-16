@@ -1,34 +1,3 @@
-import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
-import { DocumentStatus, calculateDocumentStatusFromHistory, getDocumentStatusDisplay } from "@/lib/document-status-config";
-import { Document } from "@/types";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Eye, FileText, Image as ImageIcon, Loader2, MoreHorizontal, RefreshCw, RotateCw, Trash, User } from "lucide-react";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
-import { useToast } from "./ui/use-toast";
-import { formatDistanceToNow } from "date-fns";
-import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
-import { Progress } from "./ui/progress";
-import { useNavigate } from "react-router-dom";
-import { StatusHistoryPopover } from "./status-history-popover";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-import { cn } from "@/lib/utils";
-import { Blurhash } from "react-blurhash";
-import { useState } from "react";
-import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
 import {
   Dialog,
   DialogContent,
@@ -37,8 +6,53 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
+import { DOCUMENT_STATUS_CONFIG } from "@/lib/document-status-config";
+import { cn } from "@/lib/utils";
+import { Document, ModelInfo } from "@/types";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
+import {
+  Eye,
+  FileText,
+  Image as ImageIcon,
+  Loader2,
+  MoreHorizontal,
+  RefreshCw,
+  RotateCw,
+  Trash,
+} from "lucide-react";
+import { useState } from "react";
+import { Blurhash } from "react-blurhash";
+import { useNavigate } from "react-router-dom";
+import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
 import { ModelSelector } from "./chat/model-selector";
-import { ModelInfo } from "@/types";
+import { StatusHistoryPopover } from "./status-history-popover";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
+import { useToast } from "./ui/use-toast";
 
 interface DocumentTableProps {
   documents: Document[];
@@ -48,7 +62,9 @@ export function DocumentTable({ documents }: DocumentTableProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [loadedPreviews, setLoadedPreviews] = useState<Record<number, boolean>>({});
+  const [loadedPreviews, setLoadedPreviews] = useState<Record<number, boolean>>(
+    {}
+  );
   const [isModelDialogOpen, setIsModelDialogOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
@@ -111,13 +127,14 @@ export function DocumentTable({ documents }: DocumentTableProps) {
   });
 
   const reextractMutation = useMutation({
-    mutationFn: ({ docId, converter }: { docId: number, converter: string }) =>
+    mutationFn: ({ docId, converter }: { docId: number; converter: string }) =>
       documentsApi.reextract(docId, converter),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
         title: "Success",
-        description: "Document re-extraction started. This might take a moment.",
+        description:
+          "Document re-extraction started. This might take a moment.",
       });
     },
     onError: () => {
@@ -140,9 +157,9 @@ export function DocumentTable({ documents }: DocumentTableProps) {
   };
 
   const handleImageLoad = (docId: number) => {
-    setLoadedPreviews(prev => ({
+    setLoadedPreviews((prev) => ({
       ...prev,
-      [docId]: true
+      [docId]: true,
     }));
   };
 
@@ -154,7 +171,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
     if (selectedModel && selectedDocId) {
       regenerateSummaryMutation.mutate({
         docId: selectedDocId,
-        modelId: selectedModel.id
+        modelId: selectedModel.id,
       });
     }
   };
@@ -169,20 +186,27 @@ export function DocumentTable({ documents }: DocumentTableProps) {
       <TableHeader>
         <TableRow className="bg-muted/40 hover:bg-muted/40">
           <TableHead className="w-[50px] font-medium">Preview</TableHead>
-          <TableHead className="w-[200px] md:w-[280px] font-medium">Title</TableHead>
-          <TableHead className="hidden font-medium sm:table-cell">Status</TableHead>
-          <TableHead className="hidden font-medium md:table-cell">Uploader</TableHead>
-          <TableHead className="hidden font-medium md:table-cell">Created</TableHead>
-          <TableHead className="hidden font-medium sm:table-cell">Chunks</TableHead>
+          <TableHead className="w-[200px] md:w-[280px] font-medium">
+            Title
+          </TableHead>
+          <TableHead className="hidden font-medium sm:table-cell">
+            Status
+          </TableHead>
+          <TableHead className="hidden font-medium md:table-cell">
+            Uploader
+          </TableHead>
+          <TableHead className="hidden font-medium md:table-cell">
+            Created
+          </TableHead>
+          <TableHead className="hidden font-medium sm:table-cell">
+            Chunks
+          </TableHead>
           <TableHead className="font-medium text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {documents.map((doc) => {
-          const hasStatusHistory = doc.status_history && doc.status_history.length > 0;
-          const statusInfo = hasStatusHistory
-            ? calculateDocumentStatusFromHistory(doc.status_history)
-            : { ...getDocumentStatusDisplay(doc.status), progress: 0, currentStatus: doc.status };
+          const statusInfo = DOCUMENT_STATUS_CONFIG[doc.status];
 
           const hasPreview = doc.preview_image && doc.blurhash;
           const previewImageUrl = getDocumentPreviewUrl(doc.preview_image);
@@ -213,7 +237,8 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                       <img
                         src={previewImageUrl}
                         alt={doc.title}
-                        className={`w-full h-full object-cover transition-opacity duration-300 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                        className={`w-full h-full object-cover transition-opacity duration-300 ${isImageLoaded ? "opacity-100" : "opacity-0"
+                          }`}
                         onLoad={() => handleImageLoad(doc.id)}
                       />
                     </>
@@ -230,11 +255,18 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                     <FileText className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="transition-colors group-hover:text-primary line-clamp-1">{doc.title}</span>
+                    <span className="transition-colors group-hover:text-primary line-clamp-1">
+                      {doc.title}
+                    </span>
                     <div className="flex items-center mt-1 sm:hidden">
                       <Badge
                         variant="outline"
-                        className={cn(`rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`, statusInfo.color.bg, statusInfo.color.border, statusInfo.color.text)}
+                        className={cn(
+                          "rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap",
+                          statusInfo.bg,
+                          statusInfo.border,
+                          statusInfo.text
+                        )}
                       >
                         {statusInfo.showLoading ? (
                           <>
@@ -242,9 +274,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                             {statusInfo.label}
                           </>
                         ) : (
-                          <>
-                            {statusInfo.label}
-                          </>
+                          <>{statusInfo.label}</>
                         )}
                       </Badge>
                     </div>
@@ -255,7 +285,12 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                 <div className="flex items-center gap-2">
                   <Badge
                     variant="outline"
-                    className={cn(`rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`, statusInfo.color.bg, statusInfo.color.border, statusInfo.color.text)}
+                    className={cn(
+                      "rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap",
+                      statusInfo.bg,
+                      statusInfo.border,
+                      statusInfo.text
+                    )}
                   >
                     {statusInfo.showLoading ? (
                       <>
@@ -263,16 +298,11 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                         {statusInfo.label}
                       </>
                     ) : (
-                      <>
-                        {statusInfo.label}
-                      </>
+                      <>{statusInfo.label}</>
                     )}
                   </Badge>
                   {doc.status_history && doc.status_history.length > 0 && (
-                    <StatusHistoryPopover
-                      statusHistory={doc.status_history}
-                      progress={statusInfo.progress}
-                    />
+                    <StatusHistoryPopover statusHistory={doc.status_history} />
                   )}
                 </div>
               </TableCell>
@@ -284,13 +314,19 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                         <TooltipTrigger>
                           <Avatar className="w-6 h-6 border-[1px] border-primary/10">
                             <AvatarImage
-                              src={doc.uploaded_by.avatar || ''}
-                              alt={doc.uploaded_by.username || doc.uploaded_by.email}
+                              src={doc.uploaded_by.avatar || ""}
+                              alt={
+                                doc.uploaded_by.username ||
+                                doc.uploaded_by.email
+                              }
                             />
                             <AvatarFallback className="text-xs bg-primary/5 text-primary">
-                              {getInitials(doc.uploaded_by.first_name && doc.uploaded_by.last_name
-                                ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
-                                : doc.uploaded_by.username)}
+                              {getInitials(
+                                doc.uploaded_by.first_name &&
+                                  doc.uploaded_by.last_name
+                                  ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
+                                  : doc.uploaded_by.username
+                              )}
                             </AvatarFallback>
                           </Avatar>
                         </TooltipTrigger>
@@ -300,7 +336,8 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                       </Tooltip>
                     </TooltipProvider>
                     <span className="text-sm truncate max-w-[120px]">
-                      {doc.uploaded_by.username || doc.uploaded_by.email.split('@')[0]}
+                      {doc.uploaded_by.username ||
+                        doc.uploaded_by.email.split("@")[0]}
                     </span>
                   </div>
                 ) : (
@@ -309,7 +346,9 @@ export function DocumentTable({ documents }: DocumentTableProps) {
               </TableCell>
               <TableCell className="hidden md:table-cell">
                 <span className="text-sm text-muted-foreground">
-                  {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(doc.created_at), {
+                    addSuffix: true,
+                  })}
                 </span>
               </TableCell>
               <TableCell className="hidden sm:table-cell">
@@ -318,7 +357,10 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                 </div>
               </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end space-x-2" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flex justify-end space-x-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Button
                     variant="ghost"
                     size="icon"
@@ -350,7 +392,9 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                         }}
                         disabled={regenerateSummaryMutation.isPending}
                       >
-                        {regenerateSummaryMutation.isPending && regenerateSummaryMutation.variables?.docId === doc.id ? (
+                        {regenerateSummaryMutation.isPending &&
+                          regenerateSummaryMutation.variables?.docId ===
+                          doc.id ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         ) : (
                           <RefreshCw className="w-4 h-4 mr-2" />
@@ -365,9 +409,13 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                               e.stopPropagation();
                               regeneratePreviewMutation.mutate(doc.id);
                             }}
-                            disabled={regeneratePreviewMutation.isPending && regeneratePreviewMutation.variables === doc.id}
+                            disabled={
+                              regeneratePreviewMutation.isPending &&
+                              regeneratePreviewMutation.variables === doc.id
+                            }
                           >
-                            {regeneratePreviewMutation.isPending && regeneratePreviewMutation.variables === doc.id ? (
+                            {regeneratePreviewMutation.isPending &&
+                              regeneratePreviewMutation.variables === doc.id ? (
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                             ) : (
                               <RotateCw className="w-4 h-4 mr-2" />
@@ -377,27 +425,36 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                           <DropdownMenuSeparator />
                         </>
                       )}
-                      <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                      <DropdownMenuItem
+                        disabled
+                        className="text-xs text-muted-foreground"
+                      >
                         Re-extract with:
                       </DropdownMenuItem>
-                      {Object.entries(MARKDOWN_CONVERTERS).map(([key, converter]) => (
-                        <DropdownMenuItem
-                          key={key}
-                          className="flex items-center gap-2"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            reextractMutation.mutate({ docId: doc.id, converter: key });
-                          }}
-                          disabled={reextractMutation.isPending}
-                        >
-                          {reextractMutation.isPending && reextractMutation.variables?.docId === doc.id ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <converter.icon className="w-4 h-4 mr-2" />
-                          )}
-                          {converter.label}
-                        </DropdownMenuItem>
-                      ))}
+                      {Object.entries(MARKDOWN_CONVERTERS).map(
+                        ([key, converter]) => (
+                          <DropdownMenuItem
+                            key={key}
+                            className="flex items-center gap-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              reextractMutation.mutate({
+                                docId: doc.id,
+                                converter: key,
+                              });
+                            }}
+                            disabled={reextractMutation.isPending}
+                          >
+                            {reextractMutation.isPending &&
+                              reextractMutation.variables?.docId === doc.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <converter.icon className="w-4 h-4 mr-2" />
+                            )}
+                            {converter.label}
+                          </DropdownMenuItem>
+                        )
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
@@ -406,7 +463,8 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                           handleDeleteMutation.mutate(doc.id);
                         }}
                       >
-                        {handleDeleteMutation.isPending && handleDeleteMutation.variables === doc.id ? (
+                        {handleDeleteMutation.isPending &&
+                          handleDeleteMutation.variables === doc.id ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         ) : (
                           <Trash className="w-4 h-4 mr-2" />
@@ -445,7 +503,10 @@ export function DocumentTable({ documents }: DocumentTableProps) {
           <div className="py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Summarization Model</label>
-              <ModelSelector modelId={selectedModel?.id} onModelChange={handleModelChange} />
+              <ModelSelector
+                modelId={selectedModel?.id}
+                onModelChange={handleModelChange}
+              />
             </div>
           </div>
           <DialogFooter>
@@ -474,4 +535,4 @@ export function DocumentTable({ documents }: DocumentTableProps) {
       </Dialog>
     </Table>
   );
-} 
+}

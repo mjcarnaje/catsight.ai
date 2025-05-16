@@ -1,12 +1,22 @@
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
-import { DocumentStatus, calculateDocumentStatusFromHistory, getDocumentStatusDisplay } from "@/lib/document-status-config";
-import { Document } from "@/types";
+import { DOCUMENT_STATUS_CONFIG } from "@/lib/document-status-config";
+import { cn } from "@/lib/utils";
+import { Document, ModelInfo } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, RefreshCw, RotateCw, Tag, Trash } from "lucide-react";
+import { Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, MoreHorizontal, RefreshCw, RotateCw, Tag, Trash } from "lucide-react";
 import { useState } from "react";
 import { Blurhash } from "react-blurhash";
 import { useNavigate } from "react-router-dom";
 import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
+import { ModelSelector } from "./chat/model-selector";
 import { StatusHistoryPopover } from "./status-history-popover";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
@@ -16,32 +26,19 @@ import {
   CardDescription
 } from "./ui/card";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "./ui/tooltip";
-import { useToast } from "./ui/use-toast";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
-import { Markdown } from "./markdown";
-import { cn } from "@/lib/utils";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { ModelSelector } from "./chat/model-selector";
-import { ModelInfo } from "@/types";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
+import { useToast } from "./ui/use-toast";
 
 interface DocumentCardProps {
   doc: Document;
@@ -56,16 +53,9 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   const [isModelDialogOpen, setIsModelDialogOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
 
-  // Get document year (prefer doc.year if available, otherwise use creation date year)
   const documentYear = doc.year || new Date(doc.created_at).getFullYear();
 
-  // Get tags or empty array if not available
   const tags = doc.tags || [];
-
-  // Use status history if available, otherwise use the current status
-  const statusInfo = hasStatusHistory
-    ? calculateDocumentStatusFromHistory(doc.status_history)
-    : { ...getDocumentStatusDisplay(doc.status), progress: 0, currentStatus: doc.status };
 
   const handleDeleteMutation = useMutation({
     mutationFn: () => documentsApi.delete(doc.id.toString()),
@@ -167,6 +157,8 @@ export function DocumentCard({ doc }: DocumentCardProps) {
     }
   };
 
+  const statusInfo = DOCUMENT_STATUS_CONFIG[doc.status];
+
   return (
     <Card
       key={doc.id}
@@ -228,7 +220,12 @@ export function DocumentCard({ doc }: DocumentCardProps) {
           <div className="flex justify-end gap-1.5 mb-1.5">
             <Badge
               variant="outline"
-              className={cn(`rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`, statusInfo.color.bg, statusInfo.color.border, statusInfo.color.text)}
+              className={cn(
+                "rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap",
+                statusInfo.bg,
+                statusInfo.border,
+                statusInfo.text
+              )}
             >
               {statusInfo.showLoading ? (
                 <>
@@ -253,7 +250,6 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             {hasStatusHistory && (
               <StatusHistoryPopover
                 statusHistory={doc.status_history}
-                progress={statusInfo.progress}
               />
             )}
           </div>

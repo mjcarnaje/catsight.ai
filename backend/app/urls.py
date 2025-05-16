@@ -24,6 +24,8 @@ from .views.documents import (
     get_docs_count,
     regenerate_summary,
     reextract_doc,
+    get_all_tags,
+    get_all_years,
 )
 from .views.llm import (
     get_llm_models,
@@ -66,7 +68,8 @@ urlpatterns = [
     path('documents/chat/', chat_with_docs, name='chat_with_docs'),
     path('documents/delete_all/', delete_all_docs, name='delete_all_docs'),
     path('documents/graph/', get_graph_image, name='get_graph_image'),
-    path('chats/<str:chat_id>/history/', get_chat_history, name='get_chat_history'),
+    path('documents/get_all_tags/', get_all_tags, name='get_all_tags'),
+    path('documents/get_all_years/', get_all_years, name='get_all_years'),
     
     # Chat URLs
     path('chats/count/', get_chats_count, name='get_chats_count'),
@@ -74,4 +77,5 @@ urlpatterns = [
     path('chats/<int:chat_id>/', get_chat, name='get_chat'),
     path('chats/create/', create_chat, name='create_chat'),
     path('chats/<int:chat_id>/delete/', delete_chat, name='delete_chat'),
+    path('chats/<str:chat_id>/history/', get_chat_history, name='get_chat_history'),
 ]

@@ -87,7 +87,7 @@ class Assistant:
 
     def __call__(self, state: State, config: RunnableConfig):
         configuration = config.get("configurable", {})
-        model_key = configuration.get("model", "llama3.2:1b")
+        model_key = configuration.get("model")
         self.runnable = self.prompt | ChatOllama(model=model_key, base_url=base_url, temperature=1).bind_tools(self.tools)
 
         while True:
@@ -124,10 +124,9 @@ Today's date is {today_date}.
 </role_and_capabilities>
 
 <retrieval_guidance>
-- Retrieved documents may contain irrelevant or noisy content.
 - Prioritize answering the user's question clearly and directly.
 - Ignore unrelated or low-value text in the retrievals unless it supports the response.
-- Do not summarize the entire context if only a portion is needed to address the query effectively.
+- Please avoid using "MSU-IIT" or the institution's name in your retrieval query.
 </retrieval_guidance>
 
 <interaction_style>
@@ -192,7 +191,7 @@ def retrieve(query: str, config: RunnableConfig) -> str:
     Args:
         query (str): The query to retrieve documents on.
     """
-    model_id = config["configurable"].get("model", "llama3.2:1b")
+    model_id = config["configurable"].get("model")
     docs = retriever.invoke(query)
     filtered_documents = []
 

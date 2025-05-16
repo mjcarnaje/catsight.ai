@@ -86,14 +86,14 @@ export function MultiSelect({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-auto w-auto p-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                      className="w-auto h-auto p-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleUnselect(item)
                       }}
                       disabled={disabled}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="w-3 h-3" />
                       <span className="sr-only">Remove {selectedOption?.label}</span>
                     </Button>
                   </Badge>
@@ -103,10 +103,10 @@ export function MultiSelect({
               <span className="text-sm text-muted-foreground">{placeholder}</span>
             )}
           </div>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="w-4 h-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
           <CommandInput placeholder="Search options..." />
           <CommandList>

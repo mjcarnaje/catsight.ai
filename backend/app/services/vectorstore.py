@@ -1,14 +1,13 @@
-import json
 from langchain_postgres import PGVector
-from app.services.ollama import BGEM3_EMBEDDINGS
-import logging
-
-logger = logging.getLogger(__name__)
+from langchain_ollama import OllamaEmbeddings
 
 DB_URI = "postgresql+psycopg://postgres:postgres@db:5432/app_db"
 
+EMBEDDING_MODEL_ID = "mxbai-embed-large"
+EMBEDDINGS = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url="http://ollama:11434")
+
 vector_store = PGVector(
-    embeddings=BGEM3_EMBEDDINGS,
+    embeddings=EMBEDDINGS,
     collection_name="docs_chunks",
     connection=DB_URI,
     use_jsonb=True,

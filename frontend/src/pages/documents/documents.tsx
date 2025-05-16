@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { UploadDocumentsModal } from "@/components/upload-documents-modal"
 import { documentsApi } from "@/lib/api"
@@ -45,9 +46,19 @@ export default function DocumentsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('card')
   const [searchQuery, setSearchQuery] = useState("")
-  const [tagOptions, setTagOptions] = useState<Option[]>([])
-  const [yearOptions, setYearOptions] = useState<Option[]>([])
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+
+  const { data: tagOptions, isLoading: isTagOptionsLoading } = useQuery({
+    queryKey: ["tags"],
+    queryFn: () => documentsApi.getAllTags(),
+    staleTime: 60,
+  })
+
+  const { data: yearOptions, isLoading: isYearOptionsLoading } = useQuery({
+    queryKey: ["years"],
+    queryFn: () => documentsApi.getAllYears(),
+    staleTime: 60,
+  })
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -154,60 +165,9 @@ export default function DocumentsPage() {
     refetchInterval: 5000,
   })
 
-  // Extract unique tags and years from all documents for the filter options
-  useEffect(() => {
-    if (paginatedDocuments?.results) {
-      const uniqueTags = new Set<string>()
-      const uniqueYears = new Set<string>()
-
-      paginatedDocuments.results.forEach(doc => {
-        // Extract tags
-        if (doc.tags && Array.isArray(doc.tags)) {
-          doc.tags.forEach(tag => {
-            if (tag) uniqueTags.add(tag)
-          })
-        }
-
-        // Extract years
-        if (doc.year !== undefined && doc.year !== null) {
-          uniqueYears.add(doc.year.toString())
-        }
-      })
-
-      const sortedTags = Array.from(uniqueTags).sort()
-      setTagOptions(sortedTags.map(tag => ({ value: tag, label: tag })))
-
-      const sortedYears = Array.from(uniqueYears).sort((a, b) => parseInt(b) - parseInt(a))
-      setYearOptions(sortedYears.map(year => ({ value: year, label: year })))
-    }
-  }, [paginatedDocuments])
-
   const totalPages = paginatedDocuments?.num_pages || 1
 
-  const uploadMutation = useMutation({
-    mutationFn: ({
-      files,
-      markdown_converter,
-      summarization_model,
-    }: {
-      files: File[];
-      markdown_converter: string;
-      summarization_model: string;
-    }) => documentsApi.upload(files, markdown_converter, summarization_model),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      setIsDialogOpen(false);
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to upload files",
-        variant: "destructive",
-      });
-    },
-  });
 
-  // Handle page change
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -368,12 +328,16 @@ export default function DocumentsPage() {
                       <Calendar className="h-3.5 w-3.5" />
                       Year
                     </label>
-                    <MultiSelect
-                      options={yearOptions}
-                      selected={filters.year || []}
-                      onChange={handleYearFilterChange}
-                      placeholder="Filter by years"
-                    />
+                    {isYearOptionsLoading ? (
+                      <Skeleton className="h-9" />
+                    ) : (
+                      <MultiSelect
+                        options={yearOptions.map(year => ({ value: year, label: year }))}
+                        selected={filters.year || []}
+                        onChange={handleYearFilterChange}
+                        placeholder="Filter by years"
+                      />
+                    )}
                   </div>
 
                   {/* Tags filter */}
@@ -382,12 +346,16 @@ export default function DocumentsPage() {
                       <Tag className="h-3.5 w-3.5" />
                       Tags
                     </label>
-                    <MultiSelect
-                      options={tagOptions}
-                      selected={filters.tags || []}
-                      onChange={handleTagsFilterChange}
-                      placeholder="Filter by tags"
-                    />
+                    {isTagOptionsLoading ? (
+                      <Skeleton className="h-9" />
+                    ) : (
+                      <MultiSelect
+                        options={tagOptions.map(tag => ({ value: tag, label: tag }))}
+                        selected={filters.tags || []}
+                        onChange={handleTagsFilterChange}
+                        placeholder="Filter by tags"
+                      />
+                    )}
                   </div>
                 </div>
               </PopoverContent>
@@ -619,10 +587,6 @@ export default function DocumentsPage() {
       <UploadDocumentsModal
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        onUpload={(files, markdown_converter, summarization_model) =>
-          uploadMutation.mutate({ files, markdown_converter, summarization_model })
-        }
-        isUploading={uploadMutation.isPending}
       />
     </div>
   )

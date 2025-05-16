@@ -171,7 +171,10 @@ class UserProfileView(APIView):
         Get the authenticated user's profile
         """
         serializer = UserSerializer(request.user)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        user_data = serializer.data
+        full_url = f"https://catsightai.ngrok.app{settings.MEDIA_URL}{user_data['avatar']}"
+        user_data['avatar'] = full_url
+        return Response(user_data, status=status.HTTP_200_OK)
     
     def patch(self, request):
         """
@@ -179,52 +182,23 @@ class UserProfileView(APIView):
         """
         data = request.data.copy()
         
-        # Log request data for debugging
         logger.info(f"PATCH Profile request data: {data}")
         
-        # Handle avatar upload if included
-        if 'avatar_file' in request.FILES:
-            avatar_file = request.FILES['avatar_file']
-            filename = f"avatars/{uuid.uuid4()}{os.path.splitext(avatar_file.name)[1]}"
+        if 'avatar' in request.FILES:
+            avatar_file = request.FILES['avatar']
+            extension = os.path.splitext(avatar_file.name)[1]
+            filename = f"avatars/{uuid.uuid4()}{extension}"
             path = default_storage.save(filename, ContentFile(avatar_file.read()))
-            full_url = request.build_absolute_uri(settings.MEDIA_URL + path)
-            data['avatar'] = full_url
-        
-        # Handle favorite_llm_models if provided
-        if 'favorite_llm_models' in data:
-            try:
-                model_codes = data['favorite_llm_models']
-                if isinstance(model_codes, str):
-                    # Handle potential string JSON input
-                    try:
-                        model_codes = json.loads(model_codes)
-                    except json.JSONDecodeError:
-                        model_codes = [model_codes]  # Single string value
-                
-                # Validate model codes against available models
-                json_path = Path(__file__).parent.parent / 'constant' / 'llm.json'
-                with open(json_path, 'r') as f:
-                    available_models = json.load(f)
-                
-                available_codes = [model['code'] for model in available_models]
-                valid_codes = [code for code in model_codes if code in available_codes]
-                
-                # Update user's favorite models
-                data['favorite_llm_models'] = valid_codes
-                
-            except Exception as e:
-                logger.error(f"Error updating favorite_llm_models: {e}")
-                return Response(
-                    {"detail": "Failed to update favorite models"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            data['avatar'] = path
         
         serializer = UserSerializer(request.user, data=data, partial=True)
         
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            user_data = serializer.data
+            full_url = f"https://catsightai.ngrok.app{settings.MEDIA_URL}{user_data['avatar']}"
+            user_data['avatar'] = full_url
+            return Response(user_data, status=status.HTTP_200_OK)
         
-        # Log validation errors
         logger.error(f"Serializer errors: {serializer.errors}")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
