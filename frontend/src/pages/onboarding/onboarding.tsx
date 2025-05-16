@@ -26,10 +26,9 @@ export function OnboardingPage() {
   const [avatarPreview, setAvatarPreview] = useState<string | undefined>(
     user?.avatar
   );
+  const [firstName, setFirstName] = useState<string>(user?.first_name || "");
+  const [lastName, setLastName] = useState<string>(user?.last_name || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fullName, setFullName] = useState<string>(
-    `${user?.first_name || ""} ${user?.last_name || ""}`
-  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,8 +76,8 @@ export function OnboardingPage() {
     try {
       const formData = new FormData();
       formData.append("is_onboarded", "true");
-      formData.append("first_name", fullName.split(" ")[0]);
-      formData.append("last_name", fullName.split(" ").slice(1).join(" "));
+      formData.append("first_name", firstName);
+      formData.append("last_name", lastName);
 
       if (avatar) {
         formData.append("avatar", avatar);
@@ -155,17 +154,22 @@ export function OnboardingPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Name</Label>
+              <Label>First Name</Label>
               <Input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
                 className="bg-muted"
               />
-              <p className="text-xs text-muted-foreground">
-                You provided this during registration
-              </p>
             </div>
 
+            <div className="space-y-2">
+              <Label>Last Name</Label>
+              <Input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="bg-muted"
+              />
+            </div>
             <div className="space-y-2">
               <Label>Email</Label>
               <Input value={user?.email || ""} disabled className="bg-muted" />

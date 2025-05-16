@@ -16,8 +16,8 @@ export function PublicRoute({ children }: { children: ReactNode }) {
       <div
         className={cn(
           "absolute inset-0 pointer-events-none",
-          "[background-size:40px_40px]",
-          "[background-image:radial-gradient(#d4d4d4_1px,transparent_1px)]",
+          "[background-size:20px_20px]",
+          "[background-image:radial-gradient(#e8e8e8_1px,transparent_1px)]",
           "z-0"
         )}
       />

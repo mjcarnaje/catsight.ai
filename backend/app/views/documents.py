@@ -381,7 +381,7 @@ def chat_with_docs(request):
     if not query or not isinstance(query, str) or not query.strip():
         return Response({"error": "Valid query parameter is required"}, status=400)
     
-    model_id = body.get("model_id", "llama3.2:1b")
+    model_id = body.get("model_id", "llama3.1:8b")
     chat_id = body.get("chat_id")
         
     def event_stream():

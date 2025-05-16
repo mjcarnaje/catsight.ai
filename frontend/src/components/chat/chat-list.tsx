@@ -144,10 +144,10 @@ export function ChatList({
             return (
               <div
                 key={idx}
-                className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm"
+                className="z-10 p-4 bg-white border border-gray-200 rounded-lg shadow-sm"
               >
                 <div className="flex items-center gap-2 mb-3">
-                  <Icon className="w-5 h-5 text-pink-500" />
+                  <Icon className="w-5 h-5 text-primary" />
                   <h3 className="font-medium text-gray-800">
                     {category.label}
                   </h3>
@@ -157,7 +157,7 @@ export function ChatList({
                     <button
                       key={pIdx}
                       onClick={() => onSelectSuggestion?.(prompt)}
-                      className="w-full p-2 text-sm text-left text-gray-700 transition-colors rounded-md hover:bg-pink-50"
+                      className="w-full p-2 text-sm text-left text-gray-700 transition-colors rounded-md hover:bg-primary/20"
                     >
                       {prompt}
                     </button>
@@ -189,7 +189,7 @@ export function ChatList({
           return (
             <div
               key={msg.id}
-              className="flex items-center gap-4 p-2 bg-gray-100 rounded-md"
+              className="z-20 flex items-center gap-4 p-2 bg-gray-100 rounded-md"
             >
               <PickaxeIcon className="w-5 h-5 text-primary" />
               <div className="flex flex-col">

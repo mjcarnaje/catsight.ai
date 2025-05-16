@@ -14,6 +14,7 @@ interface ChatInputProps {
   onModelChange: (model: LLMModel | null) => void;
   onSend: (text: string) => void;
   disabled: boolean;
+  showModelSelector: boolean;
 }
 
 export function ChatInput({
@@ -23,6 +24,7 @@ export function ChatInput({
   onModelChange,
   onSend,
   disabled,
+  showModelSelector,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -108,9 +110,14 @@ export function ChatInput({
             </div>
           </form>
 
-          <div className="shrink-0">
-            <ModelSelector modelId={modelId} onModelChange={handleModelChange} />
-          </div>
+          {showModelSelector && (
+            <div className="shrink-0">
+              <ModelSelector
+                modelId={modelId}
+                onModelChange={handleModelChange}
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between px-1">
