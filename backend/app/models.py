@@ -36,16 +36,14 @@ class User(AbstractUser):
         choices=UserRole.choices(),
         default=UserRole.USER
     )
-    avatar              = models.CharField(max_length=255, null=True, blank=True)
+    avatar              = models.CharField(max_length=255, default="/media/default-avatar.jpg")
     google_id           = models.CharField(max_length=255, null=True, blank=True)
     is_onboarded        = models.BooleanField(default=False, help_text="Whether the user has completed the onboarding process")
-    favorite_llm_models = models.JSONField(
-        blank=True, 
-        null=True,
-        default=list,
-        help_text="List of LLM model codes that this user has favorited"
-    )
-
+    is_dev_mode         = models.BooleanField(default=False, help_text="Whether the user is in dev mode")
+    default_markdown_converter   = models.CharField(max_length=255, default="marker", help_text="The default converter to use for documents")
+    default_summarization_model   = models.CharField(max_length=255, default="llama3.1:8b", help_text="The default summarization model to use for documents")
+    default_chat_model   = models.CharField(max_length=255, default="llama3.1:8b", help_text="The default chat model to use for documents")
+    
     USERNAME_FIELD  = 'email'
     REQUIRED_FIELDS = ['username']
 

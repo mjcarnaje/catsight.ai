@@ -65,7 +65,7 @@ docker compose exec -T backend python manage.py shell <<'PYCODE'
 from django.contrib.auth import get_user_model
 User = get_user_model()
 email    = "michaeljames.carnaje@g.msuiit.edu.ph"
-username = "admin"
+username = "mjcarnaje"
 password = "password"
 
 if User.objects.filter(email=email).exists():

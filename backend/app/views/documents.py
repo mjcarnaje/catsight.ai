@@ -2,7 +2,6 @@ import logging
 import os
 from django.conf import settings
 
-from celery import chain
 from celery.result import AsyncResult
 from django.http import FileResponse, StreamingHttpResponse, HttpResponse
 from rest_framework import status
@@ -12,11 +11,10 @@ from rest_framework.response import Response
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 from ..models import Document, DocumentFullText, Chat
-from ..serializers import DocumentSerializer, ChatSerializer
+from ..serializers import DocumentSerializer
 from ..tasks.tasks import (generate_document_summary_task,
-                          extract_text_task,
-                          chunk_and_embed_text_task,
-                          update_document_status)
+                          update_document_status,
+                          process_document_task)
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsSuperAdmin, IsOwnerOrAdmin, AllowAny
 from ..services.vectorstore import vector_store
@@ -38,25 +36,21 @@ def get_docs(request):
     """
     documents = Document.objects.all().order_by('-created_at')
     
-    # Filter by status if specified
     status_filter = request.GET.get('status')
+    
     if status_filter and status_filter != 'all':
         documents = documents.filter(status=status_filter)
     
-    # Filter by year if specified
     years = request.GET.get('year')
     if years:
         year_list = years.split(',')
         documents = documents.filter(year__in=year_list)
     
-    # Filter by tags if specified
     tags = request.GET.get('tags')
     if tags:
         tag_list = tags.split(',')
-        # Filter documents that have any of the specified tags
         documents = documents.filter(tags__contains=tag_list)
     
-    # Pagination
     page_size = int(request.GET.get('page_size', 9))
     page_number = int(request.GET.get('page', 1))
     
@@ -86,11 +80,10 @@ def get_docs(request):
 def upload_doc(request):
     """
     Handle multiple document uploads and initiate OCR and summary generation using Celery tasks.
-    Only admins can upload documents.
     """
     uploaded_files = request.FILES.getlist('files')
-    markdown_converter = request.data.get('markdown_converter')
-    summarization_model = request.data.get('summarization_model')
+    markdown_converter = request.data.get('markdown_converter') or request.user.default_markdown_converter
+    summarization_model = request.data.get('summarization_model') or request.user.default_summarization_model
 
     if not uploaded_files:
         return Response({"status": "error", "message": "No files provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -118,21 +111,14 @@ def upload_doc(request):
                     document.file_type = file.content_type
                     document.save()
                     
-                    task_chain = chain(
-                        extract_text_task.s(document.id),
-                        chunk_and_embed_text_task.s(),
-                        generate_document_summary_task.s()
-                    )
-
-                    result = task_chain.apply_async()
+                    result = process_document_task.delay(document.id)
                     document.task_id = result.id
                     document.save()
 
                     response_data.append({"status": "success", "id": document.id, "filename": file.name})
                 except Exception as e:
-                    # If file upload process fails, clean up and log error
                     logger.error(f"Error in document upload process for {file.name}: {str(e)}", exc_info=True)
-                    document.delete()  # Clean up the document record
+                    document.delete() 
                     response_data.append({"status": "error", "filename": file.name, "errors": str(e)})
             else:
                 logger.error(f"Document upload failed for {file.name}: {serializer.errors}")
@@ -344,12 +330,11 @@ def update_doc_markdown(request, doc_id):
     document = Document.objects.get(pk=doc_id)
     update_document_status(document, DocumentStatus.TEXT_EXTRACTED)
 
-    # 4) Kick off re‐chunk & re‐summary
-    task_chain = chain(
-        chunk_and_embed_text_task.s(doc_id),
-        generate_document_summary_task.s()
-    )
-    task_chain.apply_async()
+    # 4) Kick off re‐chunk & re‐summary using the process_document_task
+    # This will detect the document's current status and continue from there
+    result = process_document_task.delay(doc_id)
+    document.task_id = result.id
+    document.save(update_fields=["task_id"])
 
     return Response(status=200)
 
@@ -799,13 +784,8 @@ def reextract_doc(request, doc_id):
             update_fields.append("summarization_model")
         update_document_status(document, DocumentStatus.PENDING, update_fields=update_fields)
 
-        # 4) Kick off extraction tasks chain
-        task_chain = chain(
-            extract_text_task.s(document.id),
-            chunk_and_embed_text_task.s(),
-            generate_document_summary_task.s()
-        )
-        result = task_chain.apply_async()
+        # 4) Kick off the process using the new task
+        result = process_document_task.delay(document.id)
         
         # Update task ID in document
         document.task_id = result.id
@@ -825,5 +805,50 @@ def reextract_doc(request, doc_id):
         logger.error(f"Error re-extracting document {doc_id}: {str(e)}", exc_info=True)
         return Response(
             {"status": "error", "message": f"Error re-extracting document: {str(e)}"}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_tags(request):
+    """
+    Get all unique tags from all documents.
+    """
+    try:
+        tags = Document.objects.values_list('tags', flat=True)
+        unique_tags = set()
+        for sublist in tags:
+            if sublist:
+                unique_tags.update(sublist)
+        sorted_tags = sorted(unique_tags)
+        return Response(sorted_tags, status=status.HTTP_200_OK)
+    except TypeError as e:
+        logger.error(f"Error getting all tags: {str(e)}")
+        return Response(
+            {"status": "error", "message": "Error getting all tags: 'NoneType' object is not iterable"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        logger.error(f"Error getting all tags: {str(e)}")
+        return Response(
+            {"status": "error", "message": f"Error getting all tags: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_all_years(request):
+    """
+    Get all unique years from all documents.
+    """
+    try:
+        years = Document.objects.values_list('year', flat=True).distinct()
+        filtered_years = filter(None, years)
+        reversed_years = sorted(filtered_years, reverse=True)
+        return Response(reversed_years, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error getting all years: {str(e)}")
+        return Response(
+            {"status": "error", "message": f"Error getting all years: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

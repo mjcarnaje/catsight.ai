@@ -1,6 +1,15 @@
+import { DOCUMENT_STATUS_CONFIG, getDocumentProgress } from "@/lib/document-status-config";
 import { StatusHistory } from "@/types";
-import { formatDistanceToNow, differenceInMilliseconds } from "date-fns";
-import { Clock } from "lucide-react";
+import { differenceInMilliseconds } from "date-fns";
+import {
+  Brain,
+  CheckCircle2,
+  CircleDot,
+  Clock,
+  FileSearch,
+  FileText,
+  Network
+} from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Popover,
@@ -8,47 +17,77 @@ import {
   PopoverTrigger,
 } from "./ui/popover";
 import { Progress } from "./ui/progress";
-import { getDocumentStatusDisplay } from "@/lib/document-status-config";
+
+type StatusHistoryWithElapsedTime = StatusHistory & { elapsedTime: number };
 
 interface StatusHistoryPopoverProps {
   statusHistory: StatusHistory[];
-  progress: number;
 }
 
-export function StatusHistoryPopover({ statusHistory, progress }: StatusHistoryPopoverProps) {
-  // Filter and sort status changes
-  const completedStatuses = statusHistory
-    .filter(s => s.changed_at !== null)
-    .sort((a, b) => {
-      return new Date(b.changed_at!).getTime() - new Date(a.changed_at!).getTime();
-    });
+export function StatusHistoryPopover({ statusHistory }: StatusHistoryPopoverProps) {
+  const progress = getDocumentProgress(statusHistory);
 
-  // Calculate elapsed time between status changes
-  const statusesWithElapsed = completedStatuses.map((status, index) => {
-    let elapsedTime = 0;
+  function getStatusHistoryWithElapsedTime(statusHistory: StatusHistory[]): StatusHistoryWithElapsedTime[] {
+    const sortedStatusHistory: StatusHistoryWithElapsedTime[] = statusHistory
+      .filter(s => s.changed_at !== null)
+      .sort((a, b) => {
+        if (!a.changed_at || !b.changed_at) return 0;
+        if (!a.changed_at) return 1;
+        if (!b.changed_at) return -1;
+        return new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime();
+      }).map(s => ({ ...s, elapsedTime: 0 }));
 
-    // If there is a next status (remember we sorted in reverse chronological order)
-    if (index < completedStatuses.length - 1) {
-      const currentDate = new Date(status.changed_at!);
-      const previousDate = new Date(completedStatuses[index + 1].changed_at!);
-      elapsedTime = differenceInMilliseconds(currentDate, previousDate);
+    const statusesWithElapsed: StatusHistoryWithElapsedTime[] = [];
+
+    for (let i = 0; i < sortedStatusHistory.length; i++) {
+      const status = sortedStatusHistory[i];
+      const previousStatus = sortedStatusHistory[i + 1];
+
+      let elapsedTime = 0;
+
+      if (previousStatus) {
+        const currentDate = new Date(status.changed_at!);
+        const previousDate = new Date(previousStatus.changed_at!);
+        elapsedTime = differenceInMilliseconds(currentDate, previousDate);
+        sortedStatusHistory[i + 1].elapsedTime = elapsedTime;
+      }
+
+      statusesWithElapsed.push(status);
     }
 
-    return {
-      ...status,
-      elapsedTime
-    };
-  });
+    return statusesWithElapsed;
+  }
 
-  // Calculate total elapsed time
+
+  const statusesWithElapsed = getStatusHistoryWithElapsedTime(statusHistory);
+
   const totalElapsedTime = statusesWithElapsed.reduce((total, status) => total + status.elapsedTime, 0);
 
-  // Format milliseconds to human-readable format
   const formatElapsedTime = (ms: number) => {
     if (ms < 1000) return `${ms}ms`;
     if (ms < 60000) return `${Math.floor(ms / 1000)}s`;
     if (ms < 3600000) return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
     return `${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`;
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      case "text_extracting":
+      case "text_extracted":
+        return <FileText className="w-4 h-4 text-blue-500" />;
+      case "generating_summary":
+      case "summary_generated":
+        return <Brain className="w-4 h-4 text-blue-500" />;
+      case "embedding_text":
+      case "embedded_text":
+        return <Network className="w-4 h-4 text-blue-500" />;
+      case "pending":
+        return <CircleDot className="w-4 h-4 text-gray-500" />;
+      default:
+        return <FileSearch className="w-4 h-4 text-blue-500" />;
+    }
   };
 
   return (
@@ -63,11 +102,14 @@ export function StatusHistoryPopover({ statusHistory, progress }: StatusHistoryP
           <h4 className="font-medium">Status History</h4>
           <div className="space-y-1">
             {statusesWithElapsed.map((statusChange) => (
-              <div key={statusChange.id} className="flex justify-between text-sm">
-                <div>
-                  <span>{getDocumentStatusDisplay(statusChange.status).label}</span>
+              <div key={statusChange.id} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(statusChange.status)}
+                  <span className={statusChange.status === "completed" ? "font-medium text-green-600" : ""}>
+                    {DOCUMENT_STATUS_CONFIG[statusChange.status].label}
+                  </span>
                   {statusChange.elapsedTime > 0 && (
-                    <span className="ml-2 text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       (took {formatElapsedTime(statusChange.elapsedTime)})
                     </span>
                   )}

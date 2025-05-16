@@ -251,18 +251,32 @@ export const documentsApi = {
     }>(`/documents/${id}/reextract`, { markdown_converter }),
   upload: (
     files: File[],
-    markdown_converter: string,
-    summarization_model?: string
+    markdown_converter?: string,
+    summarization_model?: string,
+    onProgress?: (progress: number) => void
   ) => {
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
-    formData.append("markdown_converter", markdown_converter);
+
+    if (markdown_converter) {
+      formData.append("markdown_converter", markdown_converter);
+    }
+
     if (summarization_model) {
       formData.append("summarization_model", summarization_model);
     }
+
     return api.post("/documents/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
+      },
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          const percentCompleted = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          onProgress(percentCompleted);
+        }
       },
     });
   },
@@ -290,6 +304,14 @@ export const documentsApi = {
   updateMarkdown: (id: number, markdown: string) => {
     return api.put(`/documents/${id}/update`, { markdown });
   },
+  getAllTags: () => {
+    return api.get<string[]>("/documents/get_all_tags").then((res) => res.data);
+  },
+  getAllYears: () => {
+    return api
+      .get<string[]>("/documents/get_all_years")
+      .then((res) => res.data);
+  },
 };
 
 interface LLMModel {
@@ -310,18 +332,4 @@ export const llmApi = {
       .then((res) => res.data),
   getOne: (id: number) =>
     api.get<LLMModel>(`/llm-models/${id}`).then((res) => res.data),
-  updateFavorites: (modelCodes: string[]) =>
-    api
-      .patch(
-        "/auth/profile",
-        {
-          favorite_llm_models: modelCodes,
-        },
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      )
-      .then((res) => res.data),
 };

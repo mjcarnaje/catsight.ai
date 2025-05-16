@@ -70,8 +70,9 @@ def get_marker_converter():
         "ollama_model": "qwen2.5:7b-instruct-q4_K_M",
         "force_ocr": True,
         "strip_existing_ocr": True,
-        "use_llm": True,
-        "debug": True
+        "use_llm": False,
+        "debug": False,
+        "paginate_output": True
     }
     marker_parser = ConfigParser(marker_config)
     return PdfConverter(
@@ -130,32 +131,38 @@ def extract_text_task(self, document_id):
 
         update_document_status(document, DocumentStatus.TEXT_EXTRACTING)
 
-        # Log the chosen converter
-        logger.info(f"Using converter: {document.markdown_converter}")
-
         try:
             if document.markdown_converter == MarkdownConverter.MARKER.value:
-                text = convert_pdf_with_marker(full_file_path)
+                try:
+                    text = convert_pdf_with_marker(full_file_path)
+                except Exception as e:
+                    logger.exception(f"Error converting PDF with Marker: {str(e)}")
+                    text = f"# {document.title}\n\nError extracting text from document using Marker. The file may be corrupted or unsupported."
             elif document.markdown_converter == MarkdownConverter.MARKITDOWN.value:
-                text = convert_pdf_with_markitdown(full_file_path)
+                try:
+                    text = convert_pdf_with_markitdown(full_file_path)
+                except Exception as e:
+                    logger.exception(f"Error converting PDF with MarkItDown: {str(e)}")
+                    text = f"# {document.title}\n\nError extracting text from document using MarkItDown. The file may be corrupted or unsupported."
             elif document.markdown_converter == MarkdownConverter.DOCLING.value:
-                text = convert_pdf_with_docling(full_file_path)
+                try:
+                    text = convert_pdf_with_docling(full_file_path)
+                except Exception as e:
+                    logger.exception(f"Error converting PDF with DocLing: {str(e)}")
+                    text = f"# {document.title}\n\nError extracting text from document using DocLing. The file may be corrupted or unsupported."
             else:
                 raise ValueError(f"Invalid converter: {document.markdown_converter}")
             
             logger.info(f"Text extraction successful, text length: {len(text) if text else 0}")
         except Exception as e:
             logger.exception(f"Error converting PDF: {str(e)}")
-            # Create a placeholder text if conversion fails
             text = f"# {document.title}\n\nError extracting text from document. The file may be corrupted or unsupported."
 
-        # Create or update the DocumentFullText
         try:
-            fulltext_obj, created = DocumentFullText.objects.update_or_create(
+            DocumentFullText.objects.update_or_create(
                 document=document,
                 defaults={"text": text}
             )
-            logger.info(f"DocumentFullText {'created' if created else 'updated'} for document {document.id}")
         except Exception as e:
             logger.exception(f"Error saving DocumentFullText: {str(e)}")
             raise
@@ -187,7 +194,6 @@ def chunk_and_embed_text_task(self, document_id):
 
         update_document_status(document, DocumentStatus.EMBEDDING_TEXT)
 
-        # Get the document full text with better error handling
         try:
             fulltext_obj = DocumentFullText.objects.get(document=document)
             logger.info(f"Found DocumentFullText for document {document.id}")
@@ -323,4 +329,47 @@ def generate_document_summary_task(self, document_id):
         logger.exception(f"generate_document_summary_task failed for {document_id}")
         if 'document' in locals():
             update_document_status(document, DocumentStatus.GENERATING_SUMMARY, failed=True)
+        raise
+
+@shared_task(bind=True)
+def process_document_task(self, document_id):
+    """
+    Process a document completely: extract text, chunk and embed, generate summary.
+    This combines the three separate tasks into a single workflow.
+    
+    The function is smart enough to check the document's current status and skip steps
+    that have already been completed.
+    """
+    logger.info(f"Starting complete document processing for document_id: {document_id}")
+    
+    try:
+        document = Document.objects.get(id=document_id)
+        current_status = document.status
+        logger.info(f"Document {document_id} current status: {current_status}")
+        
+        # Step 1: Extract text if needed
+        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.TEXT_EXTRACTING.value]:
+            document_id = extract_text_task(document_id)
+        
+        # Step 2: Chunk and embed text if needed
+        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.TEXT_EXTRACTING.value, 
+                             DocumentStatus.TEXT_EXTRACTED.value, DocumentStatus.EMBEDDING_TEXT.value]:
+            document_id = chunk_and_embed_text_task(document_id)
+        
+        # Step 3: Generate document summary
+        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.TEXT_EXTRACTING.value,
+                             DocumentStatus.TEXT_EXTRACTED.value, DocumentStatus.EMBEDDING_TEXT.value,
+                             DocumentStatus.EMBEDDED_TEXT.value, DocumentStatus.GENERATING_SUMMARY.value]:
+            document_id = generate_document_summary_task(document_id)
+        
+        logger.info(f"Complete document processing finished successfully for document_id: {document_id}")
+        return document_id
+        
+    except Exception as e:
+        logger.exception(f"process_document_task failed for {document_id}: {str(e)}")
+        try:
+            document = Document.objects.get(id=document_id)
+            update_document_status(document, document.status, failed=True)
+        except Exception as inner_e:
+            logger.exception(f"Error updating document status: {str(inner_e)}")
         raise

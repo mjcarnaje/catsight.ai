@@ -47,7 +47,6 @@ export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
           name: model.name,
           description: model.description,
           logo: model.logo,
-          isFavorite: user?.favorite_llm_models?.includes(model.code) || false,
         }));
 
         // Sort models to show favorites first

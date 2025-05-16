@@ -8,6 +8,7 @@ import type {
   GoogleAuthCredentials,
 } from "@/types/auth";
 import type { User } from "@/types/user";
+import { useSession } from "@/contexts/session-context";
 
 class AuthAPI {
   async register(credentials: RegisterCredentials): Promise<AuthResponse> {
@@ -86,6 +87,7 @@ class AuthAPI {
 export const authApi = new AuthAPI();
 
 export const useUpdateProfile = () => {
+  const { setUser } = useSession();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -100,6 +102,7 @@ export const useUpdateProfile = () => {
     },
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(["user"], updatedUser);
+      setUser(updatedUser);
     },
   });
 };

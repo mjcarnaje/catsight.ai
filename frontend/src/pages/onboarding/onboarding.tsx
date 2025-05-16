@@ -33,11 +33,10 @@ export function OnboardingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // If user is already onboarded, redirect to dashboard
     if (user?.is_onboarded) {
-      navigate("/dashboard", { replace: true });
+      navigate("/dashboard");
     }
-  }, [user, navigate]);
+  }, [user]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -48,7 +47,6 @@ export function OnboardingPage() {
   };
 
   const handleSkip = () => {
-    // Mark as onboarded without uploading photo
     const formData = new FormData();
     formData.append("is_onboarded", "true");
 
@@ -58,7 +56,6 @@ export function OnboardingPage() {
           title: "Profile completed",
           description: "You can always update your profile later",
         });
-        navigate("/dashboard", { replace: true });
       },
       onError: (error) => {
         toast({
@@ -79,12 +76,13 @@ export function OnboardingPage() {
 
     try {
       const formData = new FormData();
-      if (avatar) {
-        formData.append("avatar_file", avatar);
-      }
       formData.append("is_onboarded", "true");
       formData.append("first_name", fullName.split(" ")[0]);
       formData.append("last_name", fullName.split(" ").slice(1).join(" "));
+
+      if (avatar) {
+        formData.append("avatar", avatar);
+      }
 
       await updateProfile.mutateAsync(formData);
 
@@ -92,8 +90,6 @@ export function OnboardingPage() {
         title: "Profile updated successfully",
         description: "Your profile has been completed",
       });
-
-      navigate("/dashboard", { replace: true });
     } catch (error) {
       toast({
         title: "Error updating profile",

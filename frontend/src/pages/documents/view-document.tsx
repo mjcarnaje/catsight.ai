@@ -1,20 +1,43 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, getDocumentPreviewUrl } from "@/lib/api";
-import { getDocumentStatusDisplay } from "@/lib/document-status-config";
 import { Document } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowLeft, Calendar, ChevronRight, Edit, Eye, FileText, FilePlus2, Grid3X3, Layers, Tag, User, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  ChevronRight,
+  Edit,
+  Eye,
+  FileText,
+  FilePlus2,
+  Grid3X3,
+  Layers,
+  Tag,
+  User,
+  Loader2,
+} from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Blurhash } from "react-blurhash";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/markdown";
+import { DOCUMENT_STATUS_CONFIG } from "@/lib/document-status-config";
 
 export function DocumentViewPage() {
   const { id } = useParams();
@@ -23,13 +46,15 @@ export function DocumentViewPage() {
 
   const { isLoading, error, data } = useQuery({
     queryKey: ["document", id],
-    queryFn: () => api.get<Document>(`/documents/${id}`).then((res) => res.data),
+    queryFn: () =>
+      api.get<Document>(`/documents/${id}`).then((res) => res.data),
   });
 
   const handleEditClick = () => navigate(`/documents/${id}/edit`);
   const handlePdfViewClick = () => navigate(`/documents/${id}/pdf`);
   const handleMarkdownViewClick = () => navigate(`/documents/${id}/markdown`);
-  const handleComparisonViewClick = () => navigate(`/documents/${id}/comparison`);
+  const handleComparisonViewClick = () =>
+    navigate(`/documents/${id}/comparison`);
   const handleBackClick = () => navigate("/documents");
 
   // Loading skeleton
@@ -65,8 +90,12 @@ export function DocumentViewPage() {
           <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-destructive/10">
             <FileText className="w-12 h-12 text-destructive" />
           </div>
-          <h3 className="mb-2 text-2xl font-semibold">Error Loading Document</h3>
-          <p className="mb-6 text-muted-foreground">There was a problem loading this document.</p>
+          <h3 className="mb-2 text-2xl font-semibold">
+            Error Loading Document
+          </h3>
+          <p className="mb-6 text-muted-foreground">
+            There was a problem loading this document.
+          </p>
           <Button
             variant="outline"
             onClick={handleBackClick}
@@ -88,7 +117,9 @@ export function DocumentViewPage() {
             <FileText className="w-12 h-12 text-muted-foreground" />
           </div>
           <h3 className="mb-2 text-2xl font-semibold">Document Not Found</h3>
-          <p className="mb-6 text-muted-foreground">The document you're looking for doesn't exist or has been deleted.</p>
+          <p className="mb-6 text-muted-foreground">
+            The document you're looking for doesn't exist or has been deleted.
+          </p>
           <Button
             variant="outline"
             onClick={handleBackClick}
@@ -102,12 +133,14 @@ export function DocumentViewPage() {
     );
   }
 
-  const statusInfo = getDocumentStatusDisplay(data.status);
+  const statusInfo = DOCUMENT_STATUS_CONFIG[data.status];
   const formattedCreatedDate = format(new Date(data.created_at), "PPP");
   const formattedUpdatedDate = format(new Date(data.updated_at), "PPP");
   const previewImageUrl = getDocumentPreviewUrl(data.preview_image);
 
-  const ConverterIcon = data.markdown_converter ? MARKDOWN_CONVERTERS[data.markdown_converter].icon : null;
+  const ConverterIcon = data.markdown_converter
+    ? MARKDOWN_CONVERTERS[data.markdown_converter].icon
+    : null;
 
   const tags = data.tags || [];
 
@@ -116,7 +149,10 @@ export function DocumentViewPage() {
       {/* Hero Header */}
       <div className="relative py-8 overflow-hidden border-b">
         <div className="absolute inset-0 opacity-5">
-          <div className="absolute inset-0 bg-grid-primary/[0.1]" style={{ backgroundSize: '30px 30px' }}></div>
+          <div
+            className="absolute inset-0 bg-grid-primary/[0.1]"
+            style={{ backgroundSize: "30px 30px" }}
+          ></div>
         </div>
         <div className="container relative z-10 mx-auto">
           <div className="flex items-center gap-3 mb-6">
@@ -130,7 +166,12 @@ export function DocumentViewPage() {
             </Button>
             <Badge
               variant="outline"
-              className={cn(`rounded-full px-3 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`, statusInfo.color.bg, statusInfo.color.border, statusInfo.color.text)}
+              className={cn(
+                `rounded-full px-3 py-0.5 font-medium text-xs transition-colors whitespace-nowrap`,
+                statusInfo.bg,
+                statusInfo.border,
+                statusInfo.text
+              )}
             >
               {statusInfo.showLoading ? (
                 <>
@@ -138,9 +179,7 @@ export function DocumentViewPage() {
                   {statusInfo.label}
                 </>
               ) : (
-                <>
-                  {statusInfo.label}
-                </>
+                <>{statusInfo.label}</>
               )}
             </Badge>
 
@@ -155,12 +194,18 @@ export function DocumentViewPage() {
 
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{data.title}</h1>
+              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+                {data.title}
+              </h1>
               <div className="mt-2 text-muted-foreground">
-                {data.summary ?
-                  <Markdown content={data.summary} className="prose-sm prose-p:my-1 prose-headings:my-1" /> :
+                {data.summary ? (
+                  <Markdown
+                    content={data.summary}
+                    className="prose-sm prose-p:my-1 prose-headings:my-1"
+                  />
+                ) : (
                   "No summary provided for this document."
-                }
+                )}
               </div>
 
               {/* Display Tags */}
@@ -231,7 +276,8 @@ export function DocumentViewPage() {
                     <img
                       src={previewImageUrl}
                       alt={data.title}
-                      className={`w-full h-full object-contain transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+                      className={`w-full h-full object-contain transition-opacity duration-500 ${imageLoaded ? "opacity-100" : "opacity-0"
+                        }`}
                       onLoad={() => setImageLoaded(true)}
                     />
                   </>
@@ -241,7 +287,9 @@ export function DocumentViewPage() {
               </div>
               <div className="p-4 text-center border-t bg-card">
                 <p className="font-medium">{data.file_name}</p>
-                <p className="text-sm text-muted-foreground">{data.file_type}</p>
+                <p className="text-sm text-muted-foreground">
+                  {data.file_type}
+                </p>
               </div>
             </Card>
           </div>
@@ -250,12 +298,16 @@ export function DocumentViewPage() {
           <div className="space-y-8">
             {/* File Information */}
             <div>
-              <h2 className="mb-4 text-xl font-semibold">Document Information</h2>
+              <h2 className="mb-4 text-xl font-semibold">
+                Document Information
+              </h2>
               <Card className="overflow-hidden shadow-sm">
                 <CardContent className="p-0">
                   <div className="grid grid-cols-1 lg:grid-cols-2">
                     <div className="p-5 border-b lg:border-r lg:border-b-0">
-                      <h3 className="mb-4 text-sm font-medium text-muted-foreground">Basic Information</h3>
+                      <h3 className="mb-4 text-sm font-medium text-muted-foreground">
+                        Basic Information
+                      </h3>
                       <div className="grid grid-cols-[120px_1fr] gap-y-3 text-sm">
                         <div className="font-medium">File Type</div>
                         <div className="flex items-center gap-2">
@@ -296,14 +348,18 @@ export function DocumentViewPage() {
                               </Badge>
                             ))
                           ) : (
-                            <span className="text-xs italic text-muted-foreground">No tags</span>
+                            <span className="text-xs italic text-muted-foreground">
+                              No tags
+                            </span>
                           )}
                         </div>
                       </div>
                     </div>
 
                     <div className="p-5 border-t lg:border-t-0">
-                      <h3 className="mb-4 text-sm font-medium text-muted-foreground">Processing Information</h3>
+                      <h3 className="mb-4 text-sm font-medium text-muted-foreground">
+                        Processing Information
+                      </h3>
                       <div className="grid grid-cols-[120px_1fr] gap-y-3 text-sm">
                         <div className="font-medium">Chunks</div>
                         <div className="flex items-center gap-2">
@@ -317,8 +373,14 @@ export function DocumentViewPage() {
 
                         <div className="font-medium">Converter</div>
                         <div className="flex items-center gap-1">
-                          {ConverterIcon && <ConverterIcon className="w-3.5 h-3.5 text-muted-foreground" />}
-                          <span>{data.markdown_converter && MARKDOWN_CONVERTERS[data.markdown_converter].label}</span>
+                          {ConverterIcon && (
+                            <ConverterIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                          )}
+                          <span>
+                            {data.markdown_converter &&
+                              MARKDOWN_CONVERTERS[data.markdown_converter]
+                                .label}
+                          </span>
                         </div>
 
                         {data.uploaded_by && (
@@ -326,7 +388,10 @@ export function DocumentViewPage() {
                             <div className="font-medium">Uploaded By</div>
                             <div className="flex items-center gap-1">
                               <User className="w-3.5 h-3.5 text-muted-foreground" />
-                              {data.uploaded_by.name || data.uploaded_by.email}
+                              {data.uploaded_by.first_name &&
+                                data.uploaded_by.last_name
+                                ? `${data.uploaded_by.first_name} ${data.uploaded_by.last_name}`
+                                : data.uploaded_by.email}
                             </div>
                           </>
                         )}
@@ -352,7 +417,9 @@ export function DocumentViewPage() {
                       </div>
                       <div>
                         <h3 className="font-medium">View PDF</h3>
-                        <p className="text-xs text-muted-foreground">Original document</p>
+                        <p className="text-xs text-muted-foreground">
+                          Original document
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -369,7 +436,9 @@ export function DocumentViewPage() {
                       </div>
                       <div>
                         <h3 className="font-medium">View Markdown</h3>
-                        <p className="text-xs text-muted-foreground">Extracted content</p>
+                        <p className="text-xs text-muted-foreground">
+                          Extracted content
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -386,7 +455,9 @@ export function DocumentViewPage() {
                       </div>
                       <div>
                         <h3 className="font-medium">Side-by-Side View</h3>
-                        <p className="text-xs text-muted-foreground">Compare documents</p>
+                        <p className="text-xs text-muted-foreground">
+                          Compare documents
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -398,4 +469,4 @@ export function DocumentViewPage() {
       </div>
     </div>
   );
-} 
+}
