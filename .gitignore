@@ -2,3 +2,6 @@ ollama
 backend/.venv
 backend/logs
 backend/media/
+.cursor
+.DS_Store
+backend/.DS_Store

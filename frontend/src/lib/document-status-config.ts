@@ -28,7 +28,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       showLoading: false,
     },
     [DocumentStatus.PROCESSING]: {
-      label: "Processing",
+      label: "Process Started",
       text: "text-gray-500",
       bg: "bg-gray-50",
       border: "border-gray-300",
