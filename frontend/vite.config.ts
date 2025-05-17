@@ -33,11 +33,11 @@ export default defineConfig({
     host: "0.0.0.0",
     proxy: {
       "/api": {
-        target: "http://backend:8000",
+        target: "https://catsightai.ngrok.app",
         changeOrigin: true,
       },
       "/media": {
-        target: "http://backend:8000",
+        target: "https://catsightai.ngrok.app",
         changeOrigin: true,
       },
     },

@@ -14,6 +14,7 @@ import {
   FileArchive,
   FileSearch,
   FileText,
+  FlameIcon,
   Loader2,
   Network,
   Pencil,
@@ -164,7 +165,7 @@ export function StatusHistoryPopover({
       case DocumentStatus.PENDING:
         return <Clock className="w-4 h-4 text-gray-500" />;
       case DocumentStatus.PROCESSING:
-        return <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />;
+        return <FlameIcon className="w-4 h-4 text-red-500" />;
       case DocumentStatus.TEXT_EXTRACTING:
         return <FileSearch className="w-4 h-4 text-blue-500" />;
       case DocumentStatus.TEXT_EXTRACTION_DONE:

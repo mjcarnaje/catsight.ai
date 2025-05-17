@@ -23,7 +23,7 @@ marker
 # torchvision
 # torchaudio
 python-dotenv
-psycopg2-binary>=2.8
+psycopg2-binary>=3.0.0
 markitdown
 pyyaml==6.0.1
 djangorestframework-simplejwt
