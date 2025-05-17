@@ -1,3 +1,5 @@
+import { Tag } from "./tags";
+
 export type Role = "user" | "assistant" | "tool";
 
 export interface Source {
@@ -5,7 +7,7 @@ export interface Source {
   title: string;
   summary: string;
   year: number;
-  tags: string[];
+  tags: Tag[];
   file_name: string;
   blurhash: string;
   preview_image: string;

@@ -10,7 +10,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
-from ..models import Document, DocumentFullText, Chat
+from ..models import Document, DocumentFullText, Chat, Tag
 from ..serializers import DocumentSerializer
 from ..tasks.tasks import (generate_document_summary_task,
                           update_document_status,
@@ -49,7 +49,7 @@ def get_docs(request):
     tags = request.GET.get('tags')
     if tags:
         tag_list = tags.split(',')
-        documents = documents.filter(tags__contains=tag_list)
+        documents = documents.filter(tags__id__in=tag_list)
     
     page_size = int(request.GET.get('page_size', 9))
     page_number = int(request.GET.get('page', 1))
@@ -98,13 +98,14 @@ def upload_doc(request):
                 document = serializer.save(file=None, uploaded_by=request.user)
 
                 try:
-                    file_path, preview_path, blurhash_string = UploadUtils.upload_document(file, str(document.id))
-                    logger.info(f"Document {document.id} upload results: file_path={file_path}, preview_path={preview_path}, blurhash={blurhash_string is not None}")
+                    file_path, preview_path, blurhash_string, page_count = UploadUtils.upload_document(file, str(document.id))
+                    logger.info(f"Document {document.id} upload results: file_path={file_path}, preview_path={preview_path}, blurhash={blurhash_string is not None}, page_count={page_count}")
                     
                     document.file = file_path
                     document.preview_image = preview_path
                     document.blurhash = blurhash_string
                     document.markdown_converter = markdown_converter
+                    document.page_count = page_count
                     if summarization_model:
                         document.summarization_model = summarization_model
                     document.file_name = file.name
@@ -214,13 +215,13 @@ def delete_doc(request, doc_id):
         # Revoke any running tasks
         revoke_task(document.task_id)
         
-        # Delete associated chunks from vector store
         try:
-            vector_store.delete(filter={"doc_id": doc_id})
+            logger.info(f"Deleting vector store chunks for document: {doc_id}")
+            ids = [f"doc_{doc_id}_chunk_{i}" for i in range(document.no_of_chunks)]
+            vector_store.delete(ids=ids)
         except Exception as e:
             logger.error(f"Error deleting vector store chunks: {str(e)}")
         
-        # Delete files and document
         UploadUtils.delete_document(doc_id)
         document.delete()
         
@@ -271,43 +272,6 @@ def get_doc_chunks(request, doc_id):
         })
     
     return Response(chunk_data)
-
-@api_view(['DELETE'])
-@permission_classes([IsSuperAdmin])
-def delete_all_docs(request):
-    """
-    Delete all documents, cancel running tasks, and remove associated files.
-    Only super admins can delete all documents.
-    """
-    try:
-        # Revoke all running tasks for all documents
-        documents = Document.objects.all()
-
-        for doc in documents:
-            revoke_task(doc.task_id)
-        
-        try:
-            vector_store.delete(filter={})
-        except Exception as e:
-            logger.error(f"Error deleting vector store data: {str(e)}")
-        
-        # Delete all documents
-        Document.objects.all().delete()
-        
-        # Delete all files
-        UploadUtils.delete_all_documents()
-        
-        return Response(
-            {"status": "success", "message": "All documents deleted successfully"}, 
-            status=status.HTTP_200_OK
-        )
-    except Exception as e:
-        logger.error(f"Error deleting all documents: {str(e)}")
-        return Response(
-            {"status": "error", "message": f"Error deleting all documents: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
@@ -466,13 +430,14 @@ def chat_with_docs(request):
                             continue
 
                         if role == "tool":
-                            sources = json.loads(message["content"])
-                            message["content"] = ""
-                            message["tool_result"] = {
-                                "sources": sources,
-                            }
-                            yield f"event: message\ndata: {json.dumps(message)}\n\n"
-                            continue
+                            if message["content"].startswith("{") or message["content"].startswith("["):
+                                sources = json.loads(message["content"])
+                                message["content"] = ""
+                                message["tool_result"] = {
+                                    "sources": sources,
+                                }
+                                yield f"event: message\ndata: {json.dumps(message)}\n\n"
+                                continue
 
                         yield f"event: message\ndata: {json.dumps(message)}\n\n"
                         
@@ -556,13 +521,14 @@ def get_chat_history(request, chat_id):
                     continue
                 
                 if role == "tool":
-                    sources = json.loads(message["content"])
-                    message["content"] = ""
-                    message["tool_result"] = {
-                        "sources": sources,
-                    }
-                    formatted_messages.append(message)
-                    continue
+                    if message["content"].startswith("{") or message["content"].startswith("["):
+                        sources = json.loads(message["content"])
+                        message["content"] = ""
+                        message["tool_result"] = {
+                            "sources": sources,
+                        }
+                        formatted_messages.append(message)
+                        continue
 
                 formatted_messages.append(message)
 
@@ -812,22 +778,12 @@ def reextract_doc(request, doc_id):
 @permission_classes([IsAuthenticated])
 def get_all_tags(request):
     """
-    Get all unique tags from all documents.
+    Get all unique tags from the Tag model.
     """
     try:
-        tags = Document.objects.values_list('tags', flat=True)
-        unique_tags = set()
-        for sublist in tags:
-            if sublist:
-                unique_tags.update(sublist)
-        sorted_tags = sorted(unique_tags)
-        return Response(sorted_tags, status=status.HTTP_200_OK)
-    except TypeError as e:
-        logger.error(f"Error getting all tags: {str(e)}")
-        return Response(
-            {"status": "error", "message": "Error getting all tags: 'NoneType' object is not iterable"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        tags = Tag.objects.all().order_by('name')
+        tag_data = [{'id': tag.id, 'name': tag.name} for tag in tags]
+        return Response(tag_data, status=status.HTTP_200_OK)
     except Exception as e:
         logger.error(f"Error getting all tags: {str(e)}")
         return Response(

@@ -10,33 +10,39 @@ import React, { useCallback, useRef } from "react";
 interface ChatInputProps {
   text: string;
   setText: (text: string) => void;
-  modelId: string | null;
   onModelChange: (model: LLMModel | null) => void;
   onSend: (text: string) => void;
   disabled: boolean;
   showModelSelector: boolean;
+  models: LLMModel[];
+  selectedModel: LLMModel | null;
+  isLoading: boolean;
+  error: string | null;
 }
 
 export function ChatInput({
   text,
   setText,
-  modelId,
   onModelChange,
   onSend,
   disabled,
   showModelSelector,
+  models,
+  selectedModel,
+  isLoading,
+  error,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const onSubmit = useCallback(() => {
-    if (!text.trim() || !modelId) return;
+    if (!text.trim() || !selectedModel) return;
     onSend(text.trim());
     setText("");
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-  }, [text, modelId, onSend]);
+  }, [text, selectedModel, onSend]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -63,7 +69,7 @@ export function ChatInput({
 
   return (
     <div className="relative w-full max-w-4xl px-5 py-5 mx-auto bg-white border-t border-gray-100 shadow-md rounded-t-3xl">
-      {!modelId && !disabled && (
+      {!selectedModel && !disabled && (
         <div className="flex items-center gap-2 p-3 mb-4 text-sm border rounded-lg bg-amber-50 border-amber-200 text-amber-800">
           <AlertCircle size={16} className="shrink-0" />
           <span>Please select a model to continue</span>
@@ -91,13 +97,13 @@ export function ChatInput({
                 value={text}
                 onChange={handleTextareaChange}
                 onKeyDown={handleKeyDown}
-                disabled={disabled || !modelId}
+                disabled={disabled || !selectedModel}
                 className="w-full py-3 px-4 pr-14 min-h-[56px] max-h-[200px] resize-none border-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent placeholder:text-gray-400"
               />
               <Button
                 type="submit"
                 size="icon"
-                disabled={disabled || !modelId || !text.trim()}
+                disabled={disabled || !selectedModel || !text.trim()}
                 className="absolute w-10 h-10 text-white transition-colors shadow-sm bg-primary right-2 bottom-2 rounded-xl hover:bg-primary/90 disabled:opacity-50"
               >
                 {disabled ? (
@@ -113,8 +119,11 @@ export function ChatInput({
           {showModelSelector && (
             <div className="shrink-0">
               <ModelSelector
-                modelId={modelId}
+                models={models}
+                selectedModel={selectedModel}
                 onModelChange={handleModelChange}
+                isLoading={isLoading}
+                error={error}
               />
             </div>
           )}

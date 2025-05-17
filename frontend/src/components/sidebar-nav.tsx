@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Search,
   Settings,
+  Tag,
   User,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -46,6 +47,11 @@ export function SidebarNav() {
       title: "Documents",
       href: "/documents",
       icon: FileText,
+    },
+    {
+      title: "Tags",
+      href: "/tags",
+      icon: Tag,
     },
     {
       title: "Search",

@@ -1,14 +1,15 @@
-import { User } from "./index";
+import { User } from "./user";
 
 /**
  * Represents an LLM model in the system
  */
 export interface LLMModel {
   id: number;
-  code: string;
   name: string;
+  code: string;
   description: string;
   logo: string;
+  instruct: boolean;
 }
 
 /**

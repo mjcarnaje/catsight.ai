@@ -1,4 +1,5 @@
-import { Chat, Document, PaginatedResponse } from "@/types";
+import { Chat, Document, LLMModel, PaginatedResponse, Source } from "@/types";
+import { Tag } from "@/types/tags";
 import axios from "axios";
 
 const API_PREFIX = "/api";
@@ -120,34 +121,9 @@ export interface ChatResponse {
   };
 }
 
-export interface SearchResult {
-  document_id: string | number;
-  title: string;
-  description: string;
-  file_name: string;
-  file_type: string;
-  created_at: string;
-  updated_at: string;
-  blurhash: string;
-  preview_image: string;
-  no_of_chunks: number;
-  markdown_converter: string;
-  uploaded_by: {
-    username: string | null;
-    email: string | null;
-  };
-  results: {
-    chunk_index: number;
-    text: string;
-    score: number;
-    snippet: string;
-  }[];
-  max_score: number;
-}
-
 export interface SearchApiResponse {
   summary: string;
-  sources: import("@/types/message").Source[];
+  sources: Source[];
 }
 
 export const chatsApi = {
@@ -314,15 +290,6 @@ export const documentsApi = {
   },
 };
 
-interface LLMModel {
-  id: number;
-  name: string;
-  code: string;
-  description: string;
-  logo: string;
-  instruct: boolean;
-}
-
 export const llmApi = {
   getAll: (instruct: boolean = false) =>
     api
@@ -332,4 +299,18 @@ export const llmApi = {
       .then((res) => res.data),
   getOne: (id: number) =>
     api.get<LLMModel>(`/llm-models/${id}`).then((res) => res.data),
+};
+
+export const tagsApi = {
+  getAll: () => api.get<Tag[]>("/tags").then((res) => res.data),
+
+  getOne: (id: number) => api.get<Tag>(`/tags/${id}`).then((res) => res.data),
+
+  create: (data: { name: string; description?: string }) =>
+    api.post<Tag>("/tags/create", data),
+
+  update: (id: number, data: { name?: string; description?: string }) =>
+    api.patch<Tag>(`/tags/${id}/update`, data),
+
+  delete: (id: number) => api.delete(`/tags/${id}/delete`),
 };

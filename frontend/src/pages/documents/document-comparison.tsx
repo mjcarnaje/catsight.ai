@@ -1,4 +1,3 @@
-import ChunkViewer from "@/components/chunk-viewer";
 import MarkdownPreview from "@/components/markdown-preview";
 import PDFViewerContentOnly from "@/components/pdf-viewer-content-only";
 import { Badge } from "@/components/ui/badge";
@@ -10,19 +9,27 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { Document } from "@/types";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Edit,
+  Eye,
+  FileCode,
+  SplitSquareVertical,
   FileText,
-  Grid3X3,
-  LayoutPanelTop,
+  Loader2,
+  Download,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function DocumentComparisonPage() {
   const { id } = useParams();
@@ -69,24 +76,34 @@ export function DocumentComparisonPage() {
   const handleEditClick = () => navigate(`/documents/${id}/edit`);
   const handlePdfViewClick = () => navigate(`/documents/${id}/pdf`);
   const handleMarkdownViewClick = () => navigate(`/documents/${id}/markdown`);
+  const handleDownloadPdf = () => {
+    if (blobUrl) {
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = documentData?.file_name || "document.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
 
   if (isDocLoading || isMarkdownLoading || isPdfLoading) {
     return (
-      <div className="container py-8 mx-auto space-y-6">
+      <div className="container max-w-6xl py-10 mx-auto space-y-8">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <Skeleton className="w-10 h-10 rounded-full" />
             <div className="space-y-2">
-              <Skeleton className="w-48 h-7" />
-              <Skeleton className="w-32 h-4" />
+              <Skeleton className="w-48 h-8" />
+              <Skeleton className="w-32 h-5" />
             </div>
           </div>
-          <div className="flex gap-2">
-            <Skeleton className="w-24 rounded-full h-9" />
-            <Skeleton className="w-24 rounded-full h-9" />
+          <div className="flex gap-3">
+            <Skeleton className="w-28 rounded-full h-10" />
+            <Skeleton className="w-28 rounded-full h-10" />
           </div>
         </div>
-        <Skeleton className="w-full h-[calc(100vh-180px)] rounded-lg" />
+        <Skeleton className="w-full h-[calc(100vh-180px)] rounded-xl shadow-sm" />
       </div>
     );
   }
@@ -94,18 +111,18 @@ export function DocumentComparisonPage() {
   if (!documentData) {
     return (
       <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
-        <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
-          <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-muted">
-            <FileText className="w-12 h-12 text-muted-foreground" />
+        <div className="max-w-md p-8 text-center border rounded-xl shadow-lg bg-gradient-to-b from-white to-muted/20">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-muted/30 backdrop-blur-sm">
+            <FileText className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="mb-2 text-2xl font-semibold">Document Not Found</h3>
+          <h3 className="mb-3 text-xl font-medium">Document Not Found</h3>
           <p className="mb-6 text-muted-foreground">
             The document you're looking for doesn't exist or has been deleted.
           </p>
           <Button
-            variant="outline"
             onClick={() => navigate("/documents")}
-            className="gap-2 rounded-full"
+            className="gap-2 px-6 rounded-full shadow-sm"
+            size="lg"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Documents
@@ -118,23 +135,23 @@ export function DocumentComparisonPage() {
   if (markdownError || !markdownData) {
     return (
       <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
-        <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
-          <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-destructive/10">
-            <FileText className="w-12 h-12 text-destructive" />
+        <div className="max-w-md p-8 text-center border rounded-xl shadow-lg bg-gradient-to-b from-white to-muted/20">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-red-50 backdrop-blur-sm">
+            <FileText className="w-8 h-8 text-red-500" />
           </div>
-          <h3 className="mb-2 text-2xl font-semibold">
+          <h3 className="mb-3 text-xl font-medium">
             Error Loading Document
           </h3>
           <p className="mb-6 text-muted-foreground">
             There was a problem loading the document content.
           </p>
           <Button
-            variant="outline"
             onClick={handleBackClick}
-            className="gap-2 rounded-full"
+            className="gap-2 px-6 rounded-full shadow-sm"
+            size="lg"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Document Details
+            Back to Document
           </Button>
         </div>
       </div>
@@ -142,26 +159,26 @@ export function DocumentComparisonPage() {
   }
 
   return (
-    <div className="container py-8 mx-auto space-y-6">
+    <div className="container max-w-6xl py-10 mx-auto space-y-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={handleBackClick}
-            className="rounded-full hover:bg-primary/5"
+            className="rounded-full hover:bg-muted/50"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
                 {documentData.title}
               </h1>
               <Badge
                 variant="outline"
-                className="rounded-full px-3 py-0.5 font-medium text-xs bg-purple-500/10 text-purple-600 border-purple-200"
+                className="rounded-full px-3 py-1 font-medium bg-purple-500/10 text-purple-600 border-purple-200 shadow-sm"
               >
                 Comparison
               </Badge>
@@ -172,29 +189,45 @@ export function DocumentComparisonPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleDownloadPdf}
+                  className="rounded-full shadow-sm"
+                  disabled={!blobUrl}
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Download PDF</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <Button
             variant="outline"
-            size="sm"
             onClick={handlePdfViewClick}
-            className="flex items-center gap-1.5 rounded-full"
+            className="gap-2 px-4 rounded-full"
           >
-            <FileText className="w-4 h-4" />
+            <Eye className="w-4 h-4" />
             <span className="hidden sm:inline">View</span> PDF
           </Button>
+
           <Button
             variant="outline"
-            size="sm"
             onClick={handleMarkdownViewClick}
-            className="flex items-center gap-1.5 rounded-full"
+            className="gap-2 px-4 rounded-full"
           >
-            <Grid3X3 className="w-4 h-4" />
+            <FileCode className="w-4 h-4" />
             <span className="hidden sm:inline">View</span> Markdown
           </Button>
+
           <Button
-            size="sm"
             onClick={handleEditClick}
-            className="flex items-center gap-1.5 rounded-full shadow-sm"
+            className="gap-2 px-5 rounded-full shadow-sm"
           >
             <Edit className="w-4 h-4" />
             Edit
@@ -203,18 +236,17 @@ export function DocumentComparisonPage() {
       </div>
 
       {/* Comparison Viewer */}
-      <Card className="overflow-hidden border shadow-sm">
+      <Card className="overflow-hidden border rounded-xl shadow-md">
         <CardContent className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+          <div className="flex items-center justify-between p-3 border-b bg-gradient-to-r from-muted/10 to-muted/5">
             <div className="flex items-center gap-2">
-              <LayoutPanelTop className="w-4 h-4 text-primary" />
+              <SplitSquareVertical className="w-4 h-4 text-primary/70" />
               <h2 className="text-sm font-medium">Side-by-Side Comparison</h2>
             </div>
             <Button
               variant="ghost"
-              size="sm"
               onClick={handleBackClick}
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded-full"
+              className="gap-2 px-3 py-1.5 text-xs rounded-full"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               Back to Details
@@ -224,26 +256,27 @@ export function DocumentComparisonPage() {
           <ResizablePanelGroup direction="horizontal" className="max-h-[80vh]">
             <ResizablePanel defaultSize={50} minSize={30}>
               <div className="flex flex-col h-full border-r">
-                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-                  <h3 className="text-sm font-medium">Original PDF</h3>
+                <div className="flex items-center justify-between p-3 border-b bg-gradient-to-r from-blue-50/50 to-blue-50/20">
+                  <h3 className="flex items-center gap-2 text-sm font-medium">
+                    <Eye className="w-4 h-4 text-blue-500/70" />
+                    Original PDF
+                  </h3>
                 </div>
 
                 <div className="flex-1 overflow-hidden">
                   {isPdfLoading ? (
-                    <div className="flex items-center justify-center w-full h-full">
-                      <div className="relative w-12 h-12">
-                        <div className="absolute w-12 h-12 rounded-full opacity-25 animate-ping bg-primary"></div>
-                        <div className="w-12 h-12 border-4 rounded-full animate-spin border-primary border-t-transparent"></div>
-                      </div>
+                    <div className="flex flex-col items-center justify-center w-full h-full gap-3">
+                      <Loader2 className="w-12 h-12 animate-spin text-primary/70" />
+                      <p className="text-sm text-muted-foreground">Loading PDF document...</p>
                     </div>
                   ) : blobUrl ? (
                     <PDFViewerContentOnly url={blobUrl} />
                   ) : (
                     <div className="flex flex-col items-center justify-center w-full h-full">
-                      <div className="p-6 mx-auto mb-4 rounded-full w-fit bg-muted/50">
-                        <FileText className="w-12 h-12 text-muted-foreground" />
+                      <div className="flex items-center justify-center w-16 h-16 mb-4 rounded-full bg-muted/30 backdrop-blur-sm">
+                        <FileText className="w-8 h-8 text-muted-foreground" />
                       </div>
-                      <p className="text-muted-foreground">
+                      <p className="mb-2 text-muted-foreground">
                         Unable to load PDF
                       </p>
                     </div>
@@ -252,14 +285,17 @@ export function DocumentComparisonPage() {
               </div>
             </ResizablePanel>
 
-            <ResizableHandle withHandle />
+            <ResizableHandle withHandle className="bg-muted/30 hover:bg-muted/50 transition-colors" />
 
             <ResizablePanel defaultSize={50} minSize={30}>
               <div className="flex flex-col h-full">
-                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-                  <h3 className="text-sm font-medium">Full Document</h3>
+                <div className="flex items-center justify-between p-3 border-b bg-gradient-to-r from-emerald-50/50 to-emerald-50/20">
+                  <h3 className="flex items-center gap-2 text-sm font-medium">
+                    <FileCode className="w-4 h-4 text-emerald-500/70" />
+                    Markdown Content
+                  </h3>
                 </div>
-                <div className="flex-1 p-6 overflow-auto">
+                <div className="flex-1 p-6 overflow-auto bg-white">
                   <MarkdownPreview content={markdownData.content} />
                 </div>
               </div>

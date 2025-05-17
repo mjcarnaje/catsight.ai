@@ -24,6 +24,7 @@ import { OnboardingPage } from "./pages/onboarding/onboarding";
 import { ChatProvider } from "./contexts/chat-context";
 import { ChatStreamProvider } from "./contexts/chat-stream-context";
 import { GraphPage } from "./pages/graph/graph-page";
+import TagsPage from "./pages/tags/tags";
 
 const queryClient = new QueryClient();
 
@@ -159,6 +160,16 @@ export default function App() {
                     element={
                       <ProtectedRoute>
                         <ChatPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/tags"
+                    element={
+                      <ProtectedRoute>
+                        <div className="p-8">
+                          <TagsPage />
+                        </div>
                       </ProtectedRoute>
                     }
                   />

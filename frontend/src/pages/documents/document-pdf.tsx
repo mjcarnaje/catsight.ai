@@ -9,13 +9,19 @@ import {
   ArrowLeft,
   Edit,
   FileText,
-  FilePlus2,
-  Grid3X3,
-  LayoutPanelTop,
-  Loader2Icon,
+  FileCode,
+  SplitSquareVertical,
+  Loader2,
+  Download,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export function DocumentPdfPage() {
   const { id } = useParams();
@@ -44,26 +50,35 @@ export function DocumentPdfPage() {
   const handleBackClick = () => navigate(`/documents/${id}`);
   const handleEditClick = () => navigate(`/documents/${id}/edit`);
   const handleMarkdownViewClick = () => navigate(`/documents/${id}/markdown`);
-  const handleComparisonViewClick = () =>
-    navigate(`/documents/${id}/comparison`);
+  const handleComparisonViewClick = () => navigate(`/documents/${id}/comparison`);
+  const handleDownload = () => {
+    if (blobUrl) {
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = documentData?.file_name || "document.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
 
   if (isDocLoading) {
     return (
-      <div className="container py-8 mx-auto space-y-6">
+      <div className="container max-w-6xl py-10 mx-auto space-y-8">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <Skeleton className="w-10 h-10 rounded-full" />
             <div className="space-y-2">
-              <Skeleton className="w-48 h-7" />
-              <Skeleton className="w-32 h-4" />
+              <Skeleton className="w-48 h-8" />
+              <Skeleton className="w-32 h-5" />
             </div>
           </div>
-          <div className="flex gap-2">
-            <Skeleton className="w-24 rounded-full h-9" />
-            <Skeleton className="w-24 rounded-full h-9" />
+          <div className="flex gap-3">
+            <Skeleton className="w-28 rounded-full h-10" />
+            <Skeleton className="w-28 rounded-full h-10" />
           </div>
         </div>
-        <Skeleton className="w-full h-[calc(100vh-180px)] rounded-lg" />
+        <Skeleton className="w-full h-[calc(100vh-180px)] rounded-xl shadow-sm" />
       </div>
     );
   }
@@ -71,18 +86,18 @@ export function DocumentPdfPage() {
   if (!documentData) {
     return (
       <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
-        <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
-          <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-muted">
-            <FileText className="w-12 h-12 text-muted-foreground" />
+        <div className="max-w-md p-8 text-center border rounded-xl shadow-lg bg-gradient-to-b from-white to-muted/20">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-muted/30 backdrop-blur-sm">
+            <FileText className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h3 className="mb-2 text-2xl font-semibold">Document Not Found</h3>
+          <h3 className="mb-3 text-xl font-medium">Document Not Found</h3>
           <p className="mb-6 text-muted-foreground">
             The document you're looking for doesn't exist or has been deleted.
           </p>
           <Button
-            variant="outline"
             onClick={() => navigate("/documents")}
-            className="gap-2 rounded-full"
+            className="gap-2 px-6 rounded-full shadow-sm"
+            size="lg"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Documents
@@ -93,26 +108,26 @@ export function DocumentPdfPage() {
   }
 
   return (
-    <div className="container py-8 mx-auto space-y-6">
+    <div className="container max-w-6xl py-10 mx-auto space-y-8">
       {/* Header */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
             onClick={handleBackClick}
-            className="rounded-full hover:bg-primary/5"
+            className="rounded-full hover:bg-muted/50"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
                 {documentData.title}
               </h1>
               <Badge
                 variant="outline"
-                className="rounded-full px-3 py-0.5 font-medium text-xs bg-blue-500/10 text-blue-600 border-blue-200"
+                className="rounded-full px-3 py-1 font-medium bg-blue-500/10 text-blue-600 border-blue-200 shadow-sm"
               >
                 PDF
               </Badge>
@@ -123,29 +138,45 @@ export function DocumentPdfPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleDownload}
+                  className="rounded-full shadow-sm"
+                  disabled={!blobUrl}
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Download PDF</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <Button
             variant="outline"
-            size="sm"
             onClick={handleMarkdownViewClick}
-            className="flex items-center gap-1.5 rounded-full"
+            className="gap-2 px-4 rounded-full"
           >
-            <FilePlus2 className="w-4 h-4" />
+            <FileCode className="w-4 h-4" />
             <span className="hidden sm:inline">View</span> Markdown
           </Button>
+
           <Button
             variant="outline"
-            size="sm"
             onClick={handleComparisonViewClick}
-            className="flex items-center gap-1.5 rounded-full"
+            className="gap-2 px-4 rounded-full"
           >
-            <LayoutPanelTop className="w-4 h-4" />
+            <SplitSquareVertical className="w-4 h-4" />
             <span className="hidden sm:inline">Side-by-side</span> View
           </Button>
+
           <Button
-            size="sm"
             onClick={handleEditClick}
-            className="flex items-center gap-1.5 rounded-full shadow-sm"
+            className="gap-2 px-5 rounded-full shadow-sm"
           >
             <Edit className="w-4 h-4" />
             Edit
@@ -154,29 +185,28 @@ export function DocumentPdfPage() {
       </div>
 
       {/* PDF Viewer */}
-      <Card className="overflow-hidden border shadow-sm">
+      <Card className="overflow-hidden border rounded-xl shadow-md">
         <CardContent className="p-0 overflow-hidden">
-          <div className="w-full h-[calc(100vh-180px)] bg-muted/20">
+          <div className="w-full h-[calc(100vh-180px)] bg-gradient-to-b from-muted/5 to-muted/20">
             {isPdfLoading ? (
-              <div className="flex items-center justify-center w-full h-full">
-                <div className="relative w-12 h-12">
-                  <Loader2Icon className="w-12 h-12 animate-spin text-primary" />
-                </div>
+              <div className="flex flex-col items-center justify-center w-full h-full gap-3">
+                <Loader2 className="w-12 h-12 animate-spin text-primary/70" />
+                <p className="text-sm text-muted-foreground">Loading PDF document...</p>
               </div>
             ) : blobUrl ? (
               <PDFViewer url={blobUrl} />
             ) : (
               <div className="flex flex-col items-center justify-center w-full h-full">
-                <div className="p-6 mx-auto mb-4 rounded-full w-fit bg-muted/50">
-                  <FileText className="w-12 h-12 text-muted-foreground" />
+                <div className="flex items-center justify-center w-16 h-16 mb-4 rounded-full bg-muted/30 backdrop-blur-sm">
+                  <FileText className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground">Unable to load PDF</p>
+                <p className="mb-2 text-muted-foreground">Unable to load PDF</p>
                 <Button
                   variant="outline"
-                  size="sm"
                   onClick={handleBackClick}
-                  className="mt-4 rounded-full"
+                  className="mt-4 gap-2 px-4 rounded-full shadow-sm"
                 >
+                  <ArrowLeft className="w-4 h-4" />
                   Back to Document
                 </Button>
               </div>

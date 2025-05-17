@@ -2,29 +2,29 @@
   {
     "code": "llama3.1:8b",
     "name": "Llama 3.1 8B",
-    "description": "Meta's Llama 3.1 8B is a compact yet powerful language model that balances performance and efficiency. It offers strong reasoning capabilities and good context handling in a smaller footprint, making it ideal for resource-constrained environments while maintaining quality outputs for various applications.",
+    "description": "Meta's Llama 3.1 8B is a compact yet powerful language model designed for efficiency and high performance. With support for eight languages and a 128K token context window, it excels in multilingual tasks and long-form content generation. Its architecture incorporates Grouped-Query Attention (GQA) for efficient handling of extended contexts, making it ideal for applications requiring deep reasoning and contextual understanding.",
     "logo": "https://avatars.githubusercontent.com/u/69631?s=200&v=4",
     "instruct": false
   },
   {
     "code": "qwen3:1.7b",
     "name": "Qwen 3 1.7B",
-    "description": "Alibaba's Qwen 3 1.7B model offers remarkable capabilities in a compact size. It excels at multilingual content generation, reasoning, and knowledge tasks while requiring minimal computational resources. This model represents an excellent balance of efficiency and performance for everyday applications.",
+    "description": "Alibaba's Qwen 3 1.7B is a lightweight yet capable language model that offers enhanced reasoning, instruction-following, and multilingual support. Built upon extensive training, it delivers significant advancements in agent capabilities and content generation, making it suitable for a wide range of applications, including coding, math, and general-purpose tasks.",
     "logo": "https://avatars.githubusercontent.com/u/141221163?s=200&v=4",
     "instruct": false
   },
   {
     "code": "qwen2.5:7b-instruct-q4_K_M",
     "name": "Qwen 2.5 7B Instruct",
-    "description": "The instruction-tuned Qwen 2.5 7B model is optimized for following directions and completing specific tasks. Quantized for efficiency (Q4_K_M), it maintains high performance while reducing resource requirements. This model excels at structured responses, creative content generation, and detailed explanations across multiple domains.",
+    "description": "The instruction-tuned Qwen 2.5 7B model is optimized for following directions and completing specific tasks. Utilizing the Q4_K_M quantization technique, it maintains high performance while reducing resource requirements. This model excels at structured responses, creative content generation, and detailed explanations across multiple domains, making it ideal for resource-constrained environments.",
     "logo": "https://avatars.githubusercontent.com/u/141221163?s=200&v=4",
     "instruct": true
   },
   {
-    "code": "phi4:latest",
-    "name": "Phi-4 14B",
-    "description": "Phi-4 14B is a large-scale language model that combines the strengths of Phi-1.5 and Llama 3.1. It offers a balance between context length and model size, making it suitable for a wide range of applications requiring both breadth and depth of knowledge.",
-    "logo": "https://avatars.githubusercontent.com/u/6154722?s=200&v=4",
+    "code": "llama3.1:8b-text-fp16",
+    "name": "Llama 3.1 8B Text FP16",
+    "description": "Llama 3.1 8B Text FP16 combines the strengths of Meta's Llama 3.1 architecture with FP16 precision, offering a balance between context length and model size. With a 128K token context window and multilingual support, it is suitable for a wide range of applications requiring both breadth and depth of knowledge, including long-form text summarization, multilingual conversational agents, and coding assistants.",
+    "logo": "https://avatars.githubusercontent.com/u/69631?s=200&v=4",
     "instruct": false
   }
 ]
