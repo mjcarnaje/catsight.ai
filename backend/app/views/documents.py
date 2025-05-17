@@ -292,7 +292,7 @@ def update_doc_markdown(request, doc_id):
 
     # 3) Reset document status to "extracted" so chunk task can proceed
     document = Document.objects.get(pk=doc_id)
-    update_document_status(document, DocumentStatus.TEXT_EXTRACTED)
+    update_document_status(document, DocumentStatus.TEXT_EXTRACTION_DONE)
 
     # 4) Kick off re‐chunk & re‐summary using the process_document_task
     # This will detect the document's current status and continue from there
