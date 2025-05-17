@@ -13,6 +13,7 @@ engine = PGEngine.from_connection_string(url=CONNECTION_STRING)
 
 EMBEDDING_MODEL_ID = "mxbai-embed-large"
 TABLE_NAME = "docs_chunks"
+TABLE_NAME_INDEX = "docs_chunks_index"
 VECTOR_SIZE = 1024
 
 embedding = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url="http://ollama:11434")

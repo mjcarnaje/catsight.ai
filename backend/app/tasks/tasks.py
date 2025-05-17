@@ -9,8 +9,10 @@ from functools import lru_cache
 
 from ..constant import DocumentStatus, MarkdownConverter
 from ..models import Document, DocumentStatusHistory, DocumentFullText
-from ..services.vectorstore import vector_store
+from ..services.vectorstore import vector_store, TABLE_NAME_INDEX
 from ..services.summarization_agent import summarization_agent, summarization_splitter
+from langchain_postgres.vectorstores.pgvector.index import HNSWIndex
+
     
 logger = logging.getLogger(__name__)
 
@@ -53,12 +55,20 @@ def update_document_status(document, status, update_fields=None, failed=False):
         f"Document status updated from '{old_status}' to '{new_status}' for Document ID: {document.id}"
     )
 
-def save_document_chunks(document, docs):
+def embed_document_chunks(document, docs):
     try:
+        # 1. Add documents to the vector store
         vector_store.add_documents(docs)
         logger.info(f"Added {len(docs)} chunks for document {document.id}")
+
+        # 2. Apply the vector index (optional but improves search speed)
+        index = HNSWIndex()
+        vector_store.apply_vector_index(index=index, name=TABLE_NAME_INDEX, concurrently=True)
+        logger.info(f"Applied vector index for document {document.id}")
+
     except Exception as e:
-        logger.error(f"Error adding chunks: {e}")
+        logger.error(f"Error adding chunks or applying index: {e}")
+
     
     return len(docs)
 
@@ -257,7 +267,7 @@ def chunk_and_embed_text_task(self, document_id):
             docs.append(Doc(page_content=chunk, metadata=metadata))
 
         try:
-            count = save_document_chunks(document, docs)
+            count = embed_document_chunks(document, docs)
             logger.info(f"Saved {count} chunks to vector store")
         except Exception as e:
             logger.exception(f"Error saving chunks to vector store: {str(e)}")
