@@ -3,18 +3,14 @@ from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Case, When, Value, IntegerField
-import json
-import os
-from pathlib import Path
 
-from .constant import DocumentStatus, UserRole
+from .constant import DocumentStatus, UserRole, STATUS_ORDER
 
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError('Users must have an email address')
-        # Validate MSU-IIT email domain
         if not email.endswith('@g.msuiit.edu.ph'):
             raise ValueError('Only @g.msuiit.edu.ph addresses allowed')
 
@@ -62,23 +58,8 @@ class User(AbstractUser):
     def is_super_admin(self):
         return self.role == UserRole.SUPER_ADMIN
 
-
-# Define mapping for status ordering
-STATUS_ORDER = {
-    DocumentStatus.PENDING: 0,
-    DocumentStatus.TEXT_EXTRACTING: 1,
-    DocumentStatus.TEXT_EXTRACTED: 2,
-    DocumentStatus.EMBEDDING_TEXT: 3,
-    DocumentStatus.EMBEDDED_TEXT: 4,
-    DocumentStatus.GENERATING_SUMMARY: 5,
-    DocumentStatus.SUMMARY_GENERATED: 6,
-    DocumentStatus.COMPLETED: 7,
-}
-
-
 class DocumentQuerySet(models.QuerySet):
     def ordered(self):
-        # Annotate each document with its status priority and then order
         whens = [When(status=status.value, then=Value(order)) for status, order in STATUS_ORDER.items()]
         return self.annotate(
             status_priority=Case(*whens, default=Value(len(STATUS_ORDER)), output_field=IntegerField())

@@ -19,12 +19,19 @@ def update_document_status(document, status, update_fields=None, failed=False):
     Updates the status of a document instance and logs history.
     """
     new_status = status.value if hasattr(status, 'value') else status
+
     if update_fields is None:
-        update_fields = ['status']
+        update_fields = ["status"]  
+    else:
+        update_fields.append("status")
+    
     if failed:
         document.is_failed = True
         if 'is_failed' not in update_fields:
             update_fields.append('is_failed')
+    
+    # remove duplicates
+    update_fields = list(set(update_fields))
 
     old_status = document.status
     document.status = new_status
@@ -167,7 +174,8 @@ def extract_text_task(self, document_id):
             logger.exception(f"Error saving DocumentFullText: {str(e)}")
             raise
 
-        update_document_status(document, DocumentStatus.TEXT_EXTRACTED)
+        update_document_status(document, DocumentStatus.TEXT_EXTRACTION_DONE)
+        
         logger.info(f"extract_text_task completed successfully for document_id: {document_id}")
         return document_id
 
@@ -209,8 +217,8 @@ def chunk_and_embed_text_task(self, document_id):
 
         logger.info(f"Text length for document {document.id}: {len(fulltext) if fulltext else 0}")
 
-        chunk_size = 2000
-        chunk_overlap = 200
+        chunk_size = 1000
+        chunk_overlap = 100
         
         # markdown_splitter = MarkdownHeaderTextSplitter(
         #     headers_to_split_on=[("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")],
@@ -260,7 +268,7 @@ def chunk_and_embed_text_task(self, document_id):
 
         update_document_status(
             document,
-            DocumentStatus.EMBEDDED_TEXT,
+            DocumentStatus.TEXT_EMBEDDING_DONE,
             update_fields=["status", "no_of_chunks"]
         )
         logger.info(f"chunk_and_embed_text_task completed successfully for document_id: {document_id}")
@@ -317,7 +325,7 @@ def generate_document_summary_task(self, document_id):
         
         document.save(update_fields=["title", "summary", "year"])
         
-        update_document_status(document, DocumentStatus.SUMMARY_GENERATED,
+        update_document_status(document, DocumentStatus.SUMMARY_GENERATION_DONE,
                             update_fields=["status", "title", "summary", "year"])
 
         update_document_status(document, DocumentStatus.COMPLETED)
@@ -341,25 +349,27 @@ def process_document_task(self, document_id):
     that have already been completed.
     """
     logger.info(f"Starting complete document processing for document_id: {document_id}")
-    
+
     try:
         document = Document.objects.get(id=document_id)
+        update_document_status(document, DocumentStatus.PROCESSING)
+        
         current_status = document.status
         logger.info(f"Document {document_id} current status: {current_status}")
         
         # Step 1: Extract text if needed
-        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.TEXT_EXTRACTING.value]:
+        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value]:
             document_id = extract_text_task(document_id)
         
         # Step 2: Chunk and embed text if needed
-        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.TEXT_EXTRACTING.value, 
-                             DocumentStatus.TEXT_EXTRACTED.value, DocumentStatus.EMBEDDING_TEXT.value]:
+        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value, 
+                             DocumentStatus.TEXT_EXTRACTION_DONE.value, DocumentStatus.EMBEDDING_TEXT.value]:
             document_id = chunk_and_embed_text_task(document_id)
         
         # Step 3: Generate document summary
-        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.TEXT_EXTRACTING.value,
-                             DocumentStatus.TEXT_EXTRACTED.value, DocumentStatus.EMBEDDING_TEXT.value,
-                             DocumentStatus.EMBEDDED_TEXT.value, DocumentStatus.GENERATING_SUMMARY.value]:
+        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value,
+                             DocumentStatus.TEXT_EXTRACTION_DONE.value, DocumentStatus.EMBEDDING_TEXT.value,
+                             DocumentStatus.TEXT_EMBEDDING_DONE.value, DocumentStatus.GENERATING_SUMMARY.value]:
             document_id = generate_document_summary_task(document_id)
         
         logger.info(f"Complete document processing finished successfully for document_id: {document_id}")

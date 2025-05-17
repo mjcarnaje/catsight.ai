@@ -1,46 +1,66 @@
-import { DOCUMENT_STATUS_CONFIG, getDocumentProgress } from "@/lib/document-status-config";
+import {
+  DOCUMENT_STATUS_CONFIG,
+  DocumentStatus,
+  getDocumentProgress,
+} from "@/lib/document-status-config";
 import { StatusHistory } from "@/types";
 import { differenceInMilliseconds } from "date-fns";
 import {
   Brain,
   CheckCircle2,
+  Circle,
   CircleDot,
   Clock,
+  FileArchive,
   FileSearch,
   FileText,
-  Network
+  Loader2,
+  Network,
+  Pencil,
+  RefreshCw,
+  Server,
+  Sparkles,
+  SquareTerminal,
 } from "lucide-react";
 import { Button } from "./ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "./ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Progress } from "./ui/progress";
 import { useEffect, useState } from "react";
 
-type StatusHistoryWithElapsedTime = StatusHistory & { elapsedTime: number; isLatestInProgress?: boolean };
+type StatusHistoryWithElapsedTime = StatusHistory & {
+  elapsedTime: number;
+  isLatestInProgress?: boolean;
+  isQueueTime?: boolean;
+};
 
 interface StatusHistoryPopoverProps {
   statusHistory: StatusHistory[];
 }
 
-export function StatusHistoryPopover({ statusHistory }: StatusHistoryPopoverProps) {
+export function StatusHistoryPopover({
+  statusHistory,
+}: StatusHistoryPopoverProps) {
   const progress = getDocumentProgress(statusHistory);
-  const [statusesWithElapsed, setStatusesWithElapsed] = useState<StatusHistoryWithElapsedTime[]>([]);
+  const [statusesWithElapsed, setStatusesWithElapsed] = useState<
+    StatusHistoryWithElapsedTime[]
+  >([]);
   const [totalElapsedTime, setTotalElapsedTime] = useState(0);
+  const [queueTime, setQueueTime] = useState(0);
 
   // Process status history and calculate elapsed times
   useEffect(() => {
     function getStatusHistoryWithElapsedTime(): StatusHistoryWithElapsedTime[] {
       const sortedStatusHistory: StatusHistoryWithElapsedTime[] = statusHistory
-        .filter(s => s.changed_at !== null)
+        .filter((s) => s.changed_at !== null)
         .sort((a, b) => {
           if (!a.changed_at || !b.changed_at) return 0;
           if (!a.changed_at) return 1;
           if (!b.changed_at) return -1;
-          return new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime();
-        }).map(s => ({ ...s, elapsedTime: 0 }));
+          return (
+            new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime()
+          );
+        })
+        .map((s) => ({ ...s, elapsedTime: 0 }));
 
       const result: StatusHistoryWithElapsedTime[] = [];
 
@@ -49,7 +69,8 @@ export function StatusHistoryPopover({ statusHistory }: StatusHistoryPopoverProp
 
       // Check if the latest status is in progress
       const latestStatus = sortedStatusHistory[0];
-      const isLatestInProgress = latestStatus.status !== "completed";
+      const isLatestInProgress =
+        latestStatus.status !== DocumentStatus.COMPLETED;
 
       // Calculate elapsed time between status changes
       for (let i = 0; i < sortedStatusHistory.length - 1; i++) {
@@ -59,7 +80,18 @@ export function StatusHistoryPopover({ statusHistory }: StatusHistoryPopoverProp
         if (currentStatus.changed_at && previousStatus.changed_at) {
           const currentDate = new Date(currentStatus.changed_at);
           const previousDate = new Date(previousStatus.changed_at);
-          currentStatus.elapsedTime = differenceInMilliseconds(currentDate, previousDate);
+          currentStatus.elapsedTime = differenceInMilliseconds(
+            currentDate,
+            previousDate
+          );
+
+          // Mark if this is queue time (transition from PENDING to PROCESSING)
+          if (
+            currentStatus.status === DocumentStatus.PROCESSING &&
+            previousStatus.status === DocumentStatus.PENDING
+          ) {
+            currentStatus.isQueueTime = true;
+          }
         }
 
         result.push(currentStatus);
@@ -81,8 +113,16 @@ export function StatusHistoryPopover({ statusHistory }: StatusHistoryPopoverProp
     const processed = getStatusHistoryWithElapsedTime();
     setStatusesWithElapsed(processed);
 
-    // Calculate total elapsed time excluding real-time counter
-    const total = processed.reduce((total, status) => total + status.elapsedTime, 0);
+    // Calculate queue time (time between PENDING and PROCESSING)
+    const queueTimeEntry = processed.find((entry) => entry.isQueueTime);
+    const queueTimeMs = queueTimeEntry ? queueTimeEntry.elapsedTime : 0;
+    setQueueTime(queueTimeMs);
+
+    // Calculate total elapsed time excluding queue time and real-time counter
+    const total = processed.reduce(
+      (total, status) => total + (status.isQueueTime ? 0 : status.elapsedTime),
+      0
+    );
     setTotalElapsedTime(total);
   }, [statusHistory]);
 
@@ -112,31 +152,44 @@ export function StatusHistoryPopover({ statusHistory }: StatusHistoryPopoverProp
   const formatElapsedTime = (ms: number) => {
     if (ms < 1000) return `${ms}ms`;
     if (ms < 60000) return `${Math.floor(ms / 1000)}s`;
-    if (ms < 3600000) return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
-    return `${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`;
+    if (ms < 3600000)
+      return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+    return `${Math.floor(ms / 3600000)}h ${Math.floor(
+      (ms % 3600000) / 60000
+    )}m`;
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: DocumentStatus) => {
     switch (status) {
-      case "completed":
-        return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      case "text_extracting":
-      case "text_extracted":
-        return <FileText className="w-4 h-4 text-blue-500" />;
-      case "generating_summary":
-      case "summary_generated":
-        return <Brain className="w-4 h-4 text-blue-500" />;
-      case "embedding_text":
-      case "embedded_text":
-        return <Network className="w-4 h-4 text-blue-500" />;
-      case "pending":
-        return <CircleDot className="w-4 h-4 text-gray-500" />;
-      default:
+      case DocumentStatus.PENDING:
+        return <Clock className="w-4 h-4 text-gray-500" />;
+      case DocumentStatus.PROCESSING:
+        return <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />;
+      case DocumentStatus.TEXT_EXTRACTING:
         return <FileSearch className="w-4 h-4 text-blue-500" />;
+      case DocumentStatus.TEXT_EXTRACTION_DONE:
+        return <FileText className="w-4 h-4 text-blue-600" />;
+      case DocumentStatus.EMBEDDING_TEXT:
+        return <Server className="w-4 h-4 text-indigo-500" />;
+      case DocumentStatus.TEXT_EMBEDDING_DONE:
+        return <Network className="w-4 h-4 text-indigo-600" />;
+      case DocumentStatus.GENERATING_SUMMARY:
+        return <Brain className="w-4 h-4 text-purple-500" />;
+      case DocumentStatus.SUMMARY_GENERATION_DONE:
+        return <Sparkles className="w-4 h-4 text-purple-600" />;
+      case DocumentStatus.COMPLETED:
+        return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      default:
+        return <Circle className="w-4 h-4 text-blue-500" />;
     }
   };
 
-  const displayTotalTime = totalElapsedTime + (statusesWithElapsed[0]?.isLatestInProgress ? latestElapsedTime : 0);
+  const displayTotalTime =
+    totalElapsedTime +
+    (statusesWithElapsed[0]?.isLatestInProgress &&
+    !statusesWithElapsed[0]?.isQueueTime
+      ? latestElapsedTime
+      : 0);
 
   return (
     <Popover>
@@ -150,25 +203,45 @@ export function StatusHistoryPopover({ statusHistory }: StatusHistoryPopoverProp
           <h4 className="font-medium">Status History</h4>
           <div className="space-y-1">
             {statusesWithElapsed.map((statusChange, index) => (
-              <div key={statusChange.id} className="flex items-center justify-between text-sm">
+              <div
+                key={statusChange.id}
+                className="flex items-center justify-between text-sm"
+              >
                 <div className="flex items-center gap-2">
                   {getStatusIcon(statusChange.status)}
-                  <span className={statusChange.status === "completed" ? "font-medium text-green-600" : ""}>
+                  <span
+                    className={
+                      statusChange.status === DocumentStatus.COMPLETED
+                        ? "font-medium text-green-600"
+                        : ""
+                    }
+                  >
                     {DOCUMENT_STATUS_CONFIG[statusChange.status].label}
                   </span>
                   {index === 0 && statusChange.isLatestInProgress ? (
                     <span className="text-xs text-muted-foreground animate-pulse">
                       (running for {formatElapsedTime(latestElapsedTime)})
                     </span>
-                  ) : statusChange.elapsedTime > 0 && (
+                  ) : statusChange.isQueueTime ? (
                     <span className="text-xs text-muted-foreground">
-                      (took {formatElapsedTime(statusChange.elapsedTime)})
+                      (queued for {formatElapsedTime(statusChange.elapsedTime)})
                     </span>
+                  ) : (
+                    statusChange.elapsedTime > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        (took {formatElapsedTime(statusChange.elapsedTime)})
+                      </span>
+                    )
                   )}
                 </div>
               </div>
             ))}
           </div>
+          {queueTime > 0 && (
+            <div className="pt-1 mt-1 text-xs text-amber-600">
+              Queue time: {formatElapsedTime(queueTime)}
+            </div>
+          )}
           {displayTotalTime > 0 && (
             <div className="pt-1 mt-1 text-xs border-t text-muted-foreground">
               Total processing time: {formatElapsedTime(displayTotalTime)}
@@ -185,4 +258,4 @@ export function StatusHistoryPopover({ statusHistory }: StatusHistoryPopoverProp
       </PopoverContent>
     </Popover>
   );
-} 
+}
