@@ -16,6 +16,7 @@ export function DocumentTableSkeleton({ rows = 5 }: DocumentTableSkeletonProps) 
           <TableHead className="font-medium hidden md:table-cell">Uploader</TableHead>
           <TableHead className="font-medium hidden md:table-cell">Created</TableHead>
           <TableHead className="font-medium hidden sm:table-cell">Chunks</TableHead>
+          <TableHead className="font-medium hidden sm:table-cell">Pages</TableHead>
           <TableHead className="text-right font-medium">Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -47,6 +48,9 @@ export function DocumentTableSkeleton({ rows = 5 }: DocumentTableSkeletonProps) 
             </TableCell>
             <TableCell className="hidden md:table-cell">
               <Skeleton className="h-4 w-28" />
+            </TableCell>
+            <TableCell className="hidden sm:table-cell">
+              <Skeleton className="h-6 w-12 rounded-full" />
             </TableCell>
             <TableCell className="hidden sm:table-cell">
               <Skeleton className="h-6 w-12 rounded-full" />

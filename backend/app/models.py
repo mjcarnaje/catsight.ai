@@ -90,11 +90,30 @@ class DocumentManager(models.Manager):
         return DocumentQuerySet(self.model, using=self._db).ordered()
 
 
+class Tag(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    author = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='tags'
+    )
+
+    class Meta:
+        ordering = ['name']
+        indexes = [models.Index(fields=['name'])]
+
+    def __str__(self):
+        return self.name
+
+
 class Document(models.Model):
     title              = models.TextField(null=True, blank=True)
     summary            = models.TextField(null=True, blank=True)
     year               = models.IntegerField(null=True, blank=True)
-    tags               = models.JSONField(null=True, blank=True)
+    tags               = models.ManyToManyField(Tag, related_name='documents', blank=True)
     file               = models.CharField(max_length=1000, null=True, blank=True)
     file_name          = models.CharField(max_length=1000, null=True, blank=True)
     file_type          = models.CharField(max_length=100, null=True, blank=True)
@@ -104,6 +123,7 @@ class Document(models.Model):
     is_failed          = models.BooleanField(default=False)
     task_id            = models.CharField(max_length=255, null=True, blank=True)
     markdown_converter = models.CharField(max_length=100, null=True, blank=True)
+    page_count         = models.IntegerField(default=0)
     summarization_model = models.CharField(max_length=100, default="")
     no_of_chunks       = models.IntegerField(default=0)
     created_at         = models.DateTimeField(auto_now_add=True)
@@ -125,8 +145,8 @@ class Document(models.Model):
 
     def __str__(self):
         return self.title or f"Document {self.id}"
-
-def save(self, *args, **kwargs):
+    
+    def save(self, *args, **kwargs):
         # Check if creation or status change
         is_create = self.pk is None
         old_status = None

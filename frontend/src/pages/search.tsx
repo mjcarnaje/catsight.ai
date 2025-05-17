@@ -10,10 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { documentsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Search as SearchIcon } from "lucide-react";
+import { Search as SearchIcon, Sparkles, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -74,34 +76,60 @@ export function SearchPage() {
               <div className="relative flex-1 group">
                 <SearchIcon className="absolute w-5 h-5 transition-colors transform -translate-y-1/2 left-3 top-1/2 text-muted-foreground group-focus-within:text-primary" />
                 <Input
-                  placeholder="Search documents..."
+                  placeholder={isAccurate ? "Ask any question about your documents..." : "Search for documents by title or summary..."}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="h-12 pl-10 transition-all focus-visible:ring-2 focus-visible:ring-primary"
+                  className={cn(
+                    "h-12 pl-10 transition-all focus-visible:ring-2",
+                    isAccurate ? "focus-visible:ring-primary border-primary/20" : "focus-visible:ring-primary"
+                  )}
                   autoFocus
                 />
+                {isAccurate && (
+                  <Badge variant="secondary" className="absolute flex items-center gap-1 px-2 -translate-y-1/2 text-primary bg-primary/10 right-3 top-1/2">
+                    <Sparkles className="w-3 h-3" />
+                    <span className="text-xs">AI</span>
+                  </Badge>
+                )}
               </div>
               <Button
                 type="submit"
-                className="h-12 px-6 transition-all shadow-md"
+                className={cn(
+                  "h-12 px-6 transition-all shadow-md",
+                )}
                 disabled={!query.trim()}
               >
                 <SearchIcon className="w-4 h-4 mr-2" />
                 Search
               </Button>
             </div>
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+            <div className="flex items-center p-2 space-x-3 transition-colors rounded-md hover:bg-slate-50">
               <Switch
                 id="accurate-mode"
                 checked={isAccurate}
                 onCheckedChange={setIsAccurate}
+                className={isAccurate ? "data-[state=checked]:bg-primary" : ""}
               />
-              <label htmlFor="accurate-mode" className="cursor-pointer select-none">
-                Use accurate mode{" "}
-                <span className="text-xs">
-                  (may take longer but provides more precise results)
-                </span>
-              </label>
+              <div className="flex-1 cursor-pointer select-none" onClick={() => setIsAccurate(!isAccurate)}>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="accurate-mode" className="font-medium">
+                    {isAccurate ? "AI-powered search enabled" : "AI-powered search"}
+                  </label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="w-4 h-4 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p>AI-powered search understands your questions and searches through the full text of all your documents. Standard search just looks for matches in titles and summaries.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Searches the full text of all documents and can answer specific questions. May take a few seconds longer.
+                </p>
+              </div>
             </div>
           </form>
         </CardContent>
@@ -133,7 +161,17 @@ export function SearchPage() {
                   <SearchIcon className="w-12 h-12 mb-4 text-muted-foreground" />
                   <h3 className="mb-2 text-xl font-medium">No results found</h3>
                   <p className="text-muted-foreground">
-                    Try using different keywords or more general terms
+                    Try using different keywords or {!isAccurate && (
+                      <span>enable <span className="font-medium underline cursor-pointer decoration-dotted"
+                        onClick={() => {
+                          setIsAccurate(true);
+                          if (query.trim()) {
+                            handleSearch(new Event('submit') as any);
+                          }
+                        }}>
+                        AI-powered search
+                      </span> to search within document content</span>
+                    )}
                   </p>
                 </div>
               </Card>

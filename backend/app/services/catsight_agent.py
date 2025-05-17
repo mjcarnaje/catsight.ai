@@ -21,6 +21,8 @@ import logging
 from typing import Any, Dict
 from ..models import Document
 from ..services.postgres import get_psycopg_connection_string
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import LLMListwiseRerank
 
 logger = logging.getLogger(__name__)
 
@@ -158,31 +160,6 @@ Use Markdown formatting to improve clarity:
     ("placeholder", "{messages}"),
 ]).partial(today_date=datetime.now().strftime("%Y-%m-%d"))
 
-def classify_snippet(model_id: str, query: str, snippet: str) -> bool:
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """
-You are a helpful assistant tasked with evaluating whether a document snippet contains information that helps answer a given query.
-
-Your job is to assess whether the snippet provides any relevant, useful, or supportive content for answering the query — either directly or indirectly.
-
-If the snippet contains information that could reasonably contribute to answering the query, respond with:
-**True**
-
-If the snippet is irrelevant, unrelated, or does not help answer the query in any way, respond with:
-**False**
-
-Respond with ONLY **True** or **False** — no explanations or additional text.
-        """),
-        ("human", "Is the snippet relevant to the query? Query: {query} Snippet: {snippet}"),
-    ])
-
-    chain = prompt | ChatOllama(model=model_id, base_url=base_url, temperature=1).with_structured_output(schema=IsRelevant)
-    response = chain.invoke({"query": query, "snippet": snippet})
-
-    return response.is_relevant
-    
-
-# --- Tool Definitions ------------------------------------------------------
 @tool(parse_docstring=True)
 def retrieve(query: str, config: RunnableConfig) -> str:
     """
@@ -192,19 +169,17 @@ def retrieve(query: str, config: RunnableConfig) -> str:
         query (str): The query to retrieve documents on.
     """
     model_id = config["configurable"].get("model")
-    docs = retriever.invoke(query)
-    filtered_documents = []
+    llm = ChatOllama(model=model_id, base_url=base_url, temperature=0)
+    compressor = LLMListwiseRerank.from_llm(llm, top_n=10)
+    compression_retriever = ContextualCompressionRetriever(
+        base_compressor=compressor, base_retriever=retriever
+    )
 
-    for doc in docs:
-        is_relevant = classify_snippet(model_id, query, doc.page_content)
-        logger.info(f"==RETRIEVE== Is the snippet relevant to the query? {is_relevant}")
-
-        if is_relevant:
-            filtered_documents.append(doc)
-            
+    docs = compression_retriever.invoke(query)
+           
     sources_map: Dict[Any, Dict[str, Any]] = {}
     
-    for doc in filtered_documents:
+    for doc in docs:
         doc_id = doc.metadata.get("doc_id")
         chunk_index = doc.metadata.get("index")
         snippet = doc.page_content
@@ -225,7 +200,7 @@ def retrieve(query: str, config: RunnableConfig) -> str:
                 "title":         d.title,
                 "summary":       d.summary,
                 "year":          d.year,
-                "tags":          d.tags,
+                "tags":          list(d.tags.values('name', 'description')),
                 "file_name":     d.file_name,
                 "blurhash":      d.blurhash,
                 "preview_image": d.preview_image,

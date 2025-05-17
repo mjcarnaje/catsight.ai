@@ -43,6 +43,7 @@ export function DocumentCardSkeleton() {
           <Skeleton className="h-8 rounded-md" />
           <Skeleton className="h-8 rounded-md" />
           <Skeleton className="h-8 rounded-md" />
+          <Skeleton className="h-8 rounded-md" />
         </div>
       </div>
 

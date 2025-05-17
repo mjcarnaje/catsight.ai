@@ -32,7 +32,7 @@ export default function ChatPage() {
     setNewChatId,
   } = useChatStream();
 
-  const { data: llmModels, isLoading: isLoadingModels } = useQuery({
+  const { data: llmModels, isLoading: isLoadingModels, error: errorModels } = useQuery({
     queryKey: ["llm-models"],
     queryFn: () => llmApi.getAll(),
     staleTime: 1000 * 60 * 5,
@@ -45,40 +45,10 @@ export default function ChatPage() {
     return chatsApi
       .getHistory(Number(id))
       .then((response) => {
-        const historyData = response.data;
-        if (historyData.messages && historyData.messages.length > 0) {
-          if (historyData.model_id) {
-            setSelectedModel({
-              id: historyData.model_id,
-              name: historyData.model_id,
-              description: "",
-              logo: "",
-            });
-
-            llmApi
-              .getAll()
-              .then((models) => {
-                const foundModel = models.find(
-                  (m) => m.code === historyData.model_id
-                );
-                if (foundModel) {
-                  setSelectedModel({
-                    id: foundModel.code,
-                    name: foundModel.name,
-                    description: foundModel.description,
-                    logo: foundModel.logo,
-                  });
-                }
-              })
-              .catch((err) => {
-                console.error("Failed to get model details:", err);
-              });
-          }
-          dispatch({
-            type: "SET_MESSAGES",
-            payload: historyData.messages as Message[],
-          });
-        }
+        dispatch({
+          type: "SET_MESSAGES",
+          payload: response.data.messages as Message[],
+        });
       })
       .catch((err) => {
         console.error("Failed to load chat history:", err);
@@ -100,10 +70,12 @@ export default function ChatPage() {
         llmModels?.[0];
 
       setSelectedModel({
-        id: _selectedModel.code,
+        id: _selectedModel.id,
         name: _selectedModel.name,
         description: _selectedModel.description,
         logo: _selectedModel.logo,
+        code: _selectedModel.code,
+        instruct: _selectedModel.instruct,
       });
     }
   }, [llmModels]);
@@ -145,7 +117,7 @@ export default function ChatPage() {
       return;
     }
 
-    sendMessage(text, chatId, selectedModel.id);
+    sendMessage(text, chatId, selectedModel.code);
   };
 
   const handleSelectSuggestion = (text: string) => {
@@ -182,7 +154,11 @@ export default function ChatPage() {
           </div>
         )}
         <ChatInput
-          modelId={selectedModel?.id}
+
+          models={llmModels}
+          selectedModel={selectedModel}
+          isLoading={isLoadingModels}
+          error={errorModels?.message}
           text={text}
           setText={setText}
           onModelChange={(model) => setSelectedModel(model)}

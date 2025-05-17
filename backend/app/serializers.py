@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, Document, DocumentStatusHistory, Chat
+from .models import User, Document, DocumentStatusHistory, Chat, Tag
 import json
 import logging
 from pathlib import Path
@@ -60,16 +60,39 @@ class DocumentStatusHistorySerializer(serializers.ModelSerializer):
         fields = ['id', 'status', 'changed_at']
 
 
+class TagSerializer(serializers.ModelSerializer):
+    author = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'description', 'author', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'author']
+
+
 class DocumentSerializer(serializers.ModelSerializer):
     uploaded_by = UserSerializer(read_only=True)
     status_history = DocumentStatusHistorySerializer(many=True, read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Tag.objects.all(),
+        many=True,
+        write_only=True,
+        required=False,
+        source='tags'
+    )
     
     class Meta:
         model = Document
-        fields = ['id', 'title', 'summary', 'year', 'tags', 'file', 'file_name', 'file_type', 
+        fields = ['id', 'title', 'summary', 'year', 'tags', 'tag_ids', 'file', 'file_name', 'file_type', 
                  'preview_image', 'blurhash', 'status', 'is_failed', 'task_id', 
                  'markdown_converter', 'summarization_model', 'no_of_chunks', 'created_at', 'updated_at', 
-                 'uploaded_by', 'status_history']
+                 'uploaded_by', 'status_history', 'page_count']
+        
+    def to_representation(self, instance):
+        """Convert the tags to a list of objects with id and name"""
+        representation = super().to_representation(instance)
+        representation['tags'] = [{'id': tag.id, 'name': tag.name} for tag in instance.tags.all()]
+        return representation
 
 
 class ChatSerializer(serializers.ModelSerializer):

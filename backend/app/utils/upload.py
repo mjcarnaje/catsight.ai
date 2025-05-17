@@ -3,6 +3,7 @@ import os
 import io
 from pdf2image import convert_from_path
 from PIL import Image
+from PyPDF2 import PdfReader
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -25,7 +26,7 @@ class UploadUtils:
     def upload_document(file, id):
         """
         Upload a document file, save it to the media root, and generate preview image with blurhash.
-        Returns a tuple of (file_path, preview_image, blurhash_string)
+        Returns a tuple of (file_path, preview_image, blurhash_string, page_count)
         """
         try:
             file_name = f"{id}_original.pdf"
@@ -48,11 +49,21 @@ class UploadUtils:
             
             logger.info(f"Successfully saved document at {full_file_path}")
             
+            # Extract the page count from the PDF
+            page_count = 0
+            try:
+                with open(full_file_path, 'rb') as pdf_file:
+                    reader = PdfReader(pdf_file)
+                    page_count = len(reader.pages)
+                logger.info(f"PDF page count: {page_count}")
+            except Exception as e:
+                logger.error(f"Error extracting page count: {str(e)}", exc_info=True)
+            
             # Generate preview image and blurhash
             preview_path, blurhash_string = UploadUtils.generate_preview_and_blurhash(id, full_file_path)
             logger.info(f"Preview generation results: path={preview_path}, blurhash={blurhash_string is not None}")
             
-            return file_path, preview_path, blurhash_string
+            return file_path, preview_path, blurhash_string, page_count
             
         except Exception as e:
             logger.error(f"Error uploading document {id}: {str(e)}", exc_info=True)

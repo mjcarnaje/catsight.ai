@@ -11,7 +11,7 @@ import { DOCUMENT_STATUS_CONFIG } from "@/lib/document-status-config";
 import { cn } from "@/lib/utils";
 import { Document, ModelInfo } from "@/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, MoreHorizontal, RefreshCw, RotateCw, Tag, Trash } from "lucide-react";
+import { Book, Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, MoreHorizontal, RefreshCw, RotateCw, Tag, Trash } from "lucide-react";
 import { useState } from "react";
 import { Blurhash } from "react-blurhash";
 import { useNavigate } from "react-router-dom";
@@ -162,12 +162,12 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   return (
     <Card
       key={doc.id}
-      className="flex flex-col h-full overflow-hidden transition-all duration-300 border group hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+      className="flex flex-col h-full overflow-hidden transition-all duration-300 border rounded-xl bg-gradient-to-b from-white to-muted/5 group hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
     >
       {/* Top Section with Image and Basic Info */}
       <div className="flex">
         {/* Preview Image */}
-        <div className="relative w-[100px] h-[120px] sm:w-[120px] sm:h-[140px] flex-shrink-0">
+        <div className="relative w-[100px] h-[120px] sm:w-[120px] sm:h-[140px] flex-shrink-0 overflow-hidden">
           {doc.preview_image && doc.blurhash ? (
             <>
               {!imageLoaded && doc.blurhash && (
@@ -185,18 +185,18 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               <img
                 src={previewImageUrl}
                 alt={doc.title}
-                className={`w-full h-full object-cover transition-opacity duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'} group-hover:scale-105 transition-transform duration-700`}
+                className={`w-full h-full object-cover transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'} group-hover:scale-105 transition-transform duration-700`}
                 onLoad={() => setImageLoaded(true)}
               />
               <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-r from-black/40 to-transparent group-hover:opacity-100"></div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center w-full h-full bg-muted/30">
+            <div className="flex flex-col items-center justify-center w-full h-full bg-gradient-to-br from-muted/30 to-muted/10">
               <ImageIcon className="w-8 h-8 mb-2 text-muted-foreground/50" />
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1 text-xs"
+                className="gap-1 text-xs rounded-full"
                 onClick={(e) => {
                   e.stopPropagation();
                   regeneratePreviewMutation.mutate();
@@ -221,7 +221,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             <Badge
               variant="outline"
               className={cn(
-                "rounded-full px-2 py-0.5 font-medium text-xs transition-colors whitespace-nowrap",
+                "rounded-full px-2.5 py-0.5 font-medium text-xs transition-colors whitespace-nowrap",
                 statusInfo.bg,
                 statusInfo.border,
                 statusInfo.text
@@ -242,7 +242,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             {/* Year Badge */}
             <Badge
               variant="secondary"
-              className="rounded-full px-2 py-0.5 font-medium text-xs bg-primary/10 text-primary border-primary/20"
+              className="rounded-full px-2.5 py-0.5 font-medium text-xs bg-primary/10 text-primary border-primary/20"
             >
               {documentYear}
             </Badge>
@@ -294,23 +294,22 @@ export function DocumentCard({ doc }: DocumentCardProps) {
         </div>
       </div>
 
-      {/* Description */}
+      {/* Tags Section */}
       <div className="flex-grow px-4 pt-2 pb-1">
-        {/* Tags Section */}
         {tags && tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {tags.slice(0, 3).map((tag, idx) => (
               <Badge
                 key={idx}
                 variant="secondary"
-                className="text-xs bg-secondary/40 hover:bg-secondary/60"
+                className="text-xs bg-secondary/40 hover:bg-secondary/60 px-2.5 py-1 rounded-full gap-1.5"
               >
-                <Tag className="w-3 h-3 mr-1" />
-                {tag}
+                <Tag className="w-3 h-3" />
+                {tag.name}
               </Badge>
             ))}
             {tags.length > 3 && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs px-2.5 py-1 rounded-full">
                 +{tags.length - 3}
               </Badge>
             )}
@@ -320,14 +319,21 @@ export function DocumentCard({ doc }: DocumentCardProps) {
 
       {/* Document Metadata */}
       <div className="px-4 pb-3">
-        <div className="grid grid-cols-2 mt-2 text-xs gap-x-2 gap-y-2">
-          <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
-            <Layers className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+        <div className="grid grid-cols-2 mt-2 text-xs gap-x-3 gap-y-2">
+          <div className="flex items-center gap-2 p-2 overflow-hidden border rounded-lg bg-background/50 backdrop-blur-sm">
+            <div className="p-1.5 rounded-md bg-primary/5">
+              <Layers className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
+            </div>
             <span className="font-medium truncate">{doc.no_of_chunks || 0} chunks</span>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
-            {ConverterIcon && <ConverterIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+          <div className="flex items-center gap-2 p-2 overflow-hidden border rounded-lg bg-background/50 backdrop-blur-sm">
+            <div className="p-1.5 rounded-md bg-primary/5">
+              {ConverterIcon ?
+                <ConverterIcon className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" /> :
+                <FileText className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
+              }
+            </div>
             <span className="font-medium truncate">
               {doc.markdown_converter && MARKDOWN_CONVERTERS[doc.markdown_converter]
                 ? MARKDOWN_CONVERTERS[doc.markdown_converter].label
@@ -335,13 +341,24 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
-            <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          <div className="flex items-center gap-2 p-2 overflow-hidden border rounded-lg bg-background/50 backdrop-blur-sm">
+            <div className="p-1.5 rounded-md bg-primary/5">
+              <FileText className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
+            </div>
             <span className="font-medium truncate" title={doc.file_name}>{doc.file_name}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-background p-1.5 rounded-md overflow-hidden">
-            <Tag className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+          <div className="flex items-center gap-2 p-2 overflow-hidden border rounded-lg bg-background/50 backdrop-blur-sm">
+            <div className="p-1.5 rounded-md bg-primary/5">
+              <Book className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
+            </div>
+            <span className="font-medium truncate">{doc.page_count || 0} pages</span>
+          </div>
+
+          <div className="flex items-center col-span-2 gap-2 p-2 overflow-hidden border rounded-lg bg-background/50 backdrop-blur-sm">
+            <div className="p-1.5 rounded-md bg-primary/5">
+              <Tag className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
+            </div>
             <span className="font-medium truncate">{doc.summarization_model}</span>
           </div>
         </div>
@@ -352,7 +369,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
         <Button
           variant="ghost"
           size="sm"
-          className="gap-1.5 text-muted-foreground group-hover:text-primary group-hover:font-medium transition-all rounded-full px-3 text-xs sm:text-sm"
+          className="gap-1.5 text-muted-foreground group-hover:text-primary group-hover:font-medium transition-all rounded-full px-4 text-xs sm:text-sm"
           onClick={() => navigate(`/documents/${doc.id}`)}
         >
           <span>View details</span>
@@ -368,7 +385,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               <MoreHorizontal className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="border rounded-lg shadow-lg">
             <DropdownMenuItem
               className="flex items-center gap-2"
               onClick={(e) => {
@@ -445,7 +462,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
 
       {/* Model Selection Dialog */}
       <Dialog open={isModelDialogOpen} onOpenChange={setIsModelDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="rounded-lg sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Regenerate Summary</DialogTitle>
             <DialogDescription>
@@ -463,12 +480,14 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               variant="outline"
               onClick={() => setIsModelDialogOpen(false)}
               disabled={regenerateSummaryMutation.isPending}
+              className="rounded-full"
             >
               Cancel
             </Button>
             <Button
               onClick={handleRegenerateSummary}
               disabled={!selectedModel || regenerateSummaryMutation.isPending}
+              className="rounded-full"
             >
               {regenerateSummaryMutation.isPending ? (
                 <>

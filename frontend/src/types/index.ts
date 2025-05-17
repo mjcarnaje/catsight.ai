@@ -1,8 +1,10 @@
 import { DocumentStatus } from "@/lib/document-status-config";
 import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
+import { Tag } from "./tags";
 import { User } from "./user";
 export * from "./llm";
 export * from "./message";
+export * from "./user";
 
 export interface StatusHistory {
   id: number;
@@ -19,8 +21,9 @@ export interface Document {
   summarization_model: string;
   summary: string;
   year?: number;
-  tags?: string[];
+  tags: Tag[];
   no_of_chunks: number;
+  page_count: number;
   status: DocumentStatus;
   markdown_converter: keyof typeof MARKDOWN_CONVERTERS;
   is_failed: boolean;
@@ -71,13 +74,6 @@ export interface PaginatedResponse<T> {
   page: number;
   next: number | null;
   previous: number | null;
-}
-
-export interface LLMModel {
-  id: string;
-  name: string;
-  description: string;
-  logo: string;
 }
 
 export interface SearchResultItem {

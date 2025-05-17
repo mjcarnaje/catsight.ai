@@ -17,7 +17,7 @@ scikit-learn
 numpy
 semchunk
 tiktoken
-marker-pdf
+marker-pdf[full]
 marker
 # torch
 # torchvision
@@ -37,8 +37,6 @@ langgraph-checkpoint
 langgraph-checkpoint-postgres
 langchain-community
 langchain-core
-
-# Document preview and blurhash generation
 pdf2image==1.17.0
 Pillow>=10.4.0
 blurhash>=1.0.0

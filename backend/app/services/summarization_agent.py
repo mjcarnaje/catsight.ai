@@ -3,8 +3,10 @@ from langchain_ollama import ChatOllama
 from pydantic import BaseModel, Field
 from enum import Enum
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from ..models import Tag
+from asgiref.sync import sync_to_async
 
-def get_llm(model_name="qwen2.5:7b-instruct-q4_K_M"):
+def get_llm(model_name= "llama3.1:8b"):
     """Get a language model instance with the specified model name."""
     return ChatOllama(model=model_name, base_url="http://ollama:11434", temperature=0)
 
@@ -87,9 +89,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Default model name
-TOKEN_MAX = 10000
-CHUNK_SIZE = 3000
-CHUNK_OVERLAP = 300
+TOKEN_MAX = 5000
+CHUNK_SIZE = 2000
+CHUNK_OVERLAP = 200
 SEPARATOR = ["\n\n", "\n", ".", " ", ""]
 
 summarization_splitter = RecursiveCharacterTextSplitter(
@@ -98,7 +100,7 @@ summarization_splitter = RecursiveCharacterTextSplitter(
     separators=SEPARATOR
 )
 
-def length_function(documents: List[Document], model_name="qwen2.5:7b-instruct-q4_K_M") -> int:
+def length_function(documents: List[Document], model_name) -> int:
     return sum(get_llm(model_name).get_num_tokens(doc.page_content) for doc in documents)
 
 class OverallState(TypedDict):
@@ -109,11 +111,11 @@ class OverallState(TypedDict):
     title: str
     year: int
     tags: List[str]
-    model_name: str = "qwen2.5:7b-instruct-q4_K_M"
+    model_name: str 
 
 class SummaryState(TypedDict):
     content: str
-    model_name: str = "qwen2.5:7b-instruct-q4_K_M"
+    model_name: str 
 
 
 # Nodes:
@@ -127,7 +129,7 @@ and the final summary.
 
 # Generates a summary for a single chunk of text
 async def generate_summary(state: SummaryState):
-    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
+    model_name = state.get("model_name")
     prompt = map_prompt.invoke({"content": state["content"]})
     logger.info(f"===================================[GENERATE SUMMARY]===================================")
     logger.info(f"Model name: {model_name}")
@@ -143,7 +145,7 @@ def map_summaries(state: OverallState):
     # We will return a list of `Send` objects
     # Each `Send` object consists of the name of a node in the graph
     # as well as the state to send to that node
-    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
+    model_name = state.get("model_name")
     return [
         Send("generate_summary", {"content": content, "model_name": model_name}) 
         for content in state["contents"]
@@ -157,7 +159,7 @@ def collect_summaries(state: OverallState):
     }
 
 
-async def _reduce(input: dict, model_name="qwen2.5:7b-instruct-q4_K_M") -> str:
+async def _reduce(input: dict, model_name) -> str:
     logger.info(f"===================================[REDUCE]===================================")
     logger.info(input)
     logger.info(f"===================================[END REDUCE]===================================")
@@ -167,7 +169,7 @@ async def _reduce(input: dict, model_name="qwen2.5:7b-instruct-q4_K_M") -> str:
 
 # Combines the summaries if they exceed a maximum token limit.
 async def collapse_summaries(state: OverallState):
-    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
+    model_name = state.get("model_name")
     doc_lists = split_list_of_docs(
         state["collapsed_summaries"], lambda docs: length_function(docs, model_name), TOKEN_MAX
     )
@@ -180,13 +182,13 @@ async def collapse_summaries(state: OverallState):
 
 # Here we will generate the final summary
 async def generate_final_summary(state: OverallState):
-    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
+    model_name = state.get("model_name")
     response = await _reduce(state["collapsed_summaries"], model_name)
     return {"final_summary": response}
 
 # Extracts a title from the final summary
 async def generate_title(state: OverallState):
-    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
+    model_name = state.get("model_name")
     class TitleModel(BaseModel):
         title: str = Field(..., description="A concise, descriptive title in Title Case, excluding institutional identifiers.")
 
@@ -207,7 +209,7 @@ Return only the title text without extra commentary."""),
 
 # Extracts the document year from the final summary
 async def extract_year(state: OverallState):
-    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
+    model_name = state.get("model_name")
     class YearModel(BaseModel):
         year: int = Field(..., description="The four-digit publication year extracted from the document summary.")
 
@@ -228,68 +230,53 @@ async def extract_year(state: OverallState):
 
 # Assigns tags based on the final summary
 async def assign_tags(state: OverallState):
-    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
+    model_name = state.get("model_name")
+    
+    # Asynchronously fetch all available tags from the database
+    @sync_to_async
+    def fetch_available_tags():
+        return list(Tag.objects.values_list('name', 'description'))
+    
+    available_tags = await fetch_available_tags()
+    formatted_tags = "\n- ".join([f"{name}: {description}" for name, description in available_tags])
+    
     tags_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a tag classifier for educational administrative documents. Based on the following summary, select only relevant tags from this list:
-- Special Orders
-- Memorandums
-- University Circulars
-- Academic Calendars
-- Board Resolutions
-- University Announcements
-- Student Policies
-- Faculty Directives
-- Administrative Notices
-- Campus Bulletins
-- Travel Orders
-- Research Publications
-- Financial Reports
-- Meeting Minutes
-- Accreditation Reports
-- Grant Agreements
-- Campus Events
+        ("system", f"""You are tasked with classifying educational administrative documents by selecting relevant tags from the list below:
+- {formatted_tags}
 - Other
 
-Rules:
-- Choose only tags that the content explicitly or implicitly supports.
-- If none apply, select "Other".
-- Return the tags as a JSON object with the key "tags" and an array of strings, with no extra commentary."""),
+Guidelines:
+- Select tags that are explicitly or implicitly supported by the content.
+- If no tags are applicable, choose "Other".
+- Provide the tags as a JSON object with the key "tags" and an array of strings, without additional commentary."""),
         ("human", "Summary:\n\n{summary}")
     ])
 
-    class TagEnum(str, Enum):
-        SPECIAL_ORDERS = "Special Orders"
-        MEMORANDUMS = "Memorandums"
-        UNIVERSITY_CIRCULARS = "University Circulars"
-        ACADEMIC_CALENDARS = "Academic Calendars"
-        BOARD_RESOLUTIONS = "Board Resolutions"
-        UNIVERSITY_ANNOUNCEMENTS = "University Announcements"
-        STUDENT_POLICIES = "Student Policies"
-        FACULTY_DIRECTIVES = "Faculty Directives"
-        ADMINISTRATIVE_NOTICES = "Administrative Notices"
-        CAMPUS_BULLETINS = "Campus Bulletins"
-        TRAVEL_ORDERS = "Travel Orders"
-        RESEARCH_PUBLICATIONS = "Research Publications"
-        FINANCIAL_REPORTS = "Financial Reports"
-        MEETING_MINUTES = "Meeting Minutes"
-        ACCREDITATION_REPORTS = "Accreditation Reports"
-        GRANT_AGREEMENTS = "Grant Agreements"
-        CAMPUS_EVENTS = "Campus Events"
-        OTHER = "Other"
-
     class TagsModel(BaseModel):
-        tags: List[TagEnum] = Field(description="Relevant document tags")
+        tags: list[str] = Field(description="List of relevant document tags")
     
     prompt = tags_prompt | get_llm(model_name).with_structured_output(TagsModel)
     response = await prompt.ainvoke({"summary": state["final_summary"]})
     
+    @sync_to_async
+    def get_tag_ids(tag_names):
+        tag_ids = []
+        for tag_name in tag_names:
+            tag = Tag.objects.filter(name=tag_name).first()
+            if tag:
+                tag_ids.append(tag.id)
+        return tag_ids
+    
+    tag_ids = await get_tag_ids(response.tags)
+    
     logger.info(f"Tags selected: {response.tags}")
-    return {"tags": response.tags}
+    logger.info(f"Tag IDs: {tag_ids}")
+    return {"tags": tag_ids}
 
 def should_collapse(
     state: OverallState,
 ) -> Literal["collapse_summaries", "generate_final_summary"]:
-    model_name = state.get("model_name", "qwen2.5:7b-instruct-q4_K_M")
+    model_name = state.get("model_name")
     num_tokens = length_function(state["collapsed_summaries"], model_name)
     if num_tokens > TOKEN_MAX:
         return "collapse_summaries"

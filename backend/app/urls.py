@@ -17,7 +17,6 @@ from .views.documents import (
     update_doc_markdown,
     search_docs,
     chat_with_docs,
-    delete_all_docs,
     get_graph_image,
     get_chat_history,
     regenerate_preview,
@@ -37,6 +36,13 @@ from .views.chats import (
     create_chat,
     delete_chat,
     get_chats_count,
+)
+from .views.tags import (
+    get_tags,
+    get_tag,
+    create_tag,
+    update_tag,
+    delete_tag,
 )
 
 urlpatterns = [
@@ -66,7 +72,6 @@ urlpatterns = [
     path('documents/<int:doc_id>/reextract/', reextract_doc, name='reextract_doc'),
     path('documents/search/', search_docs, name='search_docs'),
     path('documents/chat/', chat_with_docs, name='chat_with_docs'),
-    path('documents/delete_all/', delete_all_docs, name='delete_all_docs'),
     path('documents/graph/', get_graph_image, name='get_graph_image'),
     path('documents/get_all_tags/', get_all_tags, name='get_all_tags'),
     path('documents/get_all_years/', get_all_years, name='get_all_years'),
@@ -78,4 +83,11 @@ urlpatterns = [
     path('chats/create/', create_chat, name='create_chat'),
     path('chats/<int:chat_id>/delete/', delete_chat, name='delete_chat'),
     path('chats/<str:chat_id>/history/', get_chat_history, name='get_chat_history'),
+    
+    # Tag URLs
+    path('tags/', get_tags, name='get_tags'),
+    path('tags/<int:tag_id>/', get_tag, name='get_tag'),
+    path('tags/create/', create_tag, name='create_tag'),
+    path('tags/<int:tag_id>/update/', update_tag, name='update_tag'),
+    path('tags/<int:tag_id>/delete/', delete_tag, name='delete_tag'),
 ]

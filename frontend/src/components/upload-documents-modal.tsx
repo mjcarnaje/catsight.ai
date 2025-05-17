@@ -324,7 +324,7 @@ export function UploadDocumentsModal({
           <div
             {...getRootProps()}
             className={cn(
-              "border-2 border-dashed rounded-lg p-8 transition-all duration-200",
+              "border-2 border-dashed rounded-lg cursor-pointer p-8 hover:border-primary/50 transition-all duration-200",
               "flex flex-col items-center justify-center text-center",
               isDragActive
                 ? "border-primary bg-primary/5 scale-[1.02]"

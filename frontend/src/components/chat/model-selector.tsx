@@ -14,90 +14,29 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useSession } from "@/contexts/session-context";
-import { llmApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { ModelInfo } from "@/types";
+import { LLMModel } from "@/types";
 import { Check, ChevronDown, Loader2, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 interface ModelSelectorProps {
-  modelId?: string | null;
-  onModelChange: (model: ModelInfo) => void;
+  models: LLMModel[];
+  selectedModel: LLMModel;
+  onModelChange: (model: LLMModel) => void;
+  isLoading: boolean;
+  error: string | null;
 }
 
-export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
-  const { user } = useSession();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [models, setModels] = useState<ModelInfo[]>([]);
-  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
+export function ModelSelector({
+  models,
+  selectedModel,
+  onModelChange,
+  isLoading,
+  error,
+}: ModelSelectorProps) {
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchModels = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const apiModels = await llmApi.getAll();
-
-        // Transform API models to our ModelInfo type and mark favorites
-        const transformedModels: ModelInfo[] = apiModels.map((model) => ({
-          id: model.code,
-          name: model.name,
-          description: model.description,
-          logo: model.logo,
-        }));
-
-        // Sort models to show favorites first
-        transformedModels.sort((a, b) => {
-          if (a.isFavorite && !b.isFavorite) return -1;
-          if (!a.isFavorite && b.isFavorite) return 1;
-          return a.name.localeCompare(b.name);
-        });
-
-        setModels(transformedModels);
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-        setError("Failed to load models. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchModels();
-  }, [user]);
-
-  // Set initial selected model when models are loaded
-  useEffect(() => {
-    if (models.length && !selectedModel) {
-      let initialModel: ModelInfo | undefined;
-
-      // If modelId is provided, try to find it in the models list
-      if (modelId) {
-        initialModel = models.find((model) => model.id === modelId);
-      }
-
-      // If no model with modelId was found or no modelId was provided
-      if (!initialModel) {
-        // Try to find a favorite model or use the first model
-        initialModel = models.find((m) => m.isFavorite) || models[0];
-      }
-
-      if (initialModel) {
-        setSelectedModel(initialModel);
-        onModelChange(initialModel);
-      }
-    }
-  }, [models, modelId, selectedModel, onModelChange]);
-
-  const handleModelSelect = (model: ModelInfo) => {
-    setSelectedModel(model);
-    onModelChange(model);
-    setOpen(false);
-  };
-
-  if (loading || !selectedModel) {
+  if (isLoading || !selectedModel) {
     return (
       <div className="flex items-center gap-1.5 h-10 px-4 py-2 text-sm font-medium bg-background border rounded-md text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" />
@@ -155,7 +94,7 @@ export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
                   <CommandItem
                     key={model.id}
                     value={model.name}
-                    onSelect={() => handleModelSelect(model)}
+                    onSelect={() => onModelChange(model)}
                     className="flex flex-col items-start p-3 transition-colors cursor-pointer hover:bg-primary/5"
                   >
                     <div className="flex items-center justify-between w-full">
@@ -170,9 +109,6 @@ export function ModelSelector({ modelId, onModelChange }: ModelSelectorProps) {
                           <Sparkles className="w-4 h-4 text-primary" />
                         )}
                         <span className="font-medium">{model.name}</span>
-                        {model.isFavorite && (
-                          <span className="text-xs text-yellow-500">★</span>
-                        )}
                       </div>
                       {selectedModel.id === model.id && (
                         <Check className="w-4 h-4 text-primary" />

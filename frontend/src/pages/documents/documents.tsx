@@ -31,7 +31,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/components/ui/use-toast"
 import { UploadDocumentsModal } from "@/components/upload-documents-modal"
-import { documentsApi } from "@/lib/api"
+import { documentsApi, tagsApi } from "@/lib/api"
 import { DocumentStatus } from "@/lib/document-status-config"
 import { cn } from "@/lib/utils"
 import { DocumentFilters, ViewMode } from "@/types"
@@ -40,7 +40,7 @@ import { Calendar, FileText, Filter, LayoutGrid, List, Search, Tag, Upload, X } 
 import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 
-const PAGE_SIZE = 9
+const PAGE_SIZE = 10
 
 export default function DocumentsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -50,7 +50,7 @@ export default function DocumentsPage() {
 
   const { data: tagOptions, isLoading: isTagOptionsLoading } = useQuery({
     queryKey: ["tags"],
-    queryFn: () => documentsApi.getAllTags(),
+    queryFn: () => tagsApi.getAll(),
     staleTime: 60,
   })
 
@@ -350,7 +350,7 @@ export default function DocumentsPage() {
                       <Skeleton className="h-9" />
                     ) : (
                       <MultiSelect
-                        options={tagOptions.map(tag => ({ value: tag, label: tag }))}
+                        options={tagOptions.map(tag => ({ value: tag.id.toString(), label: tag.name }))}
                         selected={filters.tags || []}
                         onChange={handleTagsFilterChange}
                         placeholder="Filter by tags"

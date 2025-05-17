@@ -313,12 +313,12 @@ def generate_document_summary_task(self, document_id):
         document.title = final_state["title"]
         document.summary = final_state["final_summary"]
         document.year = final_state["year"]
-        document.tags = final_state["tags"]
+        document.tags.set(final_state["tags"])
         
-        document.save(update_fields=["title", "summary", "year", "tags"])
+        document.save(update_fields=["title", "summary", "year"])
         
         update_document_status(document, DocumentStatus.SUMMARY_GENERATED,
-                            update_fields=["status", "title", "summary", "year", "tags"])
+                            update_fields=["status", "title", "summary", "year"])
 
         update_document_status(document, DocumentStatus.COMPLETED)
 
