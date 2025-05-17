@@ -81,6 +81,12 @@ PYCODE
 
 echo "✅  Reset complete!"
 
+# ──────────────────────────────────────────────────────────
+# 8. Seed document tags
+# ──────────────────────────────────────────────────────────
+echo "🏷️  Seeding document tags..."
+docker compose exec backend python manage.py seed_document_tags
+
 # Start services in foreground or add ngrok if needed
 if [ "${1:-}" = "--with-ngrok" ]; then
   echo "🌐  Starting services with ngrok tunnel..."
