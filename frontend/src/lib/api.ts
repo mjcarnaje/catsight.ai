@@ -203,6 +203,11 @@ export const documentsApi = {
     };
     return api.get<PaginatedResponse<Document>>("/documents", { params });
   },
+  getByIds: (docIds: number[]) => {
+    return api.post<{ documents: Document[] }>("/documents/by-ids/", {
+      doc_ids: docIds,
+    });
+  },
   getOne: (id: number) => api.get<Document>(`/documents/${id}`),
   getRaw: (id: number) => api.get<Document>(`/documents/${id}/raw`),
   getMarkdown: (id: number) => api.get<Document>(`/documents/${id}/markdown`),
@@ -249,7 +254,13 @@ export const documentsApi = {
       formData.append("summarization_model", summarization_model);
     }
 
-    return api.post("/documents/upload", formData, {
+    return api.post<
+      {
+        status: "success" | "error";
+        id: number;
+        filename: string;
+      }[]
+    >("/documents/upload", formData, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
@@ -316,6 +327,20 @@ export const documentsApi = {
         console.error("Error fetching statistics:", error);
         throw error;
       });
+  },
+  standardSearch: (query: string, years?: string[], tags?: string[]) => {
+    const params = new URLSearchParams();
+    params.append("query", query);
+
+    if (years && years.length > 0) {
+      params.append("year", years.join(","));
+    }
+
+    if (tags && tags.length > 0) {
+      params.append("tags", tags.join(","));
+    }
+
+    return api.get(`/documents/standard-search`, { params });
   },
 };
 

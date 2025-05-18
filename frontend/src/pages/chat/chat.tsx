@@ -4,9 +4,11 @@ import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { useToast } from "@/components/ui/use-toast";
 import { useChatStream } from "@/contexts/chat-stream-context";
 import { useSession } from "@/contexts/session-context";
-import { chatsApi, llmApi } from "@/lib/api";
+import { chatsApi, documentsApi, llmApi } from "@/lib/api";
+import { DocumentStatus } from "@/lib/document-status-config";
 import { cn } from "@/lib/utils";
 import { LLMModel } from "@/types";
+import { Document } from "@/types";
 import { Message } from "@/types/message";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -22,6 +24,15 @@ export default function ChatPage() {
   const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
   const [text, setText] = useState("");
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedFiles, setUploadedFiles] = useState<
+    {
+      id: number;
+      filename: string;
+    }[]
+  >([]);
+  const [selectedDocs, setSelectedDocs] = useState<Document[]>([]);
 
   const {
     sendMessage,
@@ -32,11 +43,37 @@ export default function ChatPage() {
     setNewChatId,
   } = useChatStream();
 
-  const { data: llmModels, isLoading: isLoadingModels, error: errorModels } = useQuery({
+  const {
+    data: llmModels,
+    isLoading: isLoadingModels,
+    error: errorModels,
+  } = useQuery({
     queryKey: ["llm-models"],
     queryFn: () => llmApi.getAll(),
     staleTime: 1000 * 60 * 5,
   });
+
+  const uploadedFilesIds = uploadedFiles.map((file) => file.id);
+
+  const { data: uploadedDocs, isLoading: isLoadingDocs } = useQuery({
+    queryKey: ["uploaded-docs", uploadedFilesIds],
+    queryFn: async () => {
+      if (uploadedFilesIds.length === 0) return { documents: [] };
+      return documentsApi.getByIds(uploadedFilesIds).then((res) => res.data);
+    },
+    enabled: uploadedFilesIds.length > 0,
+    refetchInterval: uploadedFilesIds.length > 0 ? 2000 : false,
+  });
+
+  // Determine if documents are still processing
+  const isProcessingDocuments =
+    uploadedFilesIds.length > 0 &&
+    (isLoadingDocs ||
+      uploadedDocs?.documents?.some((doc) =>
+        ["pending", "processing", "extracting_text", "chunking"].includes(
+          doc.status
+        )
+      ));
 
   const getChatHistory = useCallback((id: string) => {
     setIsLoadingHistory(true);
@@ -117,11 +154,81 @@ export default function ChatPage() {
       return;
     }
 
-    sendMessage(text, chatId, selectedModel.code);
+    // Combine uploaded files and selected existing documents
+    const uploadedFileIds = uploadedFiles.map((file) => file.id);
+    const selectedDocIds = selectedDocs.map((doc) => doc.id);
+
+    // Combine both arrays and remove duplicates
+    const fileIds = [...new Set([...uploadedFileIds, ...selectedDocIds])];
+
+    console.log("fileIds", fileIds);
+    setUploadedFiles([]);
+    setSelectedDocs([]);
+
+    sendMessage(text, chatId, selectedModel.code, fileIds);
   };
 
   const handleSelectSuggestion = (text: string) => {
     setText(text);
+  };
+
+  const handleFileUpload = async (files: File[]) => {
+    if (!files.length) return;
+
+    setUploadingFiles(files);
+    setUploadProgress(0);
+
+    try {
+      const response = await documentsApi.upload(
+        files,
+        undefined,
+        undefined,
+        (progress) => setUploadProgress(progress)
+      );
+
+      // Extract document IDs from successful uploads
+      const successfulUploads = response.data
+        .filter((item) => item.status === "success")
+        .map((item) => ({ id: item.id, filename: item.filename }));
+
+      if (successfulUploads.length > 0) {
+        setUploadedFiles((prevState) => [...prevState, ...successfulUploads]);
+
+        toast({
+          title: "Files Uploaded",
+          description: `Processing ${successfulUploads.length} file(s)...`,
+        });
+      } else {
+        toast({
+          title: "Upload Failed",
+          description: "No files were successfully uploaded.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      toast({
+        title: "Upload Error",
+        description: "An error occurred while uploading files.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingFiles([]);
+    }
+  };
+
+  const handleSelectDocument = (doc: Document) => {
+    setSelectedDocs((prev) => {
+      // Check if document is already selected
+      if (prev.some((d) => d.id === doc.id)) {
+        return prev;
+      }
+      return [...prev, doc];
+    });
+  };
+
+  const handleRemoveDocument = (docId: number) => {
+    setSelectedDocs((prev) => prev.filter((doc) => doc.id !== docId));
   };
 
   return (
@@ -155,8 +262,26 @@ export default function ChatPage() {
           setText={setText}
           onModelChange={(model) => setSelectedModel(model)}
           onSend={handleSend}
+          onFileUpload={handleFileUpload}
           disabled={isStreaming || isLoadingModels}
           showModelSelector={user?.is_dev_mode}
+          uploadProgress={uploadProgress}
+          uploadingFiles={uploadingFiles}
+          processingDocuments={isProcessingDocuments}
+          uploadedFiles={uploadedFiles.map((file) => {
+            const uploadedDoc = uploadedDocs?.documents?.find(
+              (doc) => doc.id === file.id
+            );
+            return {
+              id: file.id,
+              filename: uploadedDoc?.file_name || file.filename,
+              isProcessing:
+                uploadedDoc?.status !== DocumentStatus.COMPLETED,
+            };
+          })}
+          selectedDocs={selectedDocs}
+          onSelectDocument={handleSelectDocument}
+          onRemoveDocument={handleRemoveDocument}
         />
       </div>
     </div>
