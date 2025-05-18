@@ -126,14 +126,6 @@ export default function ChatPage() {
 
   return (
     <div className="relative flex h-screen">
-      <div
-        className={cn(
-          "absolute inset-0 pointer-events-none",
-          "[background-size:20px_20px]",
-          "[background-image:radial-gradient(#e8e8e8_1px,transparent_1px)]",
-          "z-0"
-        )}
-      />
       <ChatSidebar currentChatId={chatId} />
       <div className="flex flex-col flex-1 overflow-hidden">
         {isLoadingHistory ? (
@@ -144,7 +136,7 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="flex-1 overflow-y-auto">
             <ChatList
               messages={messages}
               isStreaming={isStreaming}
@@ -153,8 +145,8 @@ export default function ChatPage() {
             />
           </div>
         )}
-        <ChatInput
 
+        <ChatInput
           models={llmModels}
           selectedModel={selectedModel}
           isLoading={isLoadingModels}

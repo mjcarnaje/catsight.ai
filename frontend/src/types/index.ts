@@ -113,3 +113,20 @@ export interface DocumentFilters {
   year?: string[];
   search?: string;
 }
+
+export interface StatisticsResponse {
+  documents_count: number;
+  chats_count: number;
+  users_count: number;
+  documents_by_status: Record<string, number>;
+  avg_page_count: number;
+  avg_chunks: number;
+  years_distribution: {
+    year: number;
+    count: number;
+  }[];
+  documents_timeline: {
+    month: string;
+    count: number;
+  }[];
+}

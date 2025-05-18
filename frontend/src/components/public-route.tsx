@@ -12,15 +12,7 @@ export function PublicRoute({ children }: { children: ReactNode }) {
   }
 
   return (
-    <main className="relative w-full min-h-screen bg-white">
-      <div
-        className={cn(
-          "absolute inset-0 pointer-events-none",
-          "[background-size:20px_20px]",
-          "[background-image:radial-gradient(#e8e8e8_1px,transparent_1px)]",
-          "z-0"
-        )}
-      />
+    <main className="relative w-full min-h-screen">
       <div className="relative z-10">{children}</div>
     </main>
   );

@@ -15,6 +15,7 @@ export type StatusConfigType = {
   text: string;
   bg: string;
   border: string;
+  color: string;
   showLoading: boolean;
 };
 
@@ -25,6 +26,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-gray-500",
       bg: "bg-gray-50",
       border: "border-gray-300",
+      color: "oklch(55.1% 0.027 264.364)",
       showLoading: false,
     },
     [DocumentStatus.PROCESSING]: {
@@ -32,6 +34,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-gray-500",
       bg: "bg-gray-50",
       border: "border-gray-300",
+      color: "oklch(55.1% 0.027 264.364)",
       showLoading: true,
     },
     [DocumentStatus.TEXT_EXTRACTING]: {
@@ -39,6 +42,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-blue-500",
       bg: "bg-blue-50",
       border: "border-blue-300",
+      color: "oklch(62.3% 0.214 259.815)",
       showLoading: true,
     },
     [DocumentStatus.TEXT_EXTRACTION_DONE]: {
@@ -46,6 +50,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-blue-600",
       bg: "bg-blue-50",
       border: "border-blue-300",
+      color: "oklch(54.6% 0.245 262.881)",
       showLoading: true,
     },
     [DocumentStatus.EMBEDDING_TEXT]: {
@@ -53,6 +58,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-indigo-500",
       bg: "bg-indigo-50",
       border: "border-indigo-300",
+      color: "oklch(58.5% 0.233 277.117)",
       showLoading: true,
     },
     [DocumentStatus.TEXT_EMBEDDING_DONE]: {
@@ -60,6 +66,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-indigo-600",
       bg: "bg-indigo-50",
       border: "border-indigo-300",
+      color: "oklch(51.1% 0.262 276.966)",
       showLoading: true,
     },
     [DocumentStatus.GENERATING_SUMMARY]: {
@@ -67,6 +74,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-purple-500",
       bg: "bg-purple-50",
       border: "border-purple-300",
+      color: "oklch(62.7% 0.265 303.9)",
       showLoading: true,
     },
     [DocumentStatus.SUMMARY_GENERATION_DONE]: {
@@ -74,6 +82,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-purple-600",
       bg: "bg-purple-50",
       border: "border-purple-300",
+      color: "oklch(55.8% 0.288 302.321)",
       showLoading: true,
     },
     [DocumentStatus.COMPLETED]: {
@@ -81,6 +90,7 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       text: "text-green-600",
       bg: "bg-green-50",
       border: "border-green-300",
+      color: "oklch(62.7% 0.194 149.214)",
       showLoading: false,
     },
   };

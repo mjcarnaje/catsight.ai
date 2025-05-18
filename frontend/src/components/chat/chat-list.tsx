@@ -133,7 +133,7 @@ export function ChatList({
 
   if (!messages || messages.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 w-full max-w-4xl p-8 mx-auto">
+      <div className="z-10 flex flex-col items-center justify-center flex-1 w-full max-w-4xl p-8 mx-auto">
         <h2 className="mb-6 text-2xl font-semibold text-center text-gray-800">
           How can I help you today?
         </h2>
@@ -172,7 +172,7 @@ export function ChatList({
   }
 
   return (
-    <div className="flex-1 w-full max-w-4xl p-4 pb-20 mx-auto space-y-6">
+    <div className="z-10 flex-1 w-full max-w-4xl p-4 pb-20 mx-auto space-y-6">
       {localMessages.map((msg, idx) => {
         const previousMessage = localMessages[idx - 1];
         const isCopied = copiedId === msg.id;
