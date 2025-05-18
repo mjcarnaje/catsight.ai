@@ -1,4 +1,4 @@
-from langchain_postgres import PGVectorStore, PGEngine
+from langchain_postgres import PGVector
 from langchain_ollama import OllamaEmbeddings
 
 DB_URI = "postgresql+psycopg://postgres:postgres@db:5432/app_db"
@@ -8,25 +8,18 @@ DBPASSWORD = "postgres"
 DBHOST = "db"
 DBPORT = 5432
 
-CONNECTION_STRING = f"postgresql+psycopg3://{DBUSER}:{DBPASSWORD}@{DBHOST}:{DBPORT}/{DBNAME}"
-engine = PGEngine.from_connection_string(url=CONNECTION_STRING)
+DB_URI = f"postgresql+psycopg://{DBUSER}:{DBPASSWORD}@{DBHOST}:{DBPORT}/{DBNAME}"
 
 EMBEDDING_MODEL_ID = "mxbai-embed-large"
-TABLE_NAME = "docs_chunks"
-VECTOR_SIZE = 1024
+EMBEDDINGS = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url="http://ollama:11434")
 
-embedding = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url="http://ollama:11434")
-
-engine.init_vectorstore_table(
-    table_name=TABLE_NAME,
-    vector_size=VECTOR_SIZE,
+vector_store = PGVector(
+    embeddings=EMBEDDINGS,
+    collection_name="docs_chunks",
+    connection=DB_URI,
+    use_jsonb=True,
 )
 
-vector_store = PGVectorStore.create_sync(
-    engine=engine,
-    table_name=TABLE_NAME,
-    embedding_service=embedding,
-)
 
 retriever = vector_store.as_retriever(
     search_type="similarity_score_threshold",
