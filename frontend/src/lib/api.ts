@@ -1,4 +1,11 @@
-import { Chat, Document, LLMModel, PaginatedResponse, Source } from "@/types";
+import {
+  Chat,
+  Document,
+  LLMModel,
+  PaginatedResponse,
+  Source,
+  StatisticsResponse,
+} from "@/types";
 import { Tag } from "@/types/tags";
 import axios from "axios";
 
@@ -296,6 +303,20 @@ export const documentsApi = {
       .get<string[]>("/documents/get_all_years")
       .then((res) => res.data);
   },
+  getStatistics: () => {
+    return api
+      .get<{
+        documents_count: number;
+        chats_count: number;
+        users_count: number;
+        documents_by_status: Record<string, number>;
+      }>("/statistics")
+      .then((response) => response.data)
+      .catch((error) => {
+        console.error("Error fetching statistics:", error);
+        throw error;
+      });
+  },
 };
 
 export const llmApi = {
@@ -321,4 +342,9 @@ export const tagsApi = {
     api.patch<Tag>(`/tags/${id}/update`, data),
 
   delete: (id: number) => api.delete(`/tags/${id}/delete`),
+};
+
+export const statisticsApi = {
+  getStatistics: () =>
+    api.get<StatisticsResponse>("/statistics").then((res) => res.data),
 };

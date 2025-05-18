@@ -25,6 +25,7 @@ import { ChatProvider } from "./contexts/chat-context";
 import { ChatStreamProvider } from "./contexts/chat-stream-context";
 import { GraphPage } from "./pages/graph/graph-page";
 import TagsPage from "./pages/tags/tags";
+import { cn } from "./lib/utils";
 
 const queryClient = new QueryClient();
 
@@ -32,173 +33,185 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <Router>
-          <ChatProvider>
-            <ChatStreamProvider>
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route
-                  path="/terms-and-conditions"
-                  element={<TermsAndConditionPage />}
-                />
-                <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-                <Route path="/graph" element={<GraphPage />} />
+        <div className="relative">
+          <div
+            className={cn(
+              "absolute inset-0 z-[1] pointer-events-none",
+              "[background-size:30px_30px]",
+              "[background-image:radial-gradient(#f5f5f5_1px,transparent_1px)]",
+            )}
+          />
+          <Router>
+            <ChatProvider>
+              <ChatStreamProvider>
+                <Routes>
+                  <Route path="/" element={<LandingPage />} />
+                  <Route
+                    path="/terms-and-conditions"
+                    element={<TermsAndConditionPage />}
+                  />
+                  <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                  <Route path="/graph" element={<GraphPage />} />
 
-                <Route element={<Layout />}>
-                  <Route
-                    path="/login"
-                    element={
-                      <PublicRoute>
-                        <LoginPage />
-                      </PublicRoute>
-                    }
-                  />
-                  <Route
-                    path="/register"
-                    element={
-                      <PublicRoute>
-                        <RegisterPage />
-                      </PublicRoute>
-                    }
-                  />
-                  <Route
-                    path="/onboarding"
-                    element={
-                      <ProtectedRoute>
-                        <div className="p-8">
-                          <OnboardingPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute>
-                        <div className="p-8">
-                          <DashboardPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/documents"
-                    element={
-                      <ProtectedRoute>
-                        <div className="p-8">
-                          <DocumentsPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
+                  <Route element={<Layout />}>
+                    <Route
+                      path="/login"
+                      element={
+                        <PublicRoute>
+                          <LoginPage />
+                        </PublicRoute>
+                      }
+                    />
+                    <Route
+                      path="/register"
+                      element={
+                        <PublicRoute>
+                          <RegisterPage />
+                        </PublicRoute>
+                      }
+                    />
+                    <Route
+                      path="/onboarding"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 p-8">
+                            <OnboardingPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/dashboard"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 p-8">
+                            <DashboardPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/documents"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 p-8">
+                            <DocumentsPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/documents/:id"
-                    element={
-                      <ProtectedRoute>
-                        <div className="w-full max-w-6xl p-8 mx-auto">
-                          <DocumentViewPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/documents/:id"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 w-full max-w-6xl p-8 mx-auto">
+                            <DocumentViewPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/documents/:id/edit"
-                    element={
-                      <ProtectedRoute>
-                        <div className="p-8">
-                          <EditDocumentPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/documents/:id/edit"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 p-8">
+                            <EditDocumentPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/documents/:id/pdf"
-                    element={
-                      <ProtectedRoute>
-                        <div className="w-full max-w-6xl p-8 mx-auto">
-                          <DocumentPdfPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/documents/:id/pdf"
+                      element={
+                        <ProtectedRoute>
+                          <div className="w-full max-w-6xl p-8 mx-auto">
+                            <DocumentPdfPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/documents/:id/markdown"
-                    element={
-                      <ProtectedRoute>
-                        <div className="w-full max-w-6xl p-8 mx-auto">
-                          <DocumentMarkdownPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/documents/:id/markdown"
+                      element={
+                        <ProtectedRoute>
+                          <div className="w-full max-w-6xl p-8 mx-auto">
+                            <DocumentMarkdownPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/documents/:id/comparison"
-                    element={
-                      <ProtectedRoute>
-                        <div className="p-8">
-                          <DocumentComparisonPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
+                    <Route
+                      path="/documents/:id/comparison"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 p-8">
+                            <DocumentComparisonPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
 
-                  <Route
-                    path="/chat"
-                    element={
-                      <ProtectedRoute>
-                        <ChatPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/chat/:id"
-                    element={
-                      <ProtectedRoute>
-                        <ChatPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/tags"
-                    element={
-                      <ProtectedRoute>
-                        <div className="p-8">
-                          <TagsPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/search"
-                    element={
-                      <ProtectedRoute>
-                        <div className="p-8">
-                          <SearchPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/settings"
-                    element={
-                      <ProtectedRoute>
-                        <div className="p-8">
-                          <SettingsPage />
-                        </div>
-                      </ProtectedRoute>
-                    }
-                  />
-                </Route>
-              </Routes>
-              <Toaster />
-            </ChatStreamProvider>
-          </ChatProvider>
-        </Router>
+                    <Route
+                      path="/chat"
+                      element={
+                        <ProtectedRoute>
+                          <ChatPage />
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/chat/:id"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10">
+                            <ChatPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/tags"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 p-8">
+                            <TagsPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/search"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 p-8">
+                            <SearchPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/settings"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-10 p-8">
+                            <SettingsPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
+                  </Route>
+                </Routes>
+                <Toaster />
+              </ChatStreamProvider>
+            </ChatProvider>
+          </Router>
+        </div>
+
       </SessionProvider>
     </QueryClientProvider>
   );

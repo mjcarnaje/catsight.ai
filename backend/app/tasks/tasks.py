@@ -24,7 +24,7 @@ def update_document_status(document, status, update_fields=None, failed=False):
         update_fields = ["status"]  
     else:
         update_fields.append("status")
-    
+
     if failed:
         document.is_failed = True
         if 'is_failed' not in update_fields:

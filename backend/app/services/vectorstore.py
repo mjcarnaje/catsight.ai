@@ -16,7 +16,7 @@ EMBEDDINGS = OllamaEmbeddings(model=EMBEDDING_MODEL_ID, base_url="http://ollama:
 vector_store = PGVector(
     embeddings=EMBEDDINGS,
     collection_name="docs_chunks",
-    connection=DB_URI,
+    connection=DB_URI,  
     use_jsonb=True,
 )
 

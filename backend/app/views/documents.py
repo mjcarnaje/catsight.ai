@@ -9,8 +9,13 @@ from rest_framework.decorators import api_view, parser_classes, permission_class
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db.models import Count, Avg
+from django.db.models.functions import TruncMonth
+from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 
-from ..models import Document, DocumentFullText, Chat, Tag
+from ..models import Document, DocumentFullText, Chat, Tag, User
 from ..serializers import DocumentSerializer
 from ..tasks.tasks import (generate_document_summary_task,
                           update_document_status,
@@ -25,7 +30,6 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, AIMess
 from ..services.rag_agent import rag_agent
 from ..services.summarization_agent import summarization_agent
 from ..utils.langgraph import _print_event
-from django.db import models
 
 logger = logging.getLogger(__name__)
 
@@ -866,13 +870,76 @@ def get_all_years(request):
     Get all unique years from all documents.
     """
     try:
-        years = Document.objects.values_list('year', flat=True).distinct()
-        filtered_years = filter(None, years)
-        reversed_years = sorted(filtered_years, reverse=True)
-        return Response(reversed_years, status=status.HTTP_200_OK)
+        # Get distinct years, exclude None values, and sort in descending order
+        years = Document.objects.exclude(year__isnull=True).values_list('year', flat=True).distinct().order_by('-year')
+        return Response(list(years), status=status.HTTP_200_OK)
     except Exception as e:
         logger.error(f"Error getting all years: {str(e)}")
         return Response(
             {"status": "error", "message": f"Error getting all years: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_statistics(request):
+    """
+    Return various statistics about the system.
+    """
+    try:
+        # Get document count by status
+        doc_status_counts = Document.objects.values('status').annotate(count=Count('id'))
+        
+        # Initialize all possible statuses with count 0
+        status_counts = {status.value: 0 for status in DocumentStatus}
+        
+        # Update with actual counts
+        for item in doc_status_counts:
+            if item['status'] in status_counts:
+                status_counts[item['status']] = item['count']
+        
+        # Calculate average page count and chunks
+        avg_page_count = Document.objects.aggregate(avg_pages=Avg('page_count'))['avg_pages'] or 0
+        avg_chunks = Document.objects.aggregate(avg_chunks=Avg('no_of_chunks'))['avg_chunks'] or 0
+        
+        # Get document years distribution
+        years_distribution = Document.objects.exclude(year__isnull=True).values('year').annotate(
+            count=Count('id')
+        ).order_by('year')
+        
+        # Get documents created per month (last 6 months)
+        six_months_ago = timezone.now() - timedelta(days=180)
+        docs_per_month = Document.objects.filter(
+            created_at__gte=six_months_ago
+        ).annotate(
+            month=TruncMonth('created_at')
+        ).values('month').annotate(
+            count=Count('id')
+        ).order_by('month')
+        
+        documents_timeline = [{
+            "month": item['month'].strftime('%b %Y'),
+            "count": item['count']
+        } for item in docs_per_month]
+        
+        stats = {
+            "documents_count": Document.objects.count(),
+            "chats_count": Chat.objects.count(),
+            "users_count": User.objects.count(),
+            "documents_by_status": status_counts,
+            "avg_page_count": round(avg_page_count, 1),
+            "avg_chunks": round(avg_chunks, 1),
+            "years_distribution": [{
+                "year": item['year'],
+                "count": item['count']
+            } for item in years_distribution],
+            "documents_timeline": documents_timeline
+        }
+        
+        return Response(stats, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error getting statistics: {str(e)}")
+        return Response(
+            {"status": "error", "message": f"Error getting statistics: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

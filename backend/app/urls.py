@@ -26,6 +26,7 @@ from .views.documents import (
     reextract_doc,
     get_all_tags,
     get_all_years,
+    get_statistics,
 )
 from .views.llm import (
     get_llm_models,
@@ -59,6 +60,7 @@ urlpatterns = [
     path('llm-models/<int:pk>/', get_llm_model, name='get_llm_model'),
     
     # Document URLs
+    path('statistics/', get_statistics, name='get_statistics'),
     path('documents/', get_docs, name='get_docs'),
     path('documents/count/', get_docs_count, name='get_docs_count'),
     path('documents/upload/', upload_doc, name='upload_doc'),
