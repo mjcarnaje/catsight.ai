@@ -25,6 +25,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, AIMess
 from ..services.rag_agent import rag_agent
 from ..services.summarization_agent import summarization_agent
 from ..utils.langgraph import _print_event
+from django.db import models
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,73 @@ def search_docs(request):
         
     except Exception as e:
         logger.exception("Search failed")
+        return Response(
+            {"error": f"Search failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def standard_search_docs(request):
+    """
+    Search documents by title and summary with optional year and tags filters.
+    """
+    query = request.GET.get("query", "").strip().lower()
+    years = request.GET.get("year")
+    tags = request.GET.get("tags")
+    
+    if not query:
+        return Response(
+            {"error": "The 'query' parameter is required."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        # Base query with title and summary search
+        documents = Document.objects.filter(
+            models.Q(title__icontains=query) |
+            models.Q(summary__icontains=query)
+        )
+
+        # Apply year filter if provided
+        if years:
+            year_list = years.split(',')
+            documents = documents.filter(year__in=year_list)
+        
+        # Apply tags filter if provided
+        if tags:
+            tag_list = tags.split(',')
+            documents = documents.filter(tags__id__in=tag_list)
+
+        # Order by creation date
+        documents = documents.order_by('-created_at')
+
+        # Format response similar to RAG search for frontend compatibility
+        sources = []
+        for doc in documents:
+            source = {
+                "id": doc.id,
+                "title": doc.title,
+                "summary": doc.summary,
+                "year": doc.year,
+                "tags": list(doc.tags.values('name', 'description')),
+                "file_name": doc.file_name,
+                "blurhash": doc.blurhash,
+                "preview_image": doc.preview_image,
+                "file_type": doc.file_type,
+                "created_at": doc.created_at.isoformat(),
+                "updated_at": doc.updated_at.isoformat(),
+                "contents": []  # Empty contents since this is not a RAG search
+            }
+            sources.append(source)
+
+        return Response({
+            'summary': "",  # No AI summary for standard search
+            'sources': sources,
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception("Standard search failed")
         return Response(
             {"error": f"Search failed: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
