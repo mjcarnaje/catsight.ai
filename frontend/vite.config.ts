@@ -40,6 +40,10 @@ export default defineConfig({
         target: "http://backend:8000",
         changeOrigin: true,
       },
+      "/notebook": {
+        target: "http://backend:8888/notebooks/Test.ipynb",
+        changeOrigin: true,
+      },
     },
     watch: {
       usePolling: true,

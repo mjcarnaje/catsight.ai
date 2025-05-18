@@ -887,16 +887,17 @@ def get_statistics(request):
     Return various statistics about the system.
     """
     try:
-        # Get document count by status
-        doc_status_counts = Document.objects.values('status').annotate(count=Count('id'))
-        
         # Initialize all possible statuses with count 0
         status_counts = {status.value: 0 for status in DocumentStatus}
         
-        # Update with actual counts
-        for item in doc_status_counts:
-            if item['status'] in status_counts:
-                status_counts[item['status']] = item['count']
+        # Get document count by status using proper aggregation
+        status_counts_by_status = {}
+        for status_value in status_counts.keys():
+            count = Document.objects.filter(status=status_value).count()
+            status_counts[status_value] = count
+            status_counts_by_status[status_value] = count
+        
+        logger.info(f"Status counts: {status_counts_by_status}")
         
         # Calculate average page count and chunks
         avg_page_count = Document.objects.aggregate(avg_pages=Avg('page_count'))['avg_pages'] or 0
