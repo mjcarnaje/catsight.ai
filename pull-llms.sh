@@ -34,10 +34,10 @@ docker compose exec ollama ollama pull qwen2.5:7b-instruct-q4_K_M
 docker compose exec ollama ollama pull llama3.1:8b-text-fp16
 docker compose exec ollama ollama pull mxbai-embed-large
 
-# ──────────────────────────────────────────────────────────
-# 3. Download Docling models
-# ──────────────────────────────────────────────────────────
-echo "📥  Downloading Docling models..."
-docker compose exec backend docling-tools models download
+# # ──────────────────────────────────────────────────────────
+# # 3. Download Docling models
+# # ──────────────────────────────────────────────────────────
+# echo "📥  Downloading Docling models..."
+# docker compose exec backend docling-tools models download
 
 echo "✅  LLM and Docling models pulled!"

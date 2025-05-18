@@ -40,7 +40,7 @@ class Command(BaseCommand):
             "description": "Instructions or policies directed at academic staff regarding teaching, conduct, or administrative tasks."
         },
         {
-            "type": "Administrative Notices",
+            "type": "Administrative Notices",  
             "description": "General notifications related to operational or procedural matters within the university."
         },
         {

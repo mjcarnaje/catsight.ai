@@ -19,11 +19,8 @@ semchunk
 tiktoken
 marker-pdf[full]
 marker
-# torch
-# torchvision
-# torchaudio
 python-dotenv
-psycopg2-binary>=3.0.0
+psycopg-binary
 markitdown
 pyyaml==6.0.1
 djangorestframework-simplejwt
@@ -39,6 +36,7 @@ langchain-community
 langchain-core
 pdf2image==1.17.0
 Pillow>=10.4.0
-blurhash>=1.0.0
 blurhash-python>=1.2.2
 pyppeteer
+SQLAlchemy
+uuid

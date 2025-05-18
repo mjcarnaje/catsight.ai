@@ -85,6 +85,14 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
     },
   };
 
+export const getStatusConfig = (status: DocumentStatus): StatusConfigType => {
+  if (!DOCUMENT_STATUS_CONFIG[status]) {
+    return DOCUMENT_STATUS_CONFIG[DocumentStatus.PENDING];
+  }
+
+  return DOCUMENT_STATUS_CONFIG[status];
+};
+
 export interface StatusDisplayInfo {
   label: string;
   color: StatusConfigType;
