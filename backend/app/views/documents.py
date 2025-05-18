@@ -312,6 +312,9 @@ def update_doc_markdown(request, doc_id):
 @permission_classes([IsAuthenticated])
 def search_docs(request):
     query = request.GET.get("query", "").strip()
+    years = request.GET.get("year", "").strip()
+    tags = request.GET.get("tags", "").strip()
+    
     is_accurate = request.GET.get("accurate", "false") == "true"
     
     if not query:
@@ -319,9 +322,11 @@ def search_docs(request):
             {"error": "The 'query' parameter is required."},
             status=status.HTTP_400_BAD_REQUEST
         )
+    
+    logger.info(f"Search query: {query}, years: {years}, tags: {tags}")
 
     try:
-        result = rag_agent.invoke({"query": query, "is_accurate": is_accurate})
+        result = rag_agent.invoke({"query": query, "is_accurate": is_accurate, "years": years, "tags": tags})
 
         return Response({
             'summary': result.get("summary", ""),
@@ -419,6 +424,7 @@ def chat_with_docs(request):
     
     model_id = body.get("model_id", "llama3.1:8b")
     chat_id = body.get("chat_id")
+    file_ids = body.get("file_ids", [])
         
     def event_stream():
         nonlocal chat_id, query
@@ -440,7 +446,7 @@ def chat_with_docs(request):
         # Build initial input messages list
         human_msg = HumanMessage(content=query)
         input_messages = [human_msg]
-        input_state = {"current_query": query, "messages": input_messages}
+        input_state = {"current_query": query, "messages": input_messages, "file_ids": file_ids}
 
         try:
             _printed = set()
@@ -942,5 +948,34 @@ def get_statistics(request):
         logger.error(f"Error getting statistics: {str(e)}")
         return Response(
             {"status": "error", "message": f"Error getting statistics: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def get_docs_by_ids(request):
+    """
+    Retrieve documents by a list of IDs.
+    Used to check progress of documents uploaded in chat.
+    """
+    doc_ids = request.data.get('doc_ids', [])
+    
+    if not doc_ids or not isinstance(doc_ids, list):
+        return Response(
+            {"error": "A list of document IDs is required"}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        documents = Document.objects.filter(id__in=doc_ids).order_by('-created_at')
+        serializer = DocumentSerializer(documents, many=True)
+        
+        return Response({
+            'documents': serializer.data
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error retrieving documents by IDs: {str(e)}")
+        return Response(
+            {"error": f"Failed to retrieve documents: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

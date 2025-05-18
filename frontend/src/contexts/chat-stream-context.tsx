@@ -43,7 +43,8 @@ interface ChatStreamContextType {
   sendMessage: (
     userText: string,
     chatId: string | undefined,
-    modelId: string | null
+    modelId: string | null,
+    fileIds?: number[]
   ) => void;
   messages: Message[];
   dispatch: React.Dispatch<ChatAction>;
@@ -63,7 +64,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
   const [newChatId, setNewChatId] = useState<string | null>(null);
 
   const sendMessage = useCallback(
-    (userText: string, chatId: string | undefined, modelId: string | null) => {
+    (userText: string, chatId: string | undefined, modelId: string | null, fileIds?: number[]) => {
       if (!modelId) {
         setError("Please select a model first");
         return;
@@ -99,6 +100,7 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
           query: userText,
           model_id: modelId,
           chat_id: chatId,
+          file_ids: fileIds,
         }),
         signal: ctrl.signal,
       })

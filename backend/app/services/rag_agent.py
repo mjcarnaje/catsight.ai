@@ -6,7 +6,7 @@ from langgraph.graph import StateGraph, START, END
 from langchain_core.prompts import ChatPromptTemplate
 from ..services.ollama import base_url
 from langchain_ollama import ChatOllama
-from ..services.vectorstore import retriever
+from ..services.vectorstore import vector_store
 import logging
 from ..models import Document
 from langchain.docstore.document import Document as Doc
@@ -27,6 +27,9 @@ class State(TypedDict):
     documents: List[Doc]
     sources: List[Dict[str, Any]]
     summary: str
+    years: List[str]
+    tags: List[str]
+
 
 def retrieve(state: State):
     """
@@ -36,6 +39,28 @@ def retrieve(state: State):
         query (str): The query to retrieve documents on.
     """
     query = state.get("query")
+    years = state.get("years")
+    tags = state.get("tags")
+
+    search_kwargs = {
+        "score_threshold": 0.4,
+    }
+
+    filters = {}
+    if years:
+        filters["year"] = {"$in": years}
+    
+    if tags:
+        filters["tags"] = {"$in": tags}
+    
+    if filters:
+        search_kwargs["filter"] = filters
+
+    retriever = vector_store.as_retriever(
+        search_type="similarity_score_threshold",
+        search_kwargs=search_kwargs,
+    )
+    
 
     llm = ChatOllama(model=MODEL, base_url=base_url, temperature=0)
     compressor = LLMListwiseRerank.from_llm(llm, top_n=10)

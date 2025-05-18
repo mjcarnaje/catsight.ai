@@ -291,7 +291,7 @@ export function SearchPage() {
                         <Skeleton className="h-9" />
                       ) : (
                         <MultiSelect
-                          options={yearOptions.map(year => ({ value: year, label: year }))}
+                          options={yearOptions.map(year => ({ value: year.toString(), label: year.toString() }))}
                           selected={filters.year || []}
                           onChange={handleYearFilterChange}
                           placeholder="Filter by years"

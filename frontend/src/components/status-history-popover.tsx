@@ -164,14 +164,14 @@ export function StatusHistoryPopover({
         return <FileSearch className="w-4 h-4 text-blue-500" />;
       case DocumentStatus.TEXT_EXTRACTION_DONE:
         return <FileText className="w-4 h-4 text-blue-600" />;
-      case DocumentStatus.EMBEDDING_TEXT:
-        return <Server className="w-4 h-4 text-indigo-500" />;
-      case DocumentStatus.TEXT_EMBEDDING_DONE:
-        return <Network className="w-4 h-4 text-indigo-600" />;
       case DocumentStatus.GENERATING_SUMMARY:
         return <Brain className="w-4 h-4 text-purple-500" />;
       case DocumentStatus.SUMMARY_GENERATION_DONE:
         return <Sparkles className="w-4 h-4 text-purple-600" />;
+      case DocumentStatus.EMBEDDING_TEXT:
+        return <Server className="w-4 h-4 text-indigo-500" />;
+      case DocumentStatus.TEXT_EMBEDDING_DONE:
+        return <Network className="w-4 h-4 text-indigo-600" />;
       case DocumentStatus.COMPLETED:
         return <CheckCircle2 className="w-4 h-4 text-green-500" />;
       default:

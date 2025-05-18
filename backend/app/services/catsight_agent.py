@@ -8,14 +8,14 @@ from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.prebuilt import tools_condition, ToolNode
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg_pool import ConnectionPool
-from langgraph.prebuilt import ToolNode
+from langgraph.prebuilt import InjectedState, ToolNode
 from langchain_core.runnables import RunnableConfig, RunnableLambda
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import tool
 from ..services.ollama import base_url
 from langchain_ollama import ChatOllama
-from ..services.vectorstore import retriever, DB_URI
+from ..services.vectorstore import vector_store, DB_URI
 from langchain_core.runnables import RunnableConfig
 import logging
 from typing import Any, Dict
@@ -72,6 +72,7 @@ class State(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     title: Optional[str]
     should_generate_title: bool = True  
+    file_ids: Optional[list[int]] = None
 
 # --- Helper Classes -------------------------------------------------------
 class Title(BaseModel):
@@ -161,13 +162,28 @@ Use Markdown formatting to improve clarity:
 ]).partial(today_date=datetime.now().strftime("%Y-%m-%d"))
 
 @tool(parse_docstring=True)
-def retrieve(query: str, config: RunnableConfig) -> str:
+def retrieve(query: str, config: RunnableConfig, state: Annotated[dict, InjectedState]) -> str:
     """
     This tool will retrieve documents from the vector store and filter them based on relevance to the query.
 
     Args:
         query (str): The query to retrieve documents on.
     """
+    file_ids = state.get("file_ids", [])
+    has_file_ids = len(file_ids) > 0
+
+    search_kwargs = {
+        "score_threshold": 0.4,
+    }
+
+    if has_file_ids:
+        search_kwargs["filter"] = {"doc_id": {"$in": file_ids}}
+
+    retriever = vector_store.as_retriever(
+        search_type="similarity_score_threshold",
+        search_kwargs=search_kwargs,
+    )
+    
     model_id = config["configurable"].get("model")
     llm = ChatOllama(model=model_id, base_url=base_url, temperature=0)
     compressor = LLMListwiseRerank.from_llm(llm, top_n=10)

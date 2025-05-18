@@ -3,10 +3,10 @@ export enum DocumentStatus {
   PROCESSING = "processing",
   TEXT_EXTRACTING = "text_extracting",
   TEXT_EXTRACTION_DONE = "text_extraction_done",
-  EMBEDDING_TEXT = "embedding_text",
-  TEXT_EMBEDDING_DONE = "text_embedding_done",
   GENERATING_SUMMARY = "generating_summary",
   SUMMARY_GENERATION_DONE = "summary_generation_done",
+  EMBEDDING_TEXT = "embedding_text",
+  TEXT_EMBEDDING_DONE = "text_embedding_done",
   COMPLETED = "completed",
 }
 
@@ -53,22 +53,6 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       color: "oklch(54.6% 0.245 262.881)",
       showLoading: true,
     },
-    [DocumentStatus.EMBEDDING_TEXT]: {
-      label: "Text Embedding",
-      text: "text-indigo-500",
-      bg: "bg-indigo-50",
-      border: "border-indigo-300",
-      color: "oklch(58.5% 0.233 277.117)",
-      showLoading: true,
-    },
-    [DocumentStatus.TEXT_EMBEDDING_DONE]: {
-      label: "Text Embedding Done",
-      text: "text-indigo-600",
-      bg: "bg-indigo-50",
-      border: "border-indigo-300",
-      color: "oklch(51.1% 0.262 276.966)",
-      showLoading: true,
-    },
     [DocumentStatus.GENERATING_SUMMARY]: {
       label: "Generating Summary",
       text: "text-purple-500",
@@ -83,6 +67,22 @@ export const DOCUMENT_STATUS_CONFIG: Record<DocumentStatus, StatusConfigType> =
       bg: "bg-purple-50",
       border: "border-purple-300",
       color: "oklch(55.8% 0.288 302.321)",
+      showLoading: true,
+    },
+    [DocumentStatus.EMBEDDING_TEXT]: {
+      label: "Text Embedding",
+      text: "text-indigo-500",
+      bg: "bg-indigo-50",
+      border: "border-indigo-300",
+      color: "oklch(58.5% 0.233 277.117)",
+      showLoading: true,
+    },
+    [DocumentStatus.TEXT_EMBEDDING_DONE]: {
+      label: "Text Embedding Done",
+      text: "text-indigo-600",
+      bg: "bg-indigo-50",
+      border: "border-indigo-300",
+      color: "oklch(51.1% 0.262 276.966)",
       showLoading: true,
     },
     [DocumentStatus.COMPLETED]: {

@@ -252,7 +252,9 @@ def chunk_and_embed_text_task(self, document_id):
             metadata = {
                 "doc_id": document.id,
                 "id": f"doc_{document.id}_chunk_{i}",
-                "index": i
+                "index": i,
+                "year": document.year,
+                "tags": list(document.tags.values_list("id", flat=True))
             }
             docs.append(Doc(page_content=chunk, metadata=metadata))
 
@@ -271,6 +273,9 @@ def chunk_and_embed_text_task(self, document_id):
             DocumentStatus.TEXT_EMBEDDING_DONE,
             update_fields=["status", "no_of_chunks"]
         )
+        
+        update_document_status(document, DocumentStatus.COMPLETED)
+        
         logger.info(f"chunk_and_embed_text_task completed successfully for document_id: {document_id}")
         return document_id
 
@@ -328,9 +333,6 @@ def generate_document_summary_task(self, document_id):
         update_document_status(document, DocumentStatus.SUMMARY_GENERATION_DONE,
                             update_fields=["status", "title", "summary", "year"])
 
-        update_document_status(document, DocumentStatus.COMPLETED)
-
-
         return document_id
 
     except Exception as e:
@@ -361,16 +363,16 @@ def process_document_task(self, document_id):
         if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value]:
             document_id = extract_text_task(document_id)
         
-        # Step 2: Chunk and embed text if needed
+        # Step 2: Generate document summary
         if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value, 
-                             DocumentStatus.TEXT_EXTRACTION_DONE.value, DocumentStatus.EMBEDDING_TEXT.value]:
-            document_id = chunk_and_embed_text_task(document_id)
-        
-        # Step 3: Generate document summary
-        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value,
-                             DocumentStatus.TEXT_EXTRACTION_DONE.value, DocumentStatus.EMBEDDING_TEXT.value,
-                             DocumentStatus.TEXT_EMBEDDING_DONE.value, DocumentStatus.GENERATING_SUMMARY.value]:
+                             DocumentStatus.TEXT_EXTRACTION_DONE.value, DocumentStatus.GENERATING_SUMMARY.value]:
             document_id = generate_document_summary_task(document_id)
+        
+        # Step 3: Chunk and embed text
+        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value,
+                             DocumentStatus.TEXT_EXTRACTION_DONE.value, DocumentStatus.SUMMARY_GENERATION_DONE.value, 
+                             DocumentStatus.EMBEDDING_TEXT.value]:
+            document_id = chunk_and_embed_text_task(document_id)
         
         logger.info(f"Complete document processing finished successfully for document_id: {document_id}")
         return document_id
