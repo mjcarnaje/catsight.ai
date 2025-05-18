@@ -6,14 +6,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
-import { DOCUMENT_STATUS_CONFIG } from "@/lib/document-status-config";
+import { documentsApi, getDocumentPreviewUrl, llmApi } from "@/lib/api";
+import { getStatusConfig } from "@/lib/document-status-config";
 import { cn } from "@/lib/utils";
-import { Document, ModelInfo } from "@/types";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Document, LLMModel } from "@/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import {
   Book,
+  Calendar,
   Eye,
   FileText,
   Image as ImageIcon,
@@ -21,10 +22,8 @@ import {
   MoreHorizontal,
   RefreshCw,
   RotateCw,
-  Trash,
   Tag,
-  Calendar,
-  FileCode,
+  Trash
 } from "lucide-react";
 import { useState } from "react";
 import { Blurhash } from "react-blurhash";
@@ -70,8 +69,19 @@ export function DocumentTable({ documents }: DocumentTableProps) {
     {}
   );
   const [isModelDialogOpen, setIsModelDialogOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
+  const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null);
+
+  const {
+    data: llmModels,
+    isLoading: isLoadingModels,
+    error: errorModels,
+  } = useQuery({
+    queryKey: ["llm-models"],
+    queryFn: () => llmApi.getAll(),
+    staleTime: 1000 * 60 * 5,
+  });
+
 
   const handleDeleteMutation = useMutation({
     mutationFn: (docId: number) => documentsApi.delete(docId.toString()),
@@ -167,7 +177,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
     }));
   };
 
-  const handleModelChange = (model: ModelInfo | null) => {
+  const handleModelChange = (model: LLMModel | null) => {
     setSelectedModel(model);
   };
 
@@ -175,7 +185,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
     if (selectedModel && selectedDocId) {
       regenerateSummaryMutation.mutate({
         docId: selectedDocId,
-        modelId: selectedModel.id,
+        modelId: selectedModel.code,
       });
     }
   };
@@ -186,7 +196,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
   };
 
   return (
-    <div className="rounded-xl overflow-hidden border shadow-md bg-gradient-to-b from-white to-muted/5">
+    <div className="overflow-hidden border shadow-md rounded-xl bg-gradient-to-b from-white to-muted/5">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/20 hover:bg-muted/30 backdrop-blur-sm">
@@ -214,7 +224,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
         </TableHeader>
         <TableBody>
           {documents.map((doc) => {
-            const statusInfo = DOCUMENT_STATUS_CONFIG[doc.status];
+            const statusInfo = getStatusConfig(doc.status);
 
             const hasPreview = doc.preview_image && doc.blurhash;
             const previewImageUrl = getDocumentPreviewUrl(doc.preview_image);
@@ -227,7 +237,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                 onClick={() => navigate(`/documents/${doc.id}`)}
               >
                 <TableCell className="w-[50px]">
-                  <div className="relative w-10 overflow-hidden border rounded-lg h-14 border-border shadow-sm">
+                  <div className="relative w-10 overflow-hidden border rounded-lg shadow-sm h-14 border-border">
                     {hasPreview ? (
                       <>
                         {!isImageLoaded && doc.blurhash && (
@@ -259,7 +269,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                 </TableCell>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-md bg-primary/5 shadow-sm">
+                    <div className="p-2 rounded-md shadow-sm bg-primary/5">
                       <FileText className="w-4 h-4 text-primary/70" />
                     </div>
                     <div>
@@ -408,7 +418,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="rounded-lg border shadow-lg">
+                      <DropdownMenuContent align="end" className="border rounded-lg shadow-lg">
                         <DropdownMenuItem
                           className="flex items-center gap-2"
                           onClick={(e) => {
@@ -519,7 +529,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
 
       {/* Model Selection Dialog */}
       <Dialog open={isModelDialogOpen} onOpenChange={setIsModelDialogOpen}>
-        <DialogContent className="sm:max-w-md rounded-lg">
+        <DialogContent className="rounded-lg sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Regenerate Summary</DialogTitle>
             <DialogDescription>
@@ -530,8 +540,11 @@ export function DocumentTable({ documents }: DocumentTableProps) {
             <div className="space-y-2">
               <label className="text-sm font-medium">Summarization Model</label>
               <ModelSelector
-                modelId={selectedModel?.id}
+                models={llmModels}
+                selectedModel={selectedModel}
                 onModelChange={handleModelChange}
+                isLoading={isLoadingModels}
+                error={errorModels?.message}
               />
             </div>
           </div>

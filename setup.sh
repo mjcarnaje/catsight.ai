@@ -67,15 +67,21 @@ User = get_user_model()
 email    = "michaeljames.carnaje@g.msuiit.edu.ph"
 username = "mjcarnaje"
 password = "password"
+first_name = "Michael James"
+last_name = "Carnaje"
 
 if User.objects.filter(email=email).exists():
     u = User.objects.get(email=email)
     u.username = username
     u.set_password(password)
     u.save()
+    u.first_name = first_name
+    u.last_name = last_name
+    u.is_onboarded = True
+    u.save()
     print(f" • Updated password for existing user '{email}'")
 else:
-    User.objects.create_superuser(email, password, username=username)
+    User.objects.create_superuser(email, password, username=username, first_name=first_name, last_name=last_name)
     print(f" • Created new superuser '{email}'")
 PYCODE
 
@@ -87,12 +93,5 @@ echo "✅  Reset complete!"
 echo "🏷️  Seeding document tags..."
 docker compose exec backend python manage.py seed_document_tags
 
-# Start services in foreground or add ngrok if needed
-if [ "${1:-}" = "--with-ngrok" ]; then
-  echo "🌐  Starting services with ngrok tunnel..."
-  docker compose up -d
-  ngrok config add-authtoken 2eLYVevP4ZXNVanK4iR20M02eol_29zGNpXFpGsnfyM5exyqs && ngrok http --url=catsightai.ngrok.app 3000
-else
-  echo "🚀  Starting services in foreground..."
-  docker compose up
-fi
+echo "🚀  Starting services in foreground..."
+docker compose up

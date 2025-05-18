@@ -1,7 +1,7 @@
 import {
-  DOCUMENT_STATUS_CONFIG,
   DocumentStatus,
   getDocumentProgress,
+  getStatusConfig
 } from "@/lib/document-status-config";
 import { StatusHistory } from "@/types";
 import { differenceInMilliseconds } from "date-fns";
@@ -9,24 +9,18 @@ import {
   Brain,
   CheckCircle2,
   Circle,
-  CircleDot,
   Clock,
-  FileArchive,
   FileSearch,
   FileText,
   FlameIcon,
-  Loader2,
   Network,
-  Pencil,
-  RefreshCw,
   Server,
-  Sparkles,
-  SquareTerminal,
+  Sparkles
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Progress } from "./ui/progress";
-import { useEffect, useState } from "react";
 
 type StatusHistoryWithElapsedTime = StatusHistory & {
   elapsedTime: number;
@@ -188,7 +182,7 @@ export function StatusHistoryPopover({
   const displayTotalTime =
     totalElapsedTime +
     (statusesWithElapsed[0]?.isLatestInProgress &&
-    !statusesWithElapsed[0]?.isQueueTime
+      !statusesWithElapsed[0]?.isQueueTime
       ? latestElapsedTime
       : 0);
 
@@ -217,7 +211,7 @@ export function StatusHistoryPopover({
                         : ""
                     }
                   >
-                    {DOCUMENT_STATUS_CONFIG[statusChange.status].label}
+                    {getStatusConfig(statusChange.status).label}
                   </span>
                   {index === 0 && statusChange.isLatestInProgress ? (
                     <span className="text-xs text-muted-foreground animate-pulse">

@@ -1,37 +1,37 @@
-import { Button } from "@/components/ui/button";
+import { Markdown } from "@/components/markdown";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, getDocumentPreviewUrl } from "@/lib/api";
-import { Document } from "@/types";
-import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
-import {
-  ArrowLeft,
-  Calendar,
-  Edit,
-  Eye,
-  FileText,
-  Layers,
-  Tag,
-  Loader2,
-  Book,
-  FileCode,
-  SplitSquareVertical,
-  Download,
-} from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Blurhash } from "react-blurhash";
-import { useState } from "react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { api, getDocumentPreviewUrl } from "@/lib/api";
+import { getStatusConfig } from "@/lib/document-status-config";
 import { MARKDOWN_CONVERTERS } from "@/lib/markdown-converter";
 import { cn } from "@/lib/utils";
-import { Markdown } from "@/components/markdown";
-import { DOCUMENT_STATUS_CONFIG } from "@/lib/document-status-config";
+import { Document } from "@/types";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import {
+  ArrowLeft,
+  Book,
+  Calendar,
+  Download,
+  Edit,
+  Eye,
+  FileCode,
+  FileText,
+  Layers,
+  Loader2,
+  SplitSquareVertical,
+  Tag,
+} from "lucide-react";
+import { useState } from "react";
+import { Blurhash } from "react-blurhash";
+import { useNavigate, useParams } from "react-router-dom";
 
 export function DocumentViewPage() {
   const { id } = useParams();
@@ -96,7 +96,7 @@ export function DocumentViewPage() {
     );
   }
 
-  const statusInfo = DOCUMENT_STATUS_CONFIG[data.status];
+  const statusInfo = getStatusConfig(data.status);
   const formattedDate = format(new Date(data.updated_at), "PPP");
   const previewImageUrl = getDocumentPreviewUrl(data.preview_image);
   const tags = data.tags || [];

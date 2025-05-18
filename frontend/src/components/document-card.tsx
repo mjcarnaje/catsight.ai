@@ -6,12 +6,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { documentsApi, getDocumentPreviewUrl } from "@/lib/api";
-import { DOCUMENT_STATUS_CONFIG } from "@/lib/document-status-config";
+import { documentsApi, getDocumentPreviewUrl, llmApi } from "@/lib/api";
+import { getStatusConfig } from "@/lib/document-status-config";
 import { cn } from "@/lib/utils";
-import { Document, ModelInfo } from "@/types";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Book, Calendar, ChevronRight, FileText, Image as ImageIcon, Layers, Loader2, MoreHorizontal, RefreshCw, RotateCw, Tag, Trash } from "lucide-react";
+import { Document, LLMModel } from "@/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Book,
+  Calendar,
+  ChevronRight,
+  FileText,
+  Image as ImageIcon,
+  Layers,
+  Loader2,
+  MoreHorizontal,
+  RefreshCw,
+  RotateCw,
+  Tag,
+  Trash,
+} from "lucide-react";
 import { useState } from "react";
 import { Blurhash } from "react-blurhash";
 import { useNavigate } from "react-router-dom";
@@ -21,10 +34,7 @@ import { StatusHistoryPopover } from "./status-history-popover";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import {
-  Card,
-  CardDescription
-} from "./ui/card";
+import { Card, CardDescription } from "./ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,11 +61,21 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const queryClient = useQueryClient();
   const [isModelDialogOpen, setIsModelDialogOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
+  const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
 
   const documentYear = doc.year || new Date(doc.created_at).getFullYear();
 
   const tags = doc.tags || [];
+
+  const {
+    data: llmModels,
+    isLoading: isLoadingModels,
+    error: errorModels,
+  } = useQuery({
+    queryKey: ["llm-models"],
+    queryFn: () => llmApi.getAll(),
+    staleTime: 1000 * 60 * 5,
+  });
 
   const handleDeleteMutation = useMutation({
     mutationFn: () => documentsApi.delete(doc.id.toString()),
@@ -96,7 +116,8 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   });
 
   const regenerateSummaryMutation = useMutation({
-    mutationFn: (modelId?: string) => documentsApi.regenerateSummary(doc.id, modelId),
+    mutationFn: (modelId?: string) =>
+      documentsApi.regenerateSummary(doc.id, modelId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
@@ -115,12 +136,14 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   });
 
   const reextractMutation = useMutation({
-    mutationFn: (converter: string) => documentsApi.reextract(doc.id, converter),
+    mutationFn: (converter: string) =>
+      documentsApi.reextract(doc.id, converter),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast({
         title: "Success",
-        description: "Document re-extraction started. This might take a moment.",
+        description:
+          "Document re-extraction started. This might take a moment.",
       });
     },
     onError: () => {
@@ -142,22 +165,23 @@ export function DocumentCard({ doc }: DocumentCardProps) {
       .substring(0, 2);
   };
 
-  const ConverterIcon = doc.markdown_converter && MARKDOWN_CONVERTERS[doc.markdown_converter]
-    ? MARKDOWN_CONVERTERS[doc.markdown_converter].icon
-    : undefined;
+  const ConverterIcon =
+    doc.markdown_converter && MARKDOWN_CONVERTERS[doc.markdown_converter]
+      ? MARKDOWN_CONVERTERS[doc.markdown_converter].icon
+      : undefined;
   const previewImageUrl = getDocumentPreviewUrl(doc.preview_image);
 
-  const handleModelChange = (model: ModelInfo | null) => {
+  const handleModelChange = (model: LLMModel | null) => {
     setSelectedModel(model);
   };
 
   const handleRegenerateSummary = () => {
     if (selectedModel) {
-      regenerateSummaryMutation.mutate(selectedModel.id);
+      regenerateSummaryMutation.mutate(selectedModel.code);
     }
   };
 
-  const statusInfo = DOCUMENT_STATUS_CONFIG[doc.status];
+  const statusInfo = getStatusConfig(doc.status);
 
   return (
     <Card
@@ -185,7 +209,8 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               <img
                 src={previewImageUrl}
                 alt={doc.title}
-                className={`w-full h-full object-cover transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'} group-hover:scale-105 transition-transform duration-700`}
+                className={`w-full h-full object-cover transition-all duration-500 ${imageLoaded ? "opacity-100" : "opacity-0"
+                  } group-hover:scale-105 transition-transform duration-700`}
                 onLoad={() => setImageLoaded(true)}
               />
               <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-r from-black/40 to-transparent group-hover:opacity-100"></div>
@@ -233,9 +258,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
                   {statusInfo.label}
                 </>
               ) : (
-                <>
-                  {statusInfo.label}
-                </>
+                <>{statusInfo.label}</>
               )}
             </Badge>
 
@@ -248,9 +271,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             </Badge>
 
             {hasStatusHistory && (
-              <StatusHistoryPopover
-                statusHistory={doc.status_history}
-              />
+              <StatusHistoryPopover statusHistory={doc.status_history} />
             )}
           </div>
 
@@ -273,19 +294,25 @@ export function DocumentCard({ doc }: DocumentCardProps) {
                       <span className="hidden sm:inline">By</span>
                       <Avatar className="w-5 h-5 border-[1px] border-primary/10">
                         <AvatarImage
-                          src={doc.uploaded_by.avatar || ''}
-                          alt={doc.uploaded_by.username || doc.uploaded_by.email}
+                          src={doc.uploaded_by.avatar || ""}
+                          alt={
+                            doc.uploaded_by.username || doc.uploaded_by.email
+                          }
                         />
                         <AvatarFallback className="text-[10px] bg-primary/5 text-primary">
-                          {getInitials(doc.uploaded_by.first_name && doc.uploaded_by.last_name
-                            ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
-                            : doc.uploaded_by.username)}
+                          {getInitials(
+                            doc.uploaded_by.first_name &&
+                              doc.uploaded_by.last_name
+                              ? `${doc.uploaded_by.first_name} ${doc.uploaded_by.last_name}`
+                              : doc.uploaded_by.username
+                          )}
                         </AvatarFallback>
                       </Avatar>
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Uploaded by {doc.uploaded_by.username || doc.uploaded_by.email}
+                    Uploaded by{" "}
+                    {doc.uploaded_by.username || doc.uploaded_by.email}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -309,7 +336,10 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               </Badge>
             ))}
             {tags.length > 3 && (
-              <Badge variant="outline" className="text-xs px-2.5 py-1 rounded-full">
+              <Badge
+                variant="outline"
+                className="text-xs px-2.5 py-1 rounded-full"
+              >
                 +{tags.length - 3}
               </Badge>
             )}
@@ -324,18 +354,22 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             <div className="p-1.5 rounded-md bg-primary/5">
               <Layers className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
             </div>
-            <span className="font-medium truncate">{doc.no_of_chunks || 0} chunks</span>
+            <span className="font-medium truncate">
+              {doc.no_of_chunks || 0} chunks
+            </span>
           </div>
 
           <div className="flex items-center gap-2 p-2 overflow-hidden border rounded-lg bg-background/50 backdrop-blur-sm">
             <div className="p-1.5 rounded-md bg-primary/5">
-              {ConverterIcon ?
-                <ConverterIcon className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" /> :
+              {ConverterIcon ? (
+                <ConverterIcon className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
+              ) : (
                 <FileText className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
-              }
+              )}
             </div>
             <span className="font-medium truncate">
-              {doc.markdown_converter && MARKDOWN_CONVERTERS[doc.markdown_converter]
+              {doc.markdown_converter &&
+                MARKDOWN_CONVERTERS[doc.markdown_converter]
                 ? MARKDOWN_CONVERTERS[doc.markdown_converter].label
                 : "Unknown converter"}
             </span>
@@ -345,21 +379,27 @@ export function DocumentCard({ doc }: DocumentCardProps) {
             <div className="p-1.5 rounded-md bg-primary/5">
               <FileText className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
             </div>
-            <span className="font-medium truncate" title={doc.file_name}>{doc.file_name}</span>
+            <span className="font-medium truncate" title={doc.file_name}>
+              {doc.file_name}
+            </span>
           </div>
 
           <div className="flex items-center gap-2 p-2 overflow-hidden border rounded-lg bg-background/50 backdrop-blur-sm">
             <div className="p-1.5 rounded-md bg-primary/5">
               <Book className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
             </div>
-            <span className="font-medium truncate">{doc.page_count || 0} pages</span>
+            <span className="font-medium truncate">
+              {doc.page_count || 0} pages
+            </span>
           </div>
 
           <div className="flex items-center col-span-2 gap-2 p-2 overflow-hidden border rounded-lg bg-background/50 backdrop-blur-sm">
             <div className="p-1.5 rounded-md bg-primary/5">
               <Tag className="w-3.5 h-3.5 text-primary/70 flex-shrink-0" />
             </div>
-            <span className="font-medium truncate">{doc.summarization_model}</span>
+            <span className="font-medium truncate">
+              {doc.summarization_model}
+            </span>
           </div>
         </div>
       </div>
@@ -385,7 +425,10 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               <MoreHorizontal className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="border rounded-lg shadow-lg">
+          <DropdownMenuContent
+            align="end"
+            className="border rounded-lg shadow-lg"
+          >
             <DropdownMenuItem
               className="flex items-center gap-2"
               onClick={(e) => {
@@ -419,7 +462,10 @@ export function DocumentCard({ doc }: DocumentCardProps) {
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+            <DropdownMenuItem
+              disabled
+              className="text-xs text-muted-foreground"
+            >
               Re-extract with:
             </DropdownMenuItem>
             {Object.entries(MARKDOWN_CONVERTERS).map(([key, converter]) => (
@@ -472,7 +518,13 @@ export function DocumentCard({ doc }: DocumentCardProps) {
           <div className="py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Summarization Model</label>
-              <ModelSelector modelId={selectedModel?.id} onModelChange={handleModelChange} />
+              <ModelSelector
+                models={llmModels}
+                selectedModel={selectedModel}
+                onModelChange={handleModelChange}
+                isLoading={isLoadingModels}
+                error={errorModels?.message}
+              />
             </div>
           </div>
           <DialogFooter>
