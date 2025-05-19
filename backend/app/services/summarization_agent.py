@@ -66,8 +66,7 @@ Instructions:
 Use this format:
 
 # [Synthesized Headline]
-
-## Summary
+---
 - [List of synthesized, distinct key actions or directives from the grouped summaries]
 """),
     ("human", "Summaries:\n\n{docs}\n\nPlease synthesize the above summaries into a cohesive overview.")
