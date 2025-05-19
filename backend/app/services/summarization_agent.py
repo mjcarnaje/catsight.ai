@@ -5,6 +5,13 @@ from enum import Enum
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from ..models import Tag
 from asgiref.sync import sync_to_async
+from ..constant.prompts import (
+    SUMMARIZATION_MAP_PROMPT, 
+    SUMMARIZATION_REDUCE_PROMPT, 
+    SUMMARIZATION_TITLE_PROMPT, 
+    SUMMARIZATION_YEAR_PROMPT,
+    SUMMARIZATION_TAGS_PROMPT
+)
 
 def get_llm(model_name= "llama3.1:8b"):
     """Get a language model instance with the specified model name."""
@@ -13,62 +20,13 @@ def get_llm(model_name= "llama3.1:8b"):
 llm = get_llm()
 
 map_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are a professional summarizer specializing in educational administrative documents. Your task is to extract structured notes and provide a clear, concise summary in markdown format.
-
-Follow these instructions carefully:
-
-1. **Heading**: Identify the subject line as the main heading if present. If not, construct one using the document type (e.g., "Memorandum"), order number, and year.
-2. **Important Notes Section**:
-   - Extract key administrative metadata, such as:
-     - Order Type (Resolution, Memorandum, Special Order, etc.)
-     - Order Number
-     - Series or Year
-     - Relevant Dates (e.g., issuance, implementation)
-     - Any involved departments, regions, or offices
-     - Key stakeholders or recipients (e.g., schools, divisions)
-3. **Summary Section**:
-   - Focus on core actions or directives only.
-   - Remove introductions, signatures, and unnecessary context.
-   - Use **present-tense verbs** (e.g., "Announces", "Requires", "Suspends").
-   - Maintain a **neutral, formal tone**.
-4. **Format**:
-Return your output in **markdown** only. Do not include any commentary or explanation.
-
-Use this template:
-
-# {{Constructed or Extracted Title}}
-
-## Important Notes
-- **Order Type**: [Type (Resolution, Memorandum, Special Order, etc.)]
-- **Order Number**: [Number]
-- **Series/Year**: [Series or Year]
-- **Relevant Date(s)**: [Date(s) if applicable]
-- **Involved Parties**: [Departments/Stakeholders]
-- **Other Notes**: [Any additional key metadata]
-
-## Summary
-- [One or more concise bullet points summarizing the main content/action]
-"""),
+    ("system", SUMMARIZATION_MAP_PROMPT),
     ("human", "Document:\n\n{content}\n\nPlease follow the instructions above to summarize.")
 ])
 
 
 reduce_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert synthesizer of educational administrative document summaries. Your role is to create a unified and coherent summary in markdown format based on several extracted summaries.
-
-Instructions:
-- **Headline**: Use a synthesized headline that clearly represents the overall document group (include order type/number/year if possible).
-- **Merge**: Consolidate overlapping points. Eliminate duplicate or redundant information.
-- **Tone**: Keep it neutral and formal.
-- **Style**: Use present-tense verbs for consistency (e.g., "Directs", "Authorizes", "Announces").
-- **Format**: Markdown only. No extra explanation or commentary.
-
-Use this format:
-
-# [Synthesized Headline]
----
-- [List of synthesized, distinct key actions or directives from the grouped summaries]
-"""),
+    ("system", SUMMARIZATION_REDUCE_PROMPT),
     ("human", "Summaries:\n\n{docs}\n\nPlease synthesize the above summaries into a cohesive overview.")
 ])
 
@@ -192,11 +150,7 @@ async def generate_title(state: OverallState):
         title: str = Field(..., description="A concise, descriptive title in Title Case, excluding institutional identifiers.")
 
     title_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert at extracting or generating a concise title from a document summary. Follow these guidelines:
-- If the summary includes an explicit title or subject line, use it verbatim.
-- Otherwise, create a concise title in Title Case, max 10 words.
-- Exclude institutional identifiers (e.g., "Office of the...", "Republic of the Philippines", "Mindanao State University", "MSU", "MSU-IIT", "IIT", "Iligan Institute of Technology").
-Return only the title text without extra commentary."""),
+        ("system", SUMMARIZATION_TITLE_PROMPT),
         ("human", "Summary:\n\n{summary}")
     ])
 
@@ -213,10 +167,7 @@ async def extract_year(state: OverallState):
         year: int = Field(..., description="The four-digit publication year extracted from the document summary.")
 
     year_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an assistant that extracts the primary publication year from a document summary:
-- Identify the four-digit year representing publication or issuance.
-- If multiple years appear, select the one most relevant.
-"""),
+        ("system", SUMMARIZATION_YEAR_PROMPT),
         ("human", "Summary:\n\n{summary}")
     ])
 
@@ -240,14 +191,7 @@ async def assign_tags(state: OverallState):
     formatted_tags = "\n- ".join([f"{name}: {description}" for name, description in available_tags])
     
     tags_prompt = ChatPromptTemplate.from_messages([
-        ("system", f"""You are tasked with classifying educational administrative documents by selecting relevant tags from the list below:
-- {formatted_tags}
-- Other
-
-Guidelines:
-- Select tags that are explicitly or implicitly supported by the content.
-- If no tags are applicable, choose "Other".
-- Provide the tags as a JSON object with the key "tags" and an array of strings, without additional commentary."""),
+        ("system", SUMMARIZATION_TAGS_PROMPT.format(formatted_tags=formatted_tags)),
         ("human", "Summary:\n\n{summary}")
     ])
 

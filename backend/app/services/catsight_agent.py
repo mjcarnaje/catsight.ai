@@ -23,7 +23,7 @@ from ..models import Document
 from ..services.postgres import get_psycopg_connection_string
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import LLMListwiseRerank
-from ..constant.prompts import CATSIGHT_PROMPT
+from ..constant.prompts import CATSIGHT_PROMPT, TITLE_GENERATION_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,7 @@ class Assistant:
         return {"messages": result}
 
 # --- Prompt Constants -------------------------------------------------------
+# Create the ChatPromptTemplate for the assistant
 primary_assistant_prompt = ChatPromptTemplate.from_messages([
     (
         "system",
@@ -196,22 +197,8 @@ def generate_title(state: State) -> dict:
     Generate a concise and descriptive 3-6 word title for a conversation between a user and MSU-IIT's AI assistant.
     """
 
-    # System prompt with title requirements
-    system_prompt = """
-You are a precise extraction system that creates concise, descriptive titles for conversations.
-
-<title_requirements>
-- Length: 3-6 words maximum
-- Format: Title Case (capitalize each word)
-- Style: Clear, specific, and descriptive of the main topic
-- Context: Reflect MSU-IIT university context where applicable
-- Avoid: Articles (a, an, the), special characters, quotation marks
-- Do NOT include phrases like "Summary of" or "About"
-</title_requirements>
-
-Extract the main topic from the conversation and create a title that captures its essence.
-Return ONLY the title text without any additional explanation or formatting.
-    """
+    # System prompt with title requirements - now using the constant from prompts.py
+    system_prompt = TITLE_GENERATION_PROMPT
 
     # Combine conversation messages into a single string
     conversation_text = "\n".join([m.content for m in state["messages"] if isinstance(m, HumanMessage)])
