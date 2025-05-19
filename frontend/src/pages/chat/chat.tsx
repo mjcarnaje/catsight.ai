@@ -162,6 +162,8 @@ export default function ChatPage() {
     const fileIds = [...new Set([...uploadedFileIds, ...selectedDocIds])];
 
     console.log("fileIds", fileIds);
+
+    // Clear the state variables
     setUploadedFiles([]);
     setSelectedDocs([]);
 
@@ -231,6 +233,40 @@ export default function ChatPage() {
     setSelectedDocs((prev) => prev.filter((doc) => doc.id !== docId));
   };
 
+  const handleRemoveUploadedFile = async (docId: number) => {
+    try {
+      // Delete the document from the server
+      await documentsApi.delete(docId.toString());
+
+      // Remove from state
+      setUploadedFiles((prev) => prev.filter((file) => file.id !== docId));
+
+      toast({
+        title: "File removed",
+        description: "The file has been removed successfully.",
+      });
+    } catch (error) {
+      console.error("Error removing file:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove the file. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Cleanup uploaded files on unmount if they weren't used
+  useEffect(() => {
+    return () => {
+      // Delete any remaining uploaded files when component unmounts
+      uploadedFiles.forEach(file => {
+        documentsApi.delete(file.id.toString()).catch(err =>
+          console.error(`Failed to delete unused file ${file.id}:`, err)
+        );
+      });
+    };
+  }, []);
+
   return (
     <div className="relative flex h-screen">
       <ChatSidebar currentChatId={chatId} />
@@ -274,14 +310,14 @@ export default function ChatPage() {
             );
             return {
               id: file.id,
-              filename: uploadedDoc?.file_name || file.filename,
-              isProcessing:
-                uploadedDoc?.status !== DocumentStatus.COMPLETED,
+              filename: uploadedDoc?.title || file.filename,
+              status: uploadedDoc?.status || DocumentStatus.PROCESSING,
             };
           })}
           selectedDocs={selectedDocs}
           onSelectDocument={handleSelectDocument}
           onRemoveDocument={handleRemoveDocument}
+          onRemoveUploadedFile={handleRemoveUploadedFile}
         />
       </div>
     </div>

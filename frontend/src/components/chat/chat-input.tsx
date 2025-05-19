@@ -3,23 +3,29 @@ import { DocumentSelector } from "@/components/chat/document-selector";
 import { ModelSelector } from "@/components/chat/model-selector";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DocumentStatus, getStatusConfig } from "@/lib/document-status-config";
 import { cn } from "@/lib/utils";
 import { Document, LLMModel } from "@/types";
 import {
   AlertCircle,
-  CheckCircle,
-  FileIcon,
+  Brain,
+  CheckCircle2,
+  Circle,
+  Clock,
+  FileSearch,
+  FileText,
+  Flame as FlameIcon,
   Loader2,
+  Network,
   Paperclip,
   Send,
+  Server,
   Sparkles,
-  Trash2,
-  X,
+  X
 } from "lucide-react";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { useToast } from "../ui/use-toast";
-import { Progress } from "../ui/progress";
 
 interface ChatInputProps {
   text: string;
@@ -35,11 +41,16 @@ interface ChatInputProps {
   error: string | null;
   uploadProgress?: number;
   uploadingFiles?: File[];
-  uploadedFiles?: { id: number; filename: string; isProcessing: boolean }[];
+  uploadedFiles?: {
+    id: number;
+    filename: string;
+    status?: DocumentStatus;
+  }[];
   processingDocuments?: boolean;
   selectedDocs?: Document[];
   onSelectDocument?: (doc: Document) => void;
   onRemoveDocument?: (docId: number) => void;
+  onRemoveUploadedFile?: (docId: number) => void;
 }
 
 export function ChatInput({
@@ -61,6 +72,7 @@ export function ChatInput({
   selectedDocs = [],
   onSelectDocument,
   onRemoveDocument,
+  onRemoveUploadedFile,
 }: ChatInputProps) {
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -170,7 +182,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="relative w-full max-w-4xl px-5 py-5 mx-auto bg-white border-t border-gray-100 shadow-md rounded-t-3xl">
+    <div className="relative z-10 w-full max-w-4xl px-5 py-5 mx-auto bg-white border-t border-gray-100 shadow-md rounded-t-3xl">
       {!selectedModel && !disabled && (
         <div className="flex items-center gap-2 p-3 mb-4 text-sm border rounded-lg bg-amber-50 border-amber-200 text-amber-800">
           <AlertCircle size={16} className="shrink-0" />
@@ -181,17 +193,13 @@ export function ChatInput({
       {uploadedFiles.length > 0 && (
         <div className="flex flex-wrap gap-4 mb-4">
           {uploadedFiles.map((file) => (
-            <div
+            <UploadedFile
               key={file.id}
-              className="flex items-center gap-2 p-3 text-sm border rounded-lg text-primary border-primary/20 bg-primary/5"
-            >
-              {file.isProcessing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <FileIcon size={16} className="shrink-0" />
-              )}
-              <span>{file.filename}</span>
-            </div>
+              id={file.id}
+              filename={file.filename}
+              status={file.status}
+              onRemove={onRemoveUploadedFile}
+            />
           ))}
         </div>
       )}
@@ -282,7 +290,7 @@ export function ChatInput({
             </div>
           </form>
 
-          <div className="shrink-0 flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <DocumentSelector
               selectedDocs={selectedDocs}
               onSelect={handleAddDocument}
@@ -316,3 +324,100 @@ export function ChatInput({
     </div>
   );
 }
+
+interface UploadedFileProps {
+  filename: string;
+  status?: DocumentStatus;
+  id: number;
+  onRemove?: (id: number) => void;
+}
+
+const UploadedFile = ({
+  filename,
+  status = DocumentStatus.PROCESSING,
+  id,
+  onRemove,
+}: UploadedFileProps) => {
+  const statusInfo = getStatusConfig(status);
+
+  const getStatusIcon = (status: DocumentStatus) => {
+    switch (status) {
+      case DocumentStatus.PENDING:
+        return <Clock className="w-4 h-4" />;
+      case DocumentStatus.PROCESSING:
+        return <FlameIcon className="w-4 h-4" />;
+      case DocumentStatus.TEXT_EXTRACTING:
+        return <FileSearch className="w-4 h-4" />;
+      case DocumentStatus.TEXT_EXTRACTION_DONE:
+        return <FileText className="w-4 h-4" />;
+      case DocumentStatus.GENERATING_SUMMARY:
+        return <Brain className="w-4 h-4" />;
+      case DocumentStatus.SUMMARY_GENERATION_DONE:
+        return <Sparkles className="w-4 h-4" />;
+      case DocumentStatus.EMBEDDING_TEXT:
+        return <Server className="w-4 h-4" />;
+      case DocumentStatus.TEXT_EMBEDDING_DONE:
+        return <Network className="w-4 h-4" />;
+      case DocumentStatus.COMPLETED:
+        return <CheckCircle2 className="w-4 h-4" />;
+      default:
+        return <Circle className="w-4 h-4" />;
+    }
+  };
+
+  const StatusIcon = getStatusIcon(status);
+
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 p-3 text-sm border rounded-lg group transition-all duration-200",
+        "hover:shadow-sm hover:border-opacity-80",
+        statusInfo.bg,
+        statusInfo.border,
+        statusInfo.text
+      )}
+    >
+      <div className="flex items-center gap-3 overflow-hidden max-w-[70%]">
+        <div
+          className={cn(
+            "p-2 rounded-md bg-white/30 shadow-sm",
+            statusInfo.showLoading && "animate-pulse"
+          )}
+        >
+          {StatusIcon}
+        </div>
+        <div className="flex flex-col overflow-hidden">
+          <span className="text-sm font-medium truncate max-w-[100px]" title={filename}>
+            {filename}
+          </span>
+          <div className="flex items-center gap-1">
+            {statusInfo.showLoading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : null}
+            <span className="text-xs truncate opacity-80">
+              {statusInfo.label}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {onRemove && (
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => onRemove(id)}
+            className={cn(
+              "w-7 h-7 p-0 rounded-full",
+              "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
+              "hover:bg-white/20 hover:text-red-500"
+            )}
+          >
+            <X className="w-4 h-4" />
+            <span className="sr-only">Remove file</span>
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
