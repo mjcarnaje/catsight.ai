@@ -87,7 +87,7 @@ class GoogleAuthView(APIView):
             
             try:
                 token_endpoint = "https://oauth2.googleapis.com/token"
-                redirect_uri = "https://catsigthai.ngrok.app/auth/login"
+                redirect_uri = "https://catsightai.ngrok.app/login"
                 
                 token_data = {
                     'code': code,
@@ -144,7 +144,7 @@ class GoogleAuthView(APIView):
                         last_name=last_name,
                         avatar=picture,
                         google_id=idinfo['sub'],
-                        password=None  # No password for Google users
+                        password="password"
                     )
                 
                 # Generate tokens

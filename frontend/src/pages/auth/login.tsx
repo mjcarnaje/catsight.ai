@@ -18,16 +18,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { useSession } from "@/contexts/session-context";
 import { authApi } from "@/lib/auth";
+import { LoginCredentials } from "@/types/auth";
 import { useMutation } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { LoginCredentials } from "@/types/auth";
 
 const GOOGLE_CLIENT_ID =
   "283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com";
-const REDIRECT_URI = "https://catsightai.ngrok.app/auth/login";
+const REDIRECT_URI = "https://catsightai.ngrok.app/login";
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams();
@@ -94,8 +93,6 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    // Redirect to Google OAuth
-    // The redirect_uri must exactly match one of the authorized redirect URIs in Google OAuth Console
     const scope = "email profile";
 
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;

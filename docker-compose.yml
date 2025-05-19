@@ -56,7 +56,7 @@ services:
       - OLLAMA_URL=http://host.docker.internal:7869
       - GOOGLE_OAUTH_CLIENT_ID=283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com
       - GOOGLE_OAUTH_CLIENT_SECRET=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
-      - GOOGLE_REDIRECT_URI=http://localhost:3000/auth/login
+      - GOOGLE_REDIRECT_URI=https://catsightai.ngrok.app/login
       - TORCH_DEVICE=cuda
     depends_on:
       - db
