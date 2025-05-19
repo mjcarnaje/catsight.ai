@@ -5,8 +5,31 @@ from app.models import User, Tag
 class Command(BaseCommand):
     help = 'Seed document tags'
 
-    # Tag data copied from migration
     tags_data = [
+        {
+            "type": "Designation",
+            "description": "Official appointments or assignments to positions within the organization."
+        },
+        {
+            "type": "Policy",
+            "description": "Formal guidelines and rules governing institutional operations and conduct."
+        },
+        {
+            "type": "Incentive",
+            "description": "Rewards or benefits provided to motivate performance or achievement."
+        },
+        {
+            "type": "Travel Order",
+            "description": "Official authorization for university-related travel, usually for staff or faculty."
+        },
+        {
+            "type": "Charter Day",
+            "description": "Documents related to the founding celebration or anniversary of the institution."
+        },
+        {
+            "type": "Suspension",
+            "description": "Temporary prohibition or interruption of activities, services, or academic sessions."
+        },
         {
             "type": "Special Orders",
             "description": "Official instructions or mandates issued for specific administrative or personnel actions."
@@ -44,36 +67,12 @@ class Command(BaseCommand):
             "description": "General notifications related to operational or procedural matters within the university."
         },
         {
-            "type": "Campus Bulletins",
-            "description": "Informal or brief announcements about events, updates, or general information for the campus community."
-        },
-        {
-            "type": "Travel Orders",
-            "description": "Official authorization for university-related travel, usually for staff or faculty."
-        },
-        {
-            "type": "Research Publications",
-            "description": "Academic output including journal articles, papers, or reports authored by university researchers."
-        },
-        {
             "type": "Financial Reports",
             "description": "Documents detailing the university's financial activities, budgets, expenditures, and audits."
         },
         {
             "type": "Meeting Minutes",
             "description": "Official written records of discussions, decisions, and actions from formal meetings."
-        },
-        {
-            "type": "Accreditation Reports",
-            "description": "Documentation submitted to or received from accrediting bodies assessing institutional quality and compliance."
-        },
-        {
-            "type": "Grant Agreements",
-            "description": "Contracts outlining terms and conditions for receiving and managing research or project funding."
-        },
-        {
-            "type": "Campus Events",
-            "description": "Notices or details about upcoming academic, cultural, or community events hosted by the university."
         },
         {
             "type": "Other",
