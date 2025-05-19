@@ -125,6 +125,44 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - WDS_SOCKET_HOST=localhost
 
+  jupyter:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./backend:/usr/src/app
+      - ./notebooks:/usr/src/app/notebooks
+    networks:
+      - app-network
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=app_db
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - OLLAMA_URL=http://host.docker.internal:7869
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - ollama
+      - backend
+    command: >
+      bash -c "pip install jupyter ipywidgets matplotlib pandas
+      && mkdir -p /usr/src/app/notebooks
+      && jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 networks:
   app-network:
     driver: bridge

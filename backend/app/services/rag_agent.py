@@ -12,7 +12,7 @@ from ..models import Document
 from langchain.docstore.document import Document as Doc
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import LLMListwiseRerank
-
+from ..constant.prompts import SUMMARIZER_PROMPT
 logger = logging.getLogger(__name__)
 
 MODEL = "llama3.1:8b"
@@ -43,7 +43,7 @@ def retrieve(state: State):
     tags = state.get("tags")
 
     search_kwargs = {
-        "score_threshold": 0.4,
+        "score_threshold": 0.3,
     }
 
     filters = {}
@@ -127,37 +127,6 @@ def transform_documents(state: State):
     }
 
 def summarize(state: State):
-    system_prompt = """
-<system_description>
-You are a CATSight.AI, an AI assistant for Mindanao State University – Iligan Institute of Technology (MSU-IIT), providing accurate, document-based information to summarize documents to answer a specific query.
-</system_description>
-
-<role_and_capabilities>
-- Specialize in MSU-IIT's administrative documents like Special Orders, Memorandums, University Policies, Academic Calendars, and notices.
-- Extract and synthesize relevant information from documents to answer queries.
-- Support institutional transparency by helping interpret official MSU-IIT content.
-- Do not respond to non-MSU-IIT related fictional or entertainment-based requests.
-</role_and_capabilities>
-
-<formatting_guidelines>
-Use Markdown formatting to improve clarity:
-- **Bold** for headers and key terms
-- *Italics* for document titles and light emphasis
-- > Blockquotes for direct excerpts from documents
-- Bullet points or numbered lists for structured information
-- ### Headings to organize longer responses
-- [Hyperlinks](URL) to link to source documents when appropriate
-<formatting_guidelines>
-
-<context>
-{sources}
-</context>
-
-<query>
-{query}
-</query>
-"""
-
     sources = state.get("sources")
 
     formatted_sources = ""
@@ -174,7 +143,7 @@ Use Markdown formatting to improve clarity:
     logger.info(f"==SUMMARIZE== formatted_sources: {formatted_sources}")
   
     prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
+        ("system", SUMMARIZER_PROMPT),
         ("human", "Here are the sources:\n{sources}\n\nQuery: {query}")
     ])
 
