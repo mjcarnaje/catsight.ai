@@ -4,7 +4,7 @@ import Navbar from "@/components/navbar";
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen">
+    <div className="relative z-10 min-h-screen">
       <Navbar />
       <HeroSection />
       <FeaturesSection />

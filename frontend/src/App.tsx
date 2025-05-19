@@ -38,7 +38,7 @@ export default function App() {
             className={cn(
               "absolute inset-0 z-[1] pointer-events-none",
               "[background-size:30px_30px]",
-              "[background-image:radial-gradient(#f5f5f5_1px,transparent_1px)]",
+              "[background-image:radial-gradient(#DCDCDC_1px,transparent_1px)]",
             )}
           />
           <Router>
