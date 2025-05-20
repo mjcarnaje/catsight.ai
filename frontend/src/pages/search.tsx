@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { documentsApi, tagsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, FileText, Filter, Info, Search as SearchIcon, Sparkles, Tag, X } from "lucide-react";
+import { Calendar, Clock, FileText, Filter, Info, Search as SearchIcon, Sparkles, Tag, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -368,22 +368,56 @@ export function SearchPage() {
       {isLoading ? (
         <div className="space-y-8">
           <SearchSummarySkeleton />
-          <div className="grid grid-cols-1 gap-8">
-            {[...Array(3)].map((_, idx) => (
-              <SearchDocumentCardSkeleton key={idx} />
-            ))}
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <Skeleton className="h-6 w-28" />
+              <Skeleton className="w-20 h-6" />
+            </div>
+            <div className="grid grid-cols-1 gap-8">
+              {[...Array(3)].map((_, idx) => (
+                <SearchDocumentCardSkeleton key={idx} />
+              ))}
+            </div>
           </div>
         </div>
       ) : (
         results && (
           <div className="space-y-8 transition-all">
-            {results.summary && <SearchSummary summary={results.summary} />}
+            {results.summary && (
+              <SearchSummary
+                summary={results.summary}
+                queryTime={results.query_time}
+              />
+            )}
 
             {results.sources && results.sources.length > 0 ? (
-              <div className="grid grid-cols-1 gap-8 animate-fadeIn">
-                {results.sources.map((source) => (
-                  <SearchDocumentCard key={source.id} source={source} />
-                ))}
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="flex items-center gap-1 px-2 py-1">
+                      {isAccurate ? (
+                        <Sparkles className="w-3 h-3 text-primary" />
+                      ) : (
+                        <FileText className="w-3 h-3" />
+                      )}
+                      <span className="text-sm">
+                        {results.sources.length} {results.sources.length === 1 ? 'result' : 'results'} found
+                      </span>
+                    </Badge>
+                  </div>
+                  {results.query_time !== undefined && (
+                    <Badge variant="outline" className="flex items-center gap-1 px-2 py-1 font-normal text-slate-600 bg-slate-100 border-slate-200">
+                      <Clock className="w-3 h-3" />
+                      {results.query_time.toFixed(2)}s
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-8 animate-fadeIn">
+                  {results.sources.map((source) => (
+                    <SearchDocumentCard key={source.id} source={source} />
+                  ))}
+                </div>
               </div>
             ) : searchParams?.query ? (
               <Card className="p-8 text-center border-dashed">

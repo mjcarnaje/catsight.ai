@@ -28,6 +28,8 @@ from .views.documents import (
     get_all_years,
     get_statistics,
     get_docs_by_ids,
+    delete_chunks,
+    check_if_has_similar_filename,
 )
 from .views.llm import (
     get_llm_models,
@@ -63,6 +65,7 @@ urlpatterns = [
     # Document URLs
     path('statistics/', get_statistics, name='get_statistics'),
     path('documents/', get_docs, name='get_docs'),
+    path('documents/check-if-has-similar-filename/', check_if_has_similar_filename, name='check_if_has_similar_filename'),
     path('documents/count/', get_docs_count, name='get_docs_count'),
     path('documents/by-ids/', get_docs_by_ids, name='get_docs_by_ids'),
     path('documents/upload/', upload_doc, name='upload_doc'),
@@ -71,6 +74,7 @@ urlpatterns = [
     path('documents/<int:doc_id>/markdown/', get_doc_markdown, name='get_doc_markdown'),
     path('documents/<int:doc_id>/chunks/', get_doc_chunks, name='get_doc_chunks'),
     path('documents/<int:doc_id>/delete/', delete_doc, name='delete_doc'),
+    path('documents/<int:doc_id>/delete-chunks/', delete_chunks, name='delete_chunks'),
     path('documents/<int:doc_id>/update/', update_doc_markdown, name='update_doc_markdown'),
     path('documents/<int:doc_id>/regenerate-preview/', regenerate_preview, name='regenerate_preview'),
     path('documents/<int:doc_id>/regenerate-summary/', regenerate_summary, name='regenerate_summary'),

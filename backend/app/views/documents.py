@@ -26,12 +26,33 @@ from ..services.vectorstore import vector_store
 from ..services.catsight_agent import catsight_agent
 from ..models import DocumentStatus
 import json
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, AIMessageChunk
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from ..services.rag_agent import rag_agent
 from ..services.summarization_agent import summarization_agent
 from ..utils.langgraph import _print_event
 
 logger = logging.getLogger(__name__)
+
+def revoke_task(task_id):
+    """Helper function to revoke a Celery task"""
+    if task_id:
+        try:
+            AsyncResult(task_id).revoke(terminate=True)
+            logger.info(f"Task {task_id} revoked successfully")
+        except Exception as e:
+            logger.error(f"Error revoking task {task_id}: {str(e)}")
+
+def _delete_chunks(doc_id):
+    """Helper function to delete chunks for a document"""
+    try:
+        retriever = vector_store.as_retriever(
+            search_kwargs={"k": 100, "filter": {"doc_id": doc_id}},
+        )
+        chunks = retriever.get_relevant_documents("")
+        ids = [chunk.id for chunk in chunks]
+        vector_store.delete(ids=ids)
+    except Exception as e:
+        logger.error(f"Error deleting vector store chunks: {str(e)}")
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -139,6 +160,26 @@ def upload_doc(request):
         return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
     else:
         return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def check_if_has_similar_filename(request):
+    file_names = request.GET.get('file_names')
+    """
+    Check if a document has a similar filename to another document and return the similar filenames.
+    """
+    file_names = file_names.split(',')
+    similar_files = []
+    
+    for file_name in file_names:
+        similar_documents = Document.objects.filter(file_name__icontains=file_name)
+        if similar_documents.exists():
+            similar_files.extend([doc.file_name for doc in similar_documents])
+    
+    return Response({
+        "has_similar_filename": len(similar_files) > 0,
+        "similar_files": list(set(similar_files)) 
+    }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -198,15 +239,6 @@ def get_doc_markdown(request, doc_id):
         )
 
 
-def revoke_task(task_id):
-    """Helper function to revoke a Celery task"""
-    if task_id:
-        try:
-            AsyncResult(task_id).revoke(terminate=True)
-            logger.info(f"Task {task_id} revoked successfully")
-        except Exception as e:
-            logger.error(f"Error revoking task {task_id}: {str(e)}")
-
 @api_view(['DELETE'])
 @permission_classes([IsOwnerOrAdmin])
 def delete_doc(request, doc_id):
@@ -247,6 +279,26 @@ def delete_doc(request, doc_id):
             {"status": "error", "message": f"Error deleting document: {str(e)}"}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_chunks(request, doc_id):
+    """
+    Delete the chunks for a document by its ID.
+    """
+    try:
+        # Try to get document but don't require it to exist
+        try:
+            document = Document.objects.get(id=doc_id)
+        except Document.DoesNotExist:
+            logger.warning(f"Document not found: {doc_id}")
+        
+        _delete_chunks(doc_id)
+        return Response({"status": "success", "message": "Chunks deleted successfully"}, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error deleting chunks: {str(e)}")
+        return Response({"status": "error", "message": f"Error deleting chunks: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -326,11 +378,17 @@ def search_docs(request):
     logger.info(f"Search query: {query}, years: {years}, tags: {tags}")
 
     try:
+        import time
+        start_time = time.time()
+        
         result = rag_agent.invoke({"query": query, "is_accurate": is_accurate, "years": years, "tags": tags})
-
+        
+        query_time = time.time() - start_time
+        
         return Response({
             'summary': result.get("summary", ""),
             'sources': result.get("sources", []),
+            'query_time': query_time
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
@@ -357,6 +415,9 @@ def standard_search_docs(request):
         )
 
     try:
+        import time
+        start_time = time.time()
+        
         # Base query with title and summary search
         documents = Document.objects.filter(
             models.Q(title__icontains=query) |
@@ -394,10 +455,13 @@ def standard_search_docs(request):
                 "contents": []  # Empty contents since this is not a RAG search
             }
             sources.append(source)
+            
+        query_time = time.time() - start_time
 
         return Response({
             'summary': "",  # No AI summary for standard search
             'sources': sources,
+            'query_time': query_time
         }, status=status.HTTP_200_OK)
         
     except Exception as e:
@@ -467,6 +531,7 @@ def chat_with_docs(request):
 
                 
                 messages = state.get("messages")
+                
                 if messages:
                     if isinstance(messages, list):
                         new_message = messages[-1]

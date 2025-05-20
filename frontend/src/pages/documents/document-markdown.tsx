@@ -57,7 +57,7 @@ export function DocumentMarkdownPage() {
 
   if (isDocLoading || isMarkdownLoading) {
     return (
-      <div className="container max-w-6xl py-10 mx-auto space-y-8">
+      <div className="container z-10 max-w-6xl py-10 mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Skeleton className="w-10 h-10 rounded-full" />
@@ -67,8 +67,8 @@ export function DocumentMarkdownPage() {
             </div>
           </div>
           <div className="flex gap-3">
-            <Skeleton className="w-28 rounded-full h-10" />
-            <Skeleton className="w-28 rounded-full h-10" />
+            <Skeleton className="h-10 rounded-full w-28" />
+            <Skeleton className="h-10 rounded-full w-28" />
           </div>
         </div>
         <Skeleton className="w-full h-[calc(100vh-180px)] rounded-xl shadow-sm" />
@@ -78,8 +78,8 @@ export function DocumentMarkdownPage() {
 
   if (!documentData) {
     return (
-      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
-        <div className="max-w-md p-8 text-center border rounded-xl shadow-lg bg-gradient-to-b from-white to-muted/20">
+      <div className="container z-10 flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-white to-muted/20">
           <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-muted/30 backdrop-blur-sm">
             <FileText className="w-8 h-8 text-muted-foreground" />
           </div>
@@ -100,8 +100,8 @@ export function DocumentMarkdownPage() {
 
   if (markdownError || !markdownData) {
     return (
-      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
-        <div className="max-w-md p-8 text-center border rounded-xl shadow-lg bg-gradient-to-b from-white to-muted/20">
+      <div className="container z-10 flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-white to-muted/20">
           <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-red-50 backdrop-blur-sm">
             <FileText className="w-8 h-8 text-red-500" />
           </div>
@@ -121,7 +121,7 @@ export function DocumentMarkdownPage() {
   }
 
   return (
-    <div className="container max-w-6xl py-10 mx-auto space-y-8">
+    <div className="container z-10 max-w-6xl py-10 mx-auto space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
@@ -138,7 +138,7 @@ export function DocumentMarkdownPage() {
               <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{documentData.title}</h1>
               <Badge
                 variant="outline"
-                className="rounded-full px-3 py-1 font-medium bg-emerald-500/10 text-emerald-600 border-emerald-200 shadow-sm"
+                className="px-3 py-1 font-medium rounded-full shadow-sm bg-emerald-500/10 text-emerald-600 border-emerald-200"
               >
                 Markdown
               </Badge>
@@ -195,7 +195,7 @@ export function DocumentMarkdownPage() {
       </div>
 
       {/* Markdown Viewer */}
-      <Card className="overflow-hidden border rounded-xl shadow-md">
+      <Card className="overflow-hidden border shadow-md rounded-xl">
         <CardContent className="p-0 overflow-hidden">
           <div className="w-full h-[calc(100vh-180px)] border-t">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full">

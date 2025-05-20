@@ -95,7 +95,7 @@ export function EditDocumentPage() {
   // Loading skeleton
   if (isLoading) {
     return (
-      <div className="container py-8 mx-auto space-y-6">
+      <div className="container z-10 py-8 mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Skeleton className="w-10 h-10 rounded-full" />
@@ -116,7 +116,7 @@ export function EditDocumentPage() {
 
   if (error) {
     return (
-      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+      <div className="container z-10 flex flex-col items-center justify-center min-h-[70vh] mx-auto">
         <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
           <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-destructive/10">
             <FileText className="w-12 h-12 text-destructive" />
@@ -138,7 +138,7 @@ export function EditDocumentPage() {
 
   if (!data) {
     return (
-      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+      <div className="container z-10 flex flex-col items-center justify-center min-h-[70vh] mx-auto">
         <div className="p-8 text-center border shadow-inner rounded-xl bg-card/50">
           <div className="p-6 mx-auto mb-6 rounded-full w-fit bg-muted">
             <FileText className="w-12 h-12 text-muted-foreground" />
@@ -159,7 +159,7 @@ export function EditDocumentPage() {
   }
 
   return (
-    <div className={`container mx-auto py-8 space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-background p-6' : ''}`}>
+    <div className={`container z-10 mx-auto py-8 space-y-6 ${isFullscreen ? 'fixed inset-0 z-50 bg-background p-6' : ''}`}>
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">

@@ -53,7 +53,7 @@ export function DocumentViewPage() {
   // Loading skeleton
   if (isLoading) {
     return (
-      <div className="container max-w-6xl py-10 mx-auto space-y-8">
+      <div className="container z-10 max-w-6xl py-10 mx-auto space-y-8">
         <Skeleton className="w-32 h-9" />
         <Skeleton className="w-full h-14 rounded-xl" />
         <div className="grid gap-10 md:grid-cols-2">
@@ -70,7 +70,7 @@ export function DocumentViewPage() {
 
   if (error || !data) {
     return (
-      <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
+      <div className="container flex flex-col z-10 items-center justify-center min-h-[70vh] mx-auto">
         <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-white to-muted/20">
           <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-muted/30 backdrop-blur-sm">
             <FileText className="w-8 h-8 text-muted-foreground" />
@@ -105,7 +105,7 @@ export function DocumentViewPage() {
     : "None";
 
   return (
-    <div className="container max-w-6xl py-10 mx-auto">
+    <div className="container z-10 max-w-6xl py-10 mx-auto">
       {/* Header with navigation and actions */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <Button

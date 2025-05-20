@@ -27,6 +27,7 @@ interface DocumentSelectorProps {
   onSelect: (doc: Document) => void;
   onRemove: (docId: number) => void;
   disabled?: boolean;
+  iconOnly?: boolean;
 }
 
 export function DocumentSelector({
@@ -34,6 +35,7 @@ export function DocumentSelector({
   onSelect,
   onRemove,
   disabled = false,
+  iconOnly = false,
 }: DocumentSelectorProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,21 +81,31 @@ export function DocumentSelector({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
-          size="sm"
+          variant={iconOnly ? "ghost" : "outline"}
+          size={iconOnly ? "icon" : "sm"}
           className={cn(
-            "gap-1.5 text-gray-600 hover:text-primary",
-            selectedDocs.length > 0 && "text-primary border-primary"
+            iconOnly
+              ? "w-8 h-8 text-gray-500 hover:text-primary"
+              : "gap-1.5 text-gray-600 hover:text-primary",
+            selectedDocs.length > 0 && "text-primary",
+            selectedDocs.length > 0 && !iconOnly && "border-primary"
           )}
           disabled={disabled}
         >
           <FileSearch className="w-4 h-4" />
-          <span>
-            {selectedDocs.length > 0
-              ? `${selectedDocs.length} file${selectedDocs.length > 1 ? "s" : ""
-              } selected`
-              : "Select files"}
-          </span>
+          {!iconOnly && (
+            <span>
+              {selectedDocs.length > 0
+                ? `${selectedDocs.length} file${selectedDocs.length > 1 ? "s" : ""
+                } selected`
+                : "Select files"}
+            </span>
+          )}
+          {iconOnly && selectedDocs.length > 0 && (
+            <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full">
+              {selectedDocs.length}
+            </span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent

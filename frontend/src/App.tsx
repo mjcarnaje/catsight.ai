@@ -26,6 +26,7 @@ import { ChatStreamProvider } from "./contexts/chat-stream-context";
 import { GraphPage } from "./pages/graph/graph-page";
 import TagsPage from "./pages/tags/tags";
 import { cn } from "./lib/utils";
+import DebugPage from "./pages/debug";
 
 const queryClient = new QueryClient();
 
@@ -38,7 +39,7 @@ export default function App() {
             className={cn(
               "absolute inset-0 z-[1] pointer-events-none",
               "[background-size:30px_30px]",
-              "[background-image:radial-gradient(#DCDCDC_1px,transparent_1px)]",
+              "[background-image:radial-gradient(#DCDCDC_1px,transparent_1px)]"
             )}
           />
           <Router>
@@ -50,7 +51,10 @@ export default function App() {
                     path="/terms-and-conditions"
                     element={<TermsAndConditionPage />}
                   />
-                  <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+                  <Route
+                    path="/privacy-policy"
+                    element={<PrivacyPolicyPage />}
+                  />
                   <Route path="/graph" element={<GraphPage />} />
 
                   <Route element={<Layout />}>
@@ -116,7 +120,7 @@ export default function App() {
                       path="/documents/:id/edit"
                       element={
                         <ProtectedRoute>
-                          <div className="relative z-10 p-8">
+                          <div className="relative z-20 p-8">
                             <EditDocumentPage />
                           </div>
                         </ProtectedRoute>
@@ -127,7 +131,7 @@ export default function App() {
                       path="/documents/:id/pdf"
                       element={
                         <ProtectedRoute>
-                          <div className="w-full max-w-6xl p-8 mx-auto">
+                          <div className="relative z-20 w-full max-w-6xl p-8 mx-auto">
                             <DocumentPdfPage />
                           </div>
                         </ProtectedRoute>
@@ -138,7 +142,7 @@ export default function App() {
                       path="/documents/:id/markdown"
                       element={
                         <ProtectedRoute>
-                          <div className="w-full max-w-6xl p-8 mx-auto">
+                          <div className="relative z-20 w-full max-w-6xl p-8 mx-auto">
                             <DocumentMarkdownPage />
                           </div>
                         </ProtectedRoute>
@@ -149,7 +153,7 @@ export default function App() {
                       path="/documents/:id/comparison"
                       element={
                         <ProtectedRoute>
-                          <div className="relative z-10 p-8">
+                          <div className="relative z-20 p-8">
                             <DocumentComparisonPage />
                           </div>
                         </ProtectedRoute>
@@ -168,7 +172,7 @@ export default function App() {
                       path="/chat/:id"
                       element={
                         <ProtectedRoute>
-                          <div className="relative z-10">
+                          <div className="relative z-20">
                             <ChatPage />
                           </div>
                         </ProtectedRoute>
@@ -178,7 +182,7 @@ export default function App() {
                       path="/tags"
                       element={
                         <ProtectedRoute>
-                          <div className="relative z-10 p-8">
+                          <div className="relative z-20 p-8">
                             <TagsPage />
                           </div>
                         </ProtectedRoute>
@@ -188,7 +192,7 @@ export default function App() {
                       path="/search"
                       element={
                         <ProtectedRoute>
-                          <div className="relative z-10 p-8">
+                          <div className="relative z-20 p-8">
                             <SearchPage />
                           </div>
                         </ProtectedRoute>
@@ -198,8 +202,18 @@ export default function App() {
                       path="/settings"
                       element={
                         <ProtectedRoute>
-                          <div className="relative z-10 p-8">
+                          <div className="relative z-20 p-8">
                             <SettingsPage />
+                          </div>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/debug"
+                      element={
+                        <ProtectedRoute>
+                          <div className="relative z-20 p-8">
+                            <DebugPage />
                           </div>
                         </ProtectedRoute>
                       }
@@ -211,7 +225,6 @@ export default function App() {
             </ChatProvider>
           </Router>
         </div>
-
       </SessionProvider>
     </QueryClientProvider>
   );
