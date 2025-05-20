@@ -79,7 +79,8 @@ def get_marker_converter():
         "strip_existing_ocr": True,
         "use_llm": False,
         "debug": False,
-        "paginate_output": True
+        "paginate_output": True,
+        "format_lines": True
     }
     marker_parser = ConfigParser(marker_config)
     return PdfConverter(
