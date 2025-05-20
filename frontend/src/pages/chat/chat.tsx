@@ -174,6 +174,31 @@ export default function ChatPage() {
     setText(text);
   };
 
+  // Function to check for duplicate filenames
+  const checkForDuplicateFiles = async (files: File[]) => {
+    try {
+      const fileNames = files.map(file => file.name);
+      const response = await documentsApi.checkIfHasSimilarFilename(fileNames);
+
+      if (response.data.has_similar_filename) {
+        return {
+          hasDuplicates: true,
+          duplicateFiles: response.data.similar_files
+        };
+      }
+      return {
+        hasDuplicates: false,
+        duplicateFiles: []
+      };
+    } catch (error) {
+      console.error("Error checking for similar filenames:", error);
+      return {
+        hasDuplicates: false,
+        duplicateFiles: []
+      };
+    }
+  };
+
   const handleFileUpload = async (files: File[]) => {
     if (!files.length) return;
 
@@ -299,6 +324,7 @@ export default function ChatPage() {
           onModelChange={(model) => setSelectedModel(model)}
           onSend={handleSend}
           onFileUpload={handleFileUpload}
+          onCheckDuplicates={checkForDuplicateFiles}
           disabled={isStreaming || isLoadingModels}
           showModelSelector={user?.is_dev_mode}
           uploadProgress={uploadProgress}

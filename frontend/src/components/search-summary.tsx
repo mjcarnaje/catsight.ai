@@ -1,4 +1,5 @@
-import { SparkleIcon } from "lucide-react";
+import { Clock, SparkleIcon } from "lucide-react";
+import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
 import { Markdown } from "./markdown";
 import { Skeleton } from "./ui/skeleton";
@@ -6,7 +7,12 @@ import { cn } from "@/lib/utils";
 
 const cardClassName = "mb-8 border-0 shadow-md";
 
-export const SearchSummary = ({ summary }: { summary: string }) => {
+interface SearchSummaryProps {
+  summary: string;
+  queryTime: number;
+}
+
+export const SearchSummary = ({ summary, queryTime }: SearchSummaryProps) => {
   return (
     <Card
       className={cn(
@@ -19,9 +25,20 @@ export const SearchSummary = ({ summary }: { summary: string }) => {
           <SparkleIcon className="w-7 h-7 text-primary animate-pulse" />
         </div>
         <div className="flex-1">
-          <h2 className="mb-2 text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
-            Summary
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="mb-2 text-2xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+              Summary
+            </h2>
+            {queryTime !== undefined && (
+              <Badge
+                variant="outline"
+                className="flex items-center gap-1 px-2 py-1 font-normal text-slate-600 bg-slate-100 border-slate-200"
+              >
+                <Clock className="w-3 h-3" />
+                {queryTime.toFixed(2)}s
+              </Badge>
+            )}
+          </div>
           <Markdown
             content={summary}
             className="prose prose-p:mb-2 prose-p:mt-0 prose-p:leading-snug prose-p:text-muted-foreground"

@@ -74,8 +74,8 @@ export function DocumentPdfPage() {
             </div>
           </div>
           <div className="flex gap-3">
-            <Skeleton className="w-28 rounded-full h-10" />
-            <Skeleton className="w-28 rounded-full h-10" />
+            <Skeleton className="h-10 rounded-full w-28" />
+            <Skeleton className="h-10 rounded-full w-28" />
           </div>
         </div>
         <Skeleton className="w-full h-[calc(100vh-180px)] rounded-xl shadow-sm" />
@@ -86,7 +86,7 @@ export function DocumentPdfPage() {
   if (!documentData) {
     return (
       <div className="container flex flex-col items-center justify-center min-h-[70vh] mx-auto">
-        <div className="max-w-md p-8 text-center border rounded-xl shadow-lg bg-gradient-to-b from-white to-muted/20">
+        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-white to-muted/20">
           <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-muted/30 backdrop-blur-sm">
             <FileText className="w-8 h-8 text-muted-foreground" />
           </div>
@@ -127,7 +127,7 @@ export function DocumentPdfPage() {
               </h1>
               <Badge
                 variant="outline"
-                className="rounded-full px-3 py-1 font-medium bg-blue-500/10 text-blue-600 border-blue-200 shadow-sm"
+                className="px-3 py-1 font-medium text-blue-600 border-blue-200 rounded-full shadow-sm bg-blue-500/10"
               >
                 PDF
               </Badge>
@@ -185,7 +185,7 @@ export function DocumentPdfPage() {
       </div>
 
       {/* PDF Viewer */}
-      <Card className="overflow-hidden border rounded-xl shadow-md">
+      <Card className="overflow-hidden border shadow-md rounded-xl">
         <CardContent className="p-0 overflow-hidden">
           <div className="w-full h-[calc(100vh-180px)] bg-gradient-to-b from-muted/5 to-muted/20">
             {isPdfLoading ? (
@@ -204,7 +204,7 @@ export function DocumentPdfPage() {
                 <Button
                   variant="outline"
                   onClick={handleBackClick}
-                  className="mt-4 gap-2 px-4 rounded-full shadow-sm"
+                  className="gap-2 px-4 mt-4 rounded-full shadow-sm"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back to Document

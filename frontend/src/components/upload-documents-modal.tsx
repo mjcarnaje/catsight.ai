@@ -1,6 +1,16 @@
 "use client";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +35,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { useSession } from "@/contexts/session-context";
 import { cn } from "@/lib/utils";
-import { ModelInfo } from "@/types";
+import { LLMModel } from "@/types";
 import {
   AlertCircle,
   Check,
@@ -36,12 +46,12 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { MARKDOWN_CONVERTERS } from "../lib/markdown-converter";
 import { ModelSelector } from "./chat/model-selector";
-import { documentsApi } from "@/lib/api";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { documentsApi, llmApi } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "./ui/use-toast";
 
 interface UploadDocumentsModalProps {
@@ -62,9 +72,38 @@ export function UploadDocumentsModal({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
+  const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
+  const [showDuplicateAlert, setShowDuplicateAlert] = useState(false);
+  const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
 
   const queryClient = useQueryClient();
+
+  const {
+    data: llmModels,
+    isLoading: isLoadingModels,
+    error: errorModels,
+  } = useQuery({
+    queryKey: ["llm-models"],
+    queryFn: () => llmApi.getAll(),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  useEffect(() => {
+    if (Array.isArray(llmModels) && llmModels.length > 0) {
+      const _selectedModel =
+        llmModels?.find((model) => model.code === "llama3.1:8b") ||
+        llmModels?.[0];
+
+      setSelectedModel({
+        id: _selectedModel.id,
+        name: _selectedModel.name,
+        description: _selectedModel.description,
+        logo: _selectedModel.logo,
+        code: _selectedModel.code,
+        instruct: _selectedModel.instruct,
+      });
+    }
+  }, [llmModels]);
 
   const uploadMutation = useMutation({
     mutationFn: ({
@@ -131,15 +170,50 @@ export function UploadDocumentsModal({
     },
   });
 
-  const handleUpload = () => {
-    if (selectedFiles.length > 0) {
-      uploadMutation.mutate({
-        files: selectedFiles,
-        markdown_converter: selectedConverter,
-        summarization_model: selectedModel?.id,
-        onProgress: (progress) => setUploadProgress(progress),
-      });
+  const checkForDuplicateFiles = async () => {
+    try {
+      const fileNames = selectedFiles.map(file => file.name);
+      const response = await documentsApi.checkIfHasSimilarFilename(fileNames);
+
+      if (response.data.has_similar_filename) {
+        setDuplicateFiles(response.data.similar_files);
+        setShowDuplicateAlert(true);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking for similar filenames:", error);
+      return false;
     }
+  };
+
+  const removeDuplicateFiles = () => {
+    const duplicateSet = new Set(duplicateFiles);
+    const filteredFiles = selectedFiles.filter(file => !duplicateSet.has(file.name));
+    setSelectedFiles(filteredFiles);
+    setShowDuplicateAlert(false);
+  };
+
+  const handleUpload = async () => {
+    if (selectedFiles.length > 0) {
+      const hasDuplicates = await checkForDuplicateFiles();
+
+      if (hasDuplicates) {
+        return; // Stop here and wait for user decision
+      }
+
+      // If no duplicates, proceed with upload
+      proceedWithUpload();
+    }
+  };
+
+  const proceedWithUpload = () => {
+    uploadMutation.mutate({
+      files: selectedFiles,
+      markdown_converter: selectedConverter,
+      summarization_model: selectedModel?.code,
+      onProgress: (progress) => setUploadProgress(progress),
+    });
   };
 
   const getFileSize = (size: number): string => {
@@ -164,7 +238,7 @@ export function UploadDocumentsModal({
     }
   };
 
-  const handleModelChange = (model: ModelInfo) => {
+  const handleModelChange = (model: LLMModel) => {
     setSelectedModel(model);
   };
 
@@ -314,8 +388,11 @@ export function UploadDocumentsModal({
                   Summarization Model (Optional)
                 </label>
                 <ModelSelector
-                  modelId={selectedModel?.id}
+                  models={llmModels}
+                  selectedModel={selectedModel}
                   onModelChange={handleModelChange}
+                  isLoading={isLoadingModels}
+                  error={errorModels?.message}
                 />
               </div>
             </div>
@@ -454,6 +531,33 @@ export function UploadDocumentsModal({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={showDuplicateAlert} onOpenChange={setShowDuplicateAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Duplicate Files Detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              The following files have similar names to existing documents:
+              <ul className="mt-2 ml-4 space-y-1 list-disc">
+                {duplicateFiles.map((file, index) => (
+                  <li key={index} className="text-sm">{file}</li>
+                ))}
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={removeDuplicateFiles}>
+              Remove Duplicates
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setShowDuplicateAlert(false);
+              proceedWithUpload();
+            }}>
+              Continue Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

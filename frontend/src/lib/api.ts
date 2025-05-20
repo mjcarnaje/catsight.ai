@@ -6,6 +6,7 @@ import {
   Source,
   StatisticsResponse,
 } from "@/types";
+import { SearchParams, SearchResults } from "@/types/search";
 import { Tag } from "@/types/tags";
 import axios from "axios";
 
@@ -277,14 +278,9 @@ export const documentsApi = {
   delete: (id: string) => api.delete(`/documents/${id}/delete`),
   chat: (query: string) => api.post<ChatResponse>("/documents/chat", { query }),
   getRecentChats: (limit: number = 5) => chatsApi.getRecent(limit),
-  search: (params: {
-    query: string;
-    accurate?: boolean;
-    year?: string;
-    tags?: string;
-  }) =>
+  search: (params: SearchParams) =>
     api
-      .get<SearchApiResponse>(
+      .get<SearchResults>(
         params.accurate ? "/documents/search" : "/documents/standard-search",
         { params }
       )
@@ -341,6 +337,11 @@ export const documentsApi = {
     }
 
     return api.get(`/documents/standard-search`, { params });
+  },
+  checkIfHasSimilarFilename: (fileNames: string[]) => {
+    return api.get(`/documents/check-if-has-similar-filename`, {
+      params: { file_names: fileNames.join(",") },
+    });
   },
 };
 
