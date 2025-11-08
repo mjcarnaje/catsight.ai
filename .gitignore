@@ -5,3 +5,4 @@ backend/media/
 .cursor
 .DS_Store
 backend/.DS_Store
+.claude
