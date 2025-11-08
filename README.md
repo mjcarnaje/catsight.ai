@@ -27,6 +27,9 @@ The CATSight.AI Backend is a comprehensive system designed to process, analyze, 
 ## Prerequisites
 
 - Docker and Docker Compose
+- For GPU acceleration (optional): Linux system with NVIDIA GPU and nvidia-docker installed
+
+> **Note**: The setup scripts automatically detect your platform and configure GPU support only when running on Linux with NVIDIA GPU. On Mac or non-NVIDIA systems, the application runs in CPU mode.
 
 ## Installation
 
@@ -50,8 +53,31 @@ Ensure that the `ollama` service in the `docker compose.yml` is correctly config
 
 ### 3. Build and Start the Containers
 
+Use the provided setup script which handles platform detection automatically:
+
 ```bash
+./setup.sh
+```
+
+This script will:
+- Automatically detect if you're on a system with NVIDIA GPU support
+- Configure GPU acceleration for Linux/NVIDIA systems
+- Use CPU mode for Mac or non-NVIDIA systems
+- Clean up old data and rebuild containers
+- Pull required models
+- Set up the database and create admin user
+
+Alternatively, you can manually run:
+
+```bash
+# The script automatically chooses the right configuration
 docker compose up --build
+```
+
+For manual GPU support on Linux with NVIDIA GPU:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 ```
 
 ## Configuration
@@ -60,12 +86,24 @@ Ensure that all services (Redis, PostgreSQL, and Ollama) are running and properl
 
 ## Running the Application
 
-### Using Docker Compose (Recommended)
+### Using the Setup Script (Recommended)
 
-Start all services using Docker Compose:
+The easiest way to start the application is using the setup script:
 
 ```bash
+./setup.sh
+```
+
+### Manual Start
+
+If you just want to start existing containers without rebuilding:
+
+```bash
+# For Mac/CPU mode
 docker compose up
+
+# For Linux with NVIDIA GPU
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
 ```
 
 ## How It Works

@@ -46,13 +46,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # PDF processing dependencies
     poppler-utils \
     # Chromium dependencies
-    gconf-service \
     libasound2 \
     libatk1.0-0 \
     libcairo2 \
     libcups2 \
     libfontconfig1 \
-    libgdk-pixbuf2.0-0 \
+    libgdk-pixbuf-2.0-0 \
     libgtk-3-0 \
     libnspr4 \
     libpango-1.0-0 \

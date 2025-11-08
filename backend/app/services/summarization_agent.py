@@ -32,18 +32,53 @@ reduce_prompt = ChatPromptTemplate.from_messages([
 
 
 import operator
-from typing import Annotated, List, Literal, TypedDict
+from typing import Annotated, List, Literal, TypedDict, Callable, Any
 
-from langchain.chains.combine_documents.reduce import (
-    acollapse_docs,
-    split_list_of_docs,
-)
 from langchain_core.documents import Document
 from langgraph.constants import Send
 from langgraph.graph import END, START, StateGraph
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Helper functions for document collapsing and splitting
+def split_list_of_docs(
+    docs: List[Document], length_func: Callable, token_max: int, **kwargs: Any
+) -> List[List[Document]]:
+    """Split documents into batches that fit within token_max."""
+    new_result_doc_list = []
+    _sub_result_docs = []
+    for doc in docs:
+        _sub_result_docs.append(doc)
+        _num_tokens = length_func(_sub_result_docs, **kwargs)
+        if _num_tokens > token_max:
+            if len(_sub_result_docs) == 1:
+                raise ValueError(
+                    "A single document was longer than the context length,"
+                    " we cannot handle this."
+                )
+            new_result_doc_list.append(_sub_result_docs[:-1])
+            _sub_result_docs = _sub_result_docs[-1:]
+    new_result_doc_list.append(_sub_result_docs)
+    return new_result_doc_list
+
+
+async def acollapse_docs(
+    docs: List[Document],
+    combine_document_func: Callable,
+    **kwargs: Any,
+) -> Document:
+    """Async function to collapse documents using a combine function."""
+    result = await combine_document_func(docs, **kwargs)
+    combined_metadata = {k: str(v) for k, v in docs[0].metadata.items()}
+    for doc in docs[1:]:
+        for k, v in doc.metadata.items():
+            if k in combined_metadata:
+                combined_metadata[k] += f", {v}"
+            else:
+                combined_metadata[k] = str(v)
+    return Document(page_content=result, metadata=combined_metadata)
+
 
 # Default model name
 TOKEN_MAX = 5000

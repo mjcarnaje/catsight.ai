@@ -21,8 +21,8 @@ import logging
 from typing import Any, Dict
 from ..models import Document
 from ..services.postgres import get_psycopg_connection_string
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import LLMListwiseRerank
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_classic.retrievers.document_compressors import LLMListwiseRerank
 from ..constant.prompts import CATSIGHT_PROMPT, TITLE_GENERATION_PROMPT
 
 logger = logging.getLogger(__name__)

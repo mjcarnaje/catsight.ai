@@ -3,8 +3,8 @@ import os
 import asyncio
 from celery import shared_task
 from django.utils import timezone
-from langchain.docstore.document import Document as Doc
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document as Doc
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from functools import lru_cache
 
 from ..constant import DocumentStatus, MarkdownConverter
