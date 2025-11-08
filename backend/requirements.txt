@@ -9,6 +9,7 @@ langchain-ollama
 PyPDF2
 langchain-postgres
 langchain
+langchain-text-splitters
 redis
 celery[redis]==5.2.7
 pdfminer.six

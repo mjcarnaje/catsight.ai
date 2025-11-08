@@ -9,9 +9,9 @@ from langchain_ollama import ChatOllama
 from ..services.vectorstore import vector_store
 import logging
 from ..models import Document
-from langchain.docstore.document import Document as Doc
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import LLMListwiseRerank
+from langchain_core.documents import Document as Doc
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_classic.retrievers.document_compressors import LLMListwiseRerank
 from ..constant.prompts import SUMMARIZER_PROMPT
 logger = logging.getLogger(__name__)
 

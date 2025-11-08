@@ -34,13 +34,6 @@ services:
       - OLLAMA_DEBUG=1
     networks:
       - app-network
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
   backend:
     build: ./backend
     ports:
@@ -57,7 +50,7 @@ services:
       - GOOGLE_OAUTH_CLIENT_ID=283603920028-qgenn6n9029r6ovjsbomooql3o0o6lu6.apps.googleusercontent.com
       - GOOGLE_OAUTH_CLIENT_SECRET=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
       - GOOGLE_REDIRECT_URI=https://catsightai.ngrok.app/login
-      - TORCH_DEVICE=cuda
+      - TORCH_DEVICE=cpu
     depends_on:
       - db
       - redis
@@ -71,13 +64,6 @@ services:
                python manage.py makemigrations &&
                python manage.py migrate &&
                python manage.py runserver 0.0.0.0:8000"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
 
   celery_worker:
     build: ./backend
@@ -88,7 +74,7 @@ services:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
       - OLLAMA_URL=http://host.docker.internal:7869
-      - TORCH_DEVICE=cuda
+      - TORCH_DEVICE=cpu
 
     depends_on:
       - backend
@@ -98,13 +84,6 @@ services:
       - app-network
     extra_hosts:
       - host.docker.internal:host-gateway
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
 
   frontend:
     build: ./frontend
@@ -155,13 +134,6 @@ services:
       && jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''"
     extra_hosts:
       - host.docker.internal:host-gateway
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
 
 networks:
   app-network:

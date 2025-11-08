@@ -2,6 +2,19 @@
 set -euo pipefail
 
 # ──────────────────────────────────────────────────────────
+# Platform detection for GPU support
+# ──────────────────────────────────────────────────────────
+COMPOSE_FILES="-f docker-compose.yml"
+
+# Detect if running on Linux with NVIDIA GPU
+if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v nvidia-smi &> /dev/null; then
+  echo "🎮  NVIDIA GPU detected - enabling GPU support"
+  COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.gpu.yml"
+else
+  echo "💻  Running in CPU mode (Mac or non-NVIDIA system)"
+fi
+
+# ──────────────────────────────────────────────────────────
 # 1. Remove all media files
 # ──────────────────────────────────────────────────────────
 echo "🗑  Deleting media files..."
@@ -14,7 +27,7 @@ sudo rm -rf backend/media/avatars/* backend/media/docs/* || {
 # 2. Tear down containers & volumes
 # ──────────────────────────────────────────────────────────
 echo "🛑  Stopping and removing containers + volumes..."
-docker compose down --volumes --remove-orphans
+docker compose $COMPOSE_FILES down --volumes --remove-orphans
 
 # ──────────────────────────────────────────────────────────
 # 3. Remove Postgres data volume (ignore if missing)
@@ -30,14 +43,14 @@ fi
 # 4. Start containers
 # ──────────────────────────────────────────────────────────
 echo "🚀  Bringing services back up..."
-docker compose up -d --build
+docker compose $COMPOSE_FILES up -d --build
 
 # Wait for backend container to be healthy/running
 MAX_RETRIES=20
 RETRY=0
-until docker compose ps | grep backend | grep -q "Up"; do
+until docker compose $COMPOSE_FILES ps | grep backend | grep -q "Up"; do
   if [ $RETRY -ge $MAX_RETRIES ]; then
-    echo "❌ Backend container did not start in time. Check logs with 'docker compose logs backend'."
+    echo "❌ Backend container did not start in time. Check logs with 'docker compose $COMPOSE_FILES logs backend'."
     exit 1
   fi
   echo "⏳ Waiting for backend container to be up... ($RETRY/$MAX_RETRIES)"
@@ -49,7 +62,7 @@ done
 # 5. Apply migrations
 # ──────────────────────────────────────────────────────────
 echo "📦  Applying Django migrations..."
-docker compose exec backend python manage.py migrate --noinput
+docker compose $COMPOSE_FILES exec backend python manage.py migrate --noinput
 
 # ──────────────────────────────────────────────────────────
 # 6. Pull LLM and Docling models (delegated to pull-llms.sh)
@@ -61,7 +74,7 @@ echo "🤖  Pulling LLM and Docling models via pull-llms.sh..."
 # 7. Create/update superuser 'admin'
 # ──────────────────────────────────────────────────────────
 echo "🔐  Ensuring superuser 'admin' exists..."
-docker compose exec -T backend python manage.py shell <<'PYCODE'
+docker compose $COMPOSE_FILES exec -T backend python manage.py shell <<'PYCODE'
 from django.contrib.auth import get_user_model
 User = get_user_model()
 email    = "michaeljames.carnaje@g.msuiit.edu.ph"
@@ -91,7 +104,7 @@ echo "✅  Reset complete!"
 # 8. Seed document tags
 # ──────────────────────────────────────────────────────────
 echo "🏷️  Seeding document tags..."
-docker compose exec backend python manage.py seed_document_tags
+docker compose $COMPOSE_FILES exec backend python manage.py seed_document_tags
 
 echo "🚀  Starting services in foreground..."
-docker compose up
+docker compose $COMPOSE_FILES up
