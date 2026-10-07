@@ -14,7 +14,9 @@ import { useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import workerSrc from "pdfjs-dist/build/pdf.worker?url";
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+// The ?v= suffix gives the worker a URL no browser has cached: the first deploy
+// served it with the wrong MIME type under a one-year immutable cache header.
+pdfjs.GlobalWorkerOptions.workerSrc = `${workerSrc}?v=2`;
 
 interface PDFViewerProps {
   url: string;
