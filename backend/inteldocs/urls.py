@@ -1,7 +1,13 @@
+import mimetypes
+
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.static import serve
+
+
+# Slim images have no system MIME table; without this .webp is served as octet-stream
+mimetypes.add_type("image/webp", ".webp")
 
 
 def avatar(request, name: str):

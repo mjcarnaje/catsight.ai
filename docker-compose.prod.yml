@@ -6,9 +6,8 @@
 name: catsight
 
 x-backend: &backend
+  # Built once by the backend service; the worker runs the same image
   image: catsight-backend:prod
-  build:
-    context: ./backend
   env_file: .env.prod
   environment:
     POSTGRES_HOST: db
@@ -42,12 +41,18 @@ services:
 
   backend:
     <<: *backend
+    build:
+      context: ./backend
     entrypoint: ["./docker-entrypoint.sh"]
     command: ["gunicorn", "inteldocs.wsgi:application", "--bind", "0.0.0.0:8000", "--worker-class", "gthread",
               "--workers", "2", "--threads", "8", "--timeout", "180", "--access-logfile", "-"]
 
   worker:
     <<: *backend
+    pull_policy: never  # never look for catsight-backend:prod on Docker Hub
+    depends_on:
+      backend:
+        condition: service_started
     volumes:
       - media:/usr/src/app/media
       # PDFs to add with `manage.py ingest /seed` (read-only; see docs/HOSTING.md)
@@ -62,8 +67,6 @@ services:
         VITE_PUBLIC_URL: ${PUBLIC_URL:-https://catsight.mjcarnaje.com}
     ports:
       - "127.0.0.1:${WEB_PORT:-8790}:80"
-    volumes:
-      - media:/media:ro
     depends_on:
       - backend
     restart: unless-stopped
@@ -82,4 +85,5 @@ services:
 
 volumes:
   pgdata:
+  # Mounted only by the backend image, so Docker creates it owned by the app user
   media:
