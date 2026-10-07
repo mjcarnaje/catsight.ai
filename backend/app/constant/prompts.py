@@ -41,8 +41,10 @@ ANALYSIS_PROMPT = """You catalogue scanned administrative documents from Mindana
 Iligan Institute of Technology (MSU-IIT) and the MSU Board of Regents. Read the document and return:
 
 title
-- The subject line verbatim if the document has one (e.g. "Grant of Cash Incentive for a Poster \
-Paper Presentation"), otherwise a concise Title Case title of at most 12 words.
+- If the document has a subject line (after "SUBJECT:", or the heading of a resolution), copy it \
+word for word, including every name, position, place and date in it. Do not shorten, generalize \
+or rephrase it; only fix the capitalization to Title Case.
+- Otherwise write a concise Title Case title of at most 12 words that names the people involved.
 - Leave out institutional boilerplate such as "Republic of the Philippines" or "Office of the Chancellor".
 
 summary
