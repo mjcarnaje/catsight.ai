@@ -1,0 +1,16 @@
+% How an LLM turns a prompt into text, one token at a time (after Mulugeta, 2023).
+\begin{tikzpicture}[
+    st/.style={accent=2.25cm, minimum height=1.25cm},
+    io/.style={muted=1.9cm, minimum height=1.25cm, text=ink},
+    node distance=0.42cm]
+  \node[io] (in) {\textbf{Prompt}\\\footnotesize text};
+  \node[st, right=of in] (tok) {\textbf{Tokenizer}\\\footnotesize text $\to$ token IDs};
+  \node[st, right=of tok] (emb) {\textbf{Embedding}\\\footnotesize IDs $\to$ vectors + positions};
+  \node[st, right=of emb] (tr) {\textbf{Transformer}\\\footnotesize self-attention layers};
+  \node[st, right=of tr] (dec) {\textbf{Decoding}\\\footnotesize next-token probabilities};
+  \node[io, below=1.0cm of dec] (out) {\textbf{Output}\\\footnotesize text};
+  \foreach \a/\b in {in/tok, tok/emb, emb/tr, tr/dec, dec/out} \draw[arrow] (\a) -- (\b);
+  \coordinate (l1) at ($(dec.south west)+(0.35,0)$);
+  \coordinate (l2) at ($(emb.south east)+(-0.35,0)$);
+  \draw[arrow] (l1) -- ++(0,-0.55) -| node[note, pos=0.25, below] {append the chosen token, repeat} (l2);
+\end{tikzpicture}

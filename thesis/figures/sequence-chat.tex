@@ -1,0 +1,30 @@
+% One chat question, end to end: which component talks to which, in order.
+\begin{tikzpicture}[
+    actor/.style={box=2.15cm, minimum height=0.95cm, font=\footnotesize\bfseries},
+    msg/.style={arrow, font=\scriptsize},
+    ret/.style={arrow, dashed, font=\scriptsize},
+    lbl/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+  \foreach \name/\x/\label in {ui/0/Browser, api/2.65/{API (SSE)}, agent/5.3/Agent, search/7.95/Search, db/10.6/PostgreSQL, or/13.25/OpenRouter} {
+    \node[actor] (\name) at (\x,0) {\label};
+    \draw[line, dashed] (\name.south) -- ++(0,-11.4);
+  }
+  \newcommand{\m}[5][msg]{\draw[#1] (#2,#3) -- node[lbl, above=1pt] {#5} (#4,#3);}
+  \m{0}{-1.2}{2.65}{POST question}
+  \m{2.65}{-1.85}{5.3}{run graph (chat thread)}
+  \m{5.3}{-2.5}{13.25}{history + question}
+  \m[ret]{13.25}{-3.15}{5.3}{tool call: \code{search\_documents(query)}}
+  \m{5.3}{-3.8}{7.95}{query, scope}
+  \m{7.95}{-4.45}{13.25}{embed query}
+  \m{7.95}{-5.1}{10.6}{vector + keyword legs}
+  \m[ret]{10.6}{-5.75}{7.95}{candidate passages}
+  \m{7.95}{-6.4}{13.25}{rerank top 20}
+  \m[ret]{7.95}{-7.05}{5.3}{numbered sources}
+  \m[ret]{2.65}{-7.7}{0}{event: \code{search}, \code{sources}}
+  \m{5.3}{-8.35}{13.25}{passages as context}
+  \m[ret]{13.25}{-9.0}{5.3}{answer tokens}
+  \m[ret]{2.65}{-9.65}{0}{event: \code{token} \dots{} \code{answer}}
+  \m{5.3}{-10.3}{10.6}{save checkpoint}
+  \m[ret]{2.65}{-10.95}{0}{event: \code{title}, \code{done}}
+  \draw[ret] (5.3,-9.0) -- (2.65,-9.0);
+  \draw[ret] (5.3,-7.05) -- (2.65,-7.05);
+\end{tikzpicture}

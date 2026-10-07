@@ -1,0 +1,17 @@
+% Facts recovered by each converter on the seven-document sample (Table~\ref{tab:converters}).
+\begin{tikzpicture}
+  \begin{axis}[
+      width=\linewidth, height=6.4cm,
+      ybar, bar width=0.34cm, ymin=0, ymax=105, enlarge x limits=0.09,
+      symbolic x coords={MarkItDown,Docling,Docling+VL,Qwen3-VL,Marker,Marker+VL},
+      xtick=data, ylabel={Facts recovered (\%)},
+      legend style={at={(0.02,0.98)}, anchor=north west, draw=none, font=\scriptsize, fill=none},
+      legend cell align=left,
+      nodes near coords, nodes near coords style={font=\tiny, text=ink},
+      tick label style={font=\scriptsize}, label style={font=\footnotesize},
+      axis lines*=left, ymajorgrids, grid style={line, densely dotted}]
+    \addplot[fill=ink!65, draw=ink] coordinates {(MarkItDown,40) (Docling,67) (Docling+VL,96) (Qwen3-VL,94) (Marker,87) (Marker+VL,91)};
+    \addplot[fill=maroon!75, draw=maroon] coordinates {(MarkItDown,0) (Docling,56) (Docling+VL,100) (Qwen3-VL,97) (Marker,83) (Marker+VL,86)};
+    \legend{All seven documents, Four scanned documents}
+  \end{axis}
+\end{tikzpicture}

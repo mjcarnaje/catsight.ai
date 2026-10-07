@@ -1,31 +1,33 @@
 \chapter*{Revision Summary}
 \addcontentsline{toc}{chapter}{Revision Summary}
 
+The table lists the revisions requested by the panel after the defense and where each one is addressed in this edition. Page numbers in the second column refer to the defended manuscript; the last column refers to this document. The panel's numbering, which skips 9, is kept.
+
 \begingroup
 \small
 \setstretch{1.0}
-\begin{longtable}{@{}p{1.6cm}p{8.4cm}p{4.4cm}@{}}
+\begin{longtable}{@{}p{0.6cm}p{4.3cm}p{2.3cm}p{7.2cm}@{}}
   \toprule
-  \textbf{Revision No.} & \textbf{Details} & \textbf{Section / Page No.} \\
+  \textbf{No.} & \textbf{Revision requested} & \textbf{Section / page (defended)} & \textbf{Action taken (this edition)} \\
   \midrule
   \endhead
-  1 & Missing Theoretical Framework & Methodology, Page 34 \\
-  2 & Be proper and consistent with the figure sizes, and make it clearer & Methodology Page 40 \\
-  3 & Add Design and Implementation Issue & Methodology, Page 34 \\
-  4 & Proper spacing & Methodology. Pag 44 \\
-  5 & Missing Summarization Figure flow & Methodology, Page 44 \\
-  6 & Use Rouge, Bleu, Bertscore for Summarization Metrics & Methodology \\
-  7 & Mention the figures that are shown & Methodology \\
-  8 & Use LaTex Equation & Methodology \\
-  10 & Provide cosine similarity score equations &  \\
-  11 & Explain Token and Cosine Similarity Score &  \\
-  12 & Discuss the map reduce in the paper &  \\
-  13 & Write algorithm for generate summary &  \\
-  14 & Define hallucination in LLM and its basis &  \\
-  15 & Explain zero-shot method &  \\
-  16 & Specific objective be more concise & Specific Objective Page 4 \\
-  17 & Show a architecture diagram to show the interactions of each component & 3.2 methodology. Page 37 \\
-  18 & Express the diagrams in algorithm instead of flow charts &  \\
+  1 & Missing Theoretical Framework & Methodology, p.~34 & Completed Chapter~\ref{ch:framework}: retrieval theory, LLM concepts, the evaluation measures (Section~\ref{sec:evaluation-theory}, previously empty), TAM (Section~\ref{sec:tam}, previously only mentioned), and the conceptual framework in Figure~\ref{fig:conceptual} (p.~\pageref{fig:conceptual}). \\
+  2 & Proper and consistent figure sizes; make them clearer & Methodology, p.~40 & All diagrams redrawn as vector graphics with one style and font; all screenshots captured at the same window size and shown at full text width. \\
+  3 & Add Design and Implementation Issue & Methodology, p.~34 & Wrote Chapter~\ref{ch:design}: data model, data structures, and fifteen issues with their solutions (Table~\ref{tab:issues}, p.~\pageref{tab:issues}). \\
+  4 & Proper spacing & Methodology, p.~44 & Typeset in \LaTeX{} with uniform double spacing, heading spacing and paragraph indentation. \\
+  5 & Missing summarization figure flow & Methodology, p.~44 & Added Figure~\ref{fig:summarization} (p.~\pageref{fig:summarization}). \\
+  6 & Use ROUGE, BLEU and BERTScore for summarization metrics & Methodology & Defined in Section~\ref{sec:summary-metrics} (p.~\pageref{sec:summary-metrics}) and applied in Section~\ref{sec:summary-results}. \\
+  7 & Mention the figures that are shown & Methodology & Every figure, table and algorithm is referred to in the text before it appears. \\
+  8 & Use \LaTeX{} equations & Methodology & The paper is written in \LaTeX{}; Equations~\ref{eq:cosine}--\ref{eq:sus} are numbered and referenced. \\
+  10 & Provide cosine similarity score equations & -- & Equations~\ref{eq:cosine}--\ref{eq:cosine-distance} in Section~\ref{sec:cosine} (p.~\pageref{sec:cosine}). \\
+  11 & Explain token and cosine similarity score & -- & Section~\ref{sec:tokens} (search tokens and model tokens) and Section~\ref{sec:cosine} (score range, threshold, worked example). \\
+  12 & Discuss map-reduce in the paper & -- & Section~\ref{sec:mapreduce-theory} with Equations~\ref{eq:map}--\ref{eq:reduce}, and Section~\ref{sec:issue-long}. \\
+  13 & Write an algorithm for generating summaries & -- & Algorithm~\ref{alg:summary} (p.~\pageref{alg:summary}). \\
+  14 & Define hallucination in LLMs and its basis & -- & Section~\ref{sec:hallucination}: definition, types, causes, and mitigation; implementation in Section~\ref{sec:issue-hallucination}. \\
+  15 & Explain the zero-shot method & -- & Section~\ref{sec:zero-shot} (p.~\pageref{sec:zero-shot}). \\
+  16 & Make the specific objectives more concise & Specific Objective, p.~4 & Rewritten in Section~\ref{sec:objectives} (p.~\pageref{sec:objectives}). \\
+  17 & Show an architecture diagram of how the components interact & 3.2 Methodology, p.~37 & Figure~\ref{fig:architecture} with numbered interactions (p.~\pageref{fig:architecture}), and the sequence of a chat request in Figure~\ref{fig:sequence}. \\
+  18 & Express the diagrams as algorithms instead of flowcharts & -- & The processes are given as Algorithms~\ref{alg:process}--\ref{alg:chat}, replacing the defended flowchart. The other figures show structure and interactions; the summarization flow requested in revision~5 accompanies Algorithm~\ref{alg:summary}. \\
   \bottomrule
 \end{longtable}
 \endgroup

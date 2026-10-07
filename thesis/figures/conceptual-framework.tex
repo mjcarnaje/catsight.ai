@@ -1,0 +1,33 @@
+% Conceptual framework (Input-Process-Output) grounded in the theories of Chapter 3.
+\begin{tikzpicture}[node distance=0.35cm]
+  \node[font=\bfseries] (hin) at (0,0) {Input};
+  \node[font=\bfseries] (hpr) at (5.3,0) {Process};
+  \node[font=\bfseries] (hout) at (10.6,0) {Output};
+
+  \node[box=3.5cm, below=0.3cm of hin, minimum height=1.3cm] (i1) {Scanned and digital PDFs from IIT Docs and the BOR archive};
+  \node[box=3.5cm, below=of i1, minimum height=1.3cm] (i2) {Questions and search terms in natural language};
+  \node[box=3.5cm, below=of i2, minimum height=1.3cm] (i3) {Tag definitions and usage limits set by administrators};
+
+  \node[accent=4.2cm, below=0.3cm of hpr] (p1) {\textbf{Extraction:} vision OCR, page by page};
+  \node[accent=4.2cm, below=of p1] (p2) {\textbf{Cataloguing:} zero-shot LLM, map-reduce for long text};
+  \node[accent=4.2cm, below=of p2] (p3) {\textbf{Indexing:} chunks, embeddings, full-text vectors};
+  \node[accent=4.2cm, below=of p3] (p4) {\textbf{Retrieval:} cosine + keyword, RRF, reranking};
+  \node[accent=4.2cm, below=of p4] (p5) {\textbf{Generation:} grounded answers with citations};
+
+  \node[box=3.5cm, below=0.3cm of hout, minimum height=1.3cm] (o1) {A searchable, catalogued library of page-level passages};
+  \node[box=3.5cm, below=of o1, minimum height=1.3cm] (o2) {Cited answers in chat and search};
+  \node[box=3.5cm, below=of o2, minimum height=1.3cm] (o3) {Evaluation: retrieval accuracy, ROUGE / BLEU / BERTScore, latency, SUS};
+
+  \node[group, fit=(i1)(i3)] (gin) {};
+  \node[group, fit=(p1)(p5), draw=maroon] (gpr) {};
+  \node[group, fit=(o1)(o3)] (gout) {};
+  \draw[arrow, line width=1pt] (gin.east |- gpr.center) -- (gpr.west);
+  \draw[arrow, line width=1pt] (gpr.east) -- (gout.west |- gpr.center);
+  \foreach \a/\b in {p1/p2, p2/p3, p3/p4, p4/p5} \draw[arrow] (\a) -- (\b);
+
+  \node[muted=14.6cm, anchor=north] (theory) at ($(gpr.south)+(0,-0.6)$)
+    {\textbf{Grounding theories:} Information Retrieval theory (tokenization, vector space model, cosine similarity, rank fusion) $\cdot$ LLMs and retrieval-augmented generation (zero-shot prompting, hallucination) $\cdot$ Technology Acceptance Model $\cdot$ Cognitive Load Theory};
+  \draw[dashedarrow] (theory.north -| gin.south) -- (gin.south);
+  \draw[dashedarrow] (theory.north) -- (gpr.south);
+  \draw[dashedarrow] (theory.north -| gout.south) -- (gout.south);
+\end{tikzpicture}

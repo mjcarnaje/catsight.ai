@@ -1,0 +1,26 @@
+% Cataloguing a document: one structured call, or map-reduce when the text is too long (revisions 5 and 12).
+\begin{tikzpicture}[
+    data/.style={muted=3.6cm, minimum height=1.05cm, text=ink},
+    op/.style={accent=3.6cm, minimum height=1.05cm},
+    node distance=0.55cm]
+  \node[data] (text) at (3.3,0) {\textbf{Extracted text}\\\footnotesize $n$ characters with page markers};
+  \node[op] (single) at (0,-2.3) {\textbf{One structured call}\\\footnotesize full text $\to$ analysis};
+  \node[op] (split) at (6.6,-2.3) {\textbf{Split}\\\footnotesize sections of 60{,}000 characters};
+  \node[op, below=of split] (map) {\textbf{Map}, 4 in parallel\\\footnotesize compact notes per section};
+  \node[op, below=of map] (reduce) {\textbf{Reduce}\\\footnotesize summarize the notes, $\le 3$ rounds};
+  \node[op, below=of reduce] (final) {\textbf{Final structured call}\\\footnotesize document opening + notes};
+  \path (final.south) ++(0,-0.75) coordinate (below-final);
+  \node[data, text width=5.2cm, anchor=north] (out) at (below-final -| text)
+    {\textbf{Catalogue}\\\footnotesize title, summary, reference number, issue date, year, tags, questions\\[2pt]
+     checked: valid date, plausible year, existing tag names};
+  \draw[arrow] (text.south) -- ++(0,-0.5) -| node[note, pos=0.72, left] {$n \le B$} (single.north);
+  \draw[arrow] (text.south) -- ++(0,-0.5) -| node[note, pos=0.72, right] {$n > B$} (split.north);
+  \draw[arrow] (split) -- (map);
+  \draw[arrow] (map) -- (reduce);
+  \draw[arrow] (reduce) -- (final);
+  \draw[arrow] (reduce.east) -- ++(0.45,0) |- node[note, pos=0.25, right] {notes still $> B$} ($(map.east)+(0,-0.1)$);
+  \draw[arrow] (single.south) |- (out.west);
+  \draw[arrow] (final.south) |- (out.east);
+  \node[note, anchor=north west, text width=3.6cm, align=left] at ($(single.south)+(0.25,-0.4)$)
+    {$B$ is 300{,}000 characters for hosted models (14{,}000 for a local 8k-token model), so almost every administrative document takes this single-call path.};
+\end{tikzpicture}

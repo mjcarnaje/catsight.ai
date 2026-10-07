@@ -1,0 +1,26 @@
+% Sinha's eight steps for building LLM-powered applications; steps 1-6 were adopted.
+\begin{tikzpicture}[
+    phase/.style={accent=3.1cm, minimum height=1.55cm},
+    skipped/.style={muted=3.1cm, minimum height=1.55cm, text=ink!60},
+    num/.style={circle, draw=maroon, fill=white, font=\footnotesize\bfseries, text=maroon, inner sep=1.5pt, minimum size=5mm},
+    numskip/.style={num, draw=line, text=ink!50},
+    node distance=0.55cm and 0.55cm]
+  \node[phase] (s1) {\textbf{Use case discovery}\\[1pt]\footnotesize a feasible problem an LLM can solve};
+  \node[phase, right=of s1] (s2) {\textbf{Prototype building}\\[1pt]\footnotesize a simple app around a pre-trained LLM};
+  \node[phase, right=of s2] (s3) {\textbf{LLM system strategy}\\[1pt]\footnotesize single LLM, agent or multi-agent};
+  \node[phase, right=of s3] (s4) {\textbf{LLM setup}\\[1pt]\footnotesize choose models by cost, latency, accuracy};
+  \node[phase, below=1.1cm of s4] (s5) {\textbf{LLM hosting}\\[1pt]\footnotesize local servers or cloud};
+  \node[phase, left=of s5] (s6) {\textbf{Development}\\[1pt]\footnotesize the application, with testing};
+  \node[skipped, left=of s6] (s7) {\textbf{Observability}\\[1pt]\footnotesize logging, monitoring, alerts};
+  \node[skipped, left=of s7] (s8) {\textbf{Deployment}\\[1pt]\footnotesize CI/CD and hosting of the app};
+  \foreach \i in {1,...,6} \node[num] at (s\i.north west) {\i};
+  \foreach \i in {7,8} \node[numskip] at (s\i.north west) {\i};
+  \draw[arrow] (s1) -- (s2);
+  \draw[arrow] (s2) -- (s3);
+  \draw[arrow] (s3) -- (s4);
+  \draw[arrow] (s4) -- (s5);
+  \draw[arrow] (s5) -- (s6);
+  \draw[arrow, draw=line] (s6) -- (s7);
+  \draw[arrow, draw=line] (s7) -- (s8);
+  \node[note, anchor=north] at ($(s7.south)!0.5!(s8.south)+(0,-0.15)$) {not part of the study's six phases};
+\end{tikzpicture}

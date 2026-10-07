@@ -1,0 +1,18 @@
+% Document pipeline stages; a failure keeps its stage so processing resumes there.
+\begin{tikzpicture}[
+    st/.style={box=2.15cm, minimum height=1.2cm},
+    act/.style={accent=2.15cm, minimum height=1.2cm},
+    node distance=0.5cm]
+  \node[st] (q) {\textbf{Queued}\\\footnotesize uploaded, waiting};
+  \node[act, right=of q] (e) {\textbf{Extracting}\\\footnotesize OCR, page by page};
+  \node[act, right=of e] (s) {\textbf{Summarizing}\\\footnotesize catalogue fields};
+  \node[act, right=of s] (i) {\textbf{Indexing}\\\footnotesize chunks + vectors};
+  \node[st, right=of i, draw=green!45!black, fill=green!5] (r) {\textbf{Ready}\\\footnotesize searchable, citable};
+  \foreach \a/\b in {q/e, e/s, s/i, i/r} \draw[arrow] (\a) -- (\b);
+  \node[muted=8.6cm, below=1.3cm of s, text=ink] (f)
+    {\textbf{Failed at the same stage} (\code{is\_failed}, readable error message)};
+  \foreach \x in {e, s, i} \draw[dashedarrow, draw=maroon] ($(\x.south)+(0.25,0)$) -- ($(\x.south |- f.north)+(0.25,0)$);
+  \coordinate (re) at ($(e.south)+(-0.45,0)$);
+  \draw[arrow] (re |- f.north) -- node[note, left, text width=2.0cm, align=right] {reprocess: resume at the failed stage} (re);
+  \node[note, above=0.2cm of s] {Editing the text restarts at Summarizing; choosing another OCR engine restarts at Extracting.};
+\end{tikzpicture}

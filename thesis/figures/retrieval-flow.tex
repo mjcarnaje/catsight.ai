@@ -1,0 +1,21 @@
+% Hybrid retrieval: two legs, fused by rank, reranked, then filtered.
+\begin{tikzpicture}[
+    op/.style={accent=2.75cm, minimum height=1.15cm},
+    leg/.style={box=3.0cm, minimum height=1.15cm},
+    node distance=0.5cm and 0.62cm]
+  \node[muted=1.9cm, minimum height=1.15cm, text=ink] (q) at (0,0) {\textbf{Query}};
+  \node[leg] (vec) at (3.5,1.15) {\textbf{Vector leg}\\\footnotesize embed (BGE-M3), cosine, top 30};
+  \node[leg] (kw)  at (3.5,-1.15) {\textbf{Keyword leg}\\\footnotesize terms without leading zeros, full text (OR), top 30};
+  \node[op] (rrf) at (7.2,0) {\textbf{Rank fusion}\\\footnotesize RRF, $k=60$};
+  \node[op, right=of rrf] (rr) {\textbf{Rerank}\\\footnotesize cross-encoder, top 20};
+  \node[op, below=1.5cm of rr] (gate) {\textbf{Filter}\\\footnotesize relevance gate, $\le 3$ per document};
+  \node[muted=2.75cm, minimum height=1.15cm, text=ink, left=of gate] (out) {\textbf{Top $k$ passages}\\\footnotesize $k=6$ for chat};
+  \draw[arrow] (q.east) -- ++(0.35,0) |- (vec.west);
+  \draw[arrow] (q.east) -- ++(0.35,0) |- (kw.west);
+  \draw[arrow] (vec.east) -- ++(0.35,0) |- (rrf.west);
+  \draw[arrow] (kw.east) -- ++(0.35,0) |- (rrf.west);
+  \draw[arrow] (rrf) -- (rr);
+  \draw[arrow] (rr) -- (gate);
+  \draw[arrow] (gate) -- (out);
+  \node[note, below=0.05cm of rrf, text width=2.9cm] {vector-only hits need similarity $\ge 0.42$};
+\end{tikzpicture}

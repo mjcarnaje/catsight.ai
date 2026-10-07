@@ -1,0 +1,142 @@
+% The system's processes as algorithms (revisions 13 and 18). Input from 4-methodology.tex.
+
+\begin{algorithm}[htbp]
+  \caption{Document Processing}\label{alg:process}
+  \KwIn{an uploaded PDF file $f$; the uploading user $u$}
+  \KwOut{a searchable document $d$, or the reason $f$ was not accepted}
+  $\mathit{info} \gets \textsc{Inspect}(f)$ \tcp*{PDF signature, file size and page limits}
+  \lIf{$\mathit{info}$ is invalid}{\Return \emph{rejected}}
+  $h \gets \textsc{SHA-256}(f)$\;
+  \lIf{a document visible to $u$ already has hash $h$}{\Return \emph{duplicate}}
+  \textsc{ConsumeQuota}$(u, \mathit{info}.\mathit{pages})$ \tcp*{public-demo limits, under a database lock}
+  $d \gets$ new document with status \textsc{Queued}; store $f$ and a first-page preview\;
+  enqueue $\textsc{Process}(d)$ on the task queue\;
+  \BlankLine
+  \Fn{\textsc{Process}$(d)$}{
+    \ForEach{stage $s \in \langle \textsc{Extracting}, \textsc{Summarizing}, \textsc{Indexing} \rangle$, starting at $d.\mathit{status}$}{
+      record the transition of $d$ to $s$\;
+      run stage $s$:
+      \Indp
+      \textsc{Extracting}: $d.\mathit{text} \gets \textsc{ExtractPages}(f)$ \tcp*{Algorithm~\ref{alg:extract}}
+      \textsc{Summarizing}: $d.\mathit{catalogue} \gets \textsc{GenerateSummary}(d.\mathit{text})$ \tcp*{Algorithm~\ref{alg:summary}}
+      \textsc{Indexing}: $d.\mathit{chunks} \gets \textsc{IndexDocument}(d)$ \tcp*{Algorithm~\ref{alg:index}}
+      \Indm
+      \If{the stage raised an error $e$}{
+        mark $d$ failed at $s$ with a readable message for $e$\;
+        \Return \tcp*{a later reprocess resumes at $s$}
+      }
+    }
+    record the transition of $d$ to \textsc{Ready}\;
+  }
+\end{algorithm}
+
+\begin{algorithm}[htbp]
+  \caption{Page Extraction with Marker}\label{alg:extract}
+  \KwIn{a PDF file $f$ with pages $1, \dots, n$; the vision model $V$ (optional)}
+  \KwOut{Markdown text $T$ with a marker before each page}
+  acquire the PDFium lock \tcp*{PDFium is not thread-safe}
+  \For{$i \gets 1$ \KwTo $n$}{
+    $I_i \gets$ image of page $i$\;
+    $B_i \gets$ text lines and layout blocks of $I_i$ \tcp*{Surya text detection and layout}
+    \ForEach{block $b \in B_i$}{
+      $b.\mathit{text} \gets \textsc{SuryaOCR}(\text{crop of } I_i \text{ at } b)$ \tcp*{re-OCR, ignoring any text layer}
+    }
+    \If{$V$ is configured}{
+      \ForEach{block $b \in B_i$ that is a table, form, handwriting or complex region}{
+        $b.\mathit{text} \gets V(\text{crop of } I_i \text{ at } b,\ b.\mathit{text})$ \tcp*{LLM mode corrects $b$}
+      }
+    }
+    $t_i \gets$ Markdown of $B_i$ in reading order\;
+  }
+  release the PDFium lock\;
+  \lIf{every $t_i$ is empty}{raise ``no text could be extracted''}
+  \Return $t_1, \dots, t_n$ joined, each preceded by a marker \code{page:$i$}\;
+\end{algorithm}
+
+\begin{algorithm}[htbp]
+  \caption{Generate Summary (Cataloguing with Map-Reduce)}\label{alg:summary}
+  \KwIn{extracted text $T$ of $n$ characters; budget $B$, section size $S$, opening size $O$; allowed tags $\mathcal{G}$ with descriptions}
+  \KwOut{catalogue $A$: title, summary, reference number, issue date, year, tags, suggested questions}
+  replace page markers in $T$ with ``[Page $i$]''\;
+  \eIf{$n \le B$}{
+    $M \gets T$ \tcp*{the common case: one call reads everything}
+  }{
+    $\langle c_1, \dots, c_m \rangle \gets$ split $T$ into sections of at most $S$ characters (overlap 200)\;
+    $N \gets \langle f_{\text{map}}(c_1), \dots, f_{\text{map}}(c_m) \rangle$ \tcp*{4 sections at a time}
+    $r \gets 0$\;
+    \While{$\sum_{n_i \in N} \lvert n_i \rvert > B - O$ \textbf{and} $\lvert N \rvert > 1$ \textbf{and} $r < 3$}{
+      $N \gets$ apply $f_{\text{map}}$ to the sections of the joined notes $N$ \tcp*{reduce round}
+      $r \gets r + 1$\;
+    }
+    $M \gets T_{[1:O]} \oplus N$ \tcp*{opening holds the letterhead, subject and reference}
+  }
+  $A \gets$ \textsc{StructuredCall}(instructions $\oplus\ \mathcal{G}$, $M$) \tcp*{zero-shot, strict JSON schema}
+  $A.\mathit{date} \gets$ parse as ISO date, else none\;
+  $A.\mathit{year} \gets A.\mathit{year}$ (or the year of $A.\mathit{date}$) if it lies between 1900 and next year, else none\;
+  $A.\mathit{tags} \gets$ the names in $A.\mathit{tags}$ that match a tag in $\mathcal{G}$, ignoring case\;
+  \Return $A$\;
+\end{algorithm}
+
+\begin{algorithm}[htbp]
+  \caption{Document Indexing}\label{alg:index}
+  \KwIn{a document $d$ with text $T$ and catalogue $A$}
+  \KwOut{passages of $d$, each with a page, a section path, an embedding and a full-text vector}
+  $\mathit{context} \gets A.\mathit{title} \cdot A.\mathit{reference} \cdot A.\mathit{year}$\;
+  remove the page markers from $T$, remembering where each page starts\;
+  $P \gets \langle\rangle$\;
+  \ForEach{section $\sigma$ of $T$ between two headings}{
+    \ForEach{piece $p$ of $\sigma$ from a Markdown-aware splitter (1{,}000 characters, overlap 150)}{
+      append (heading of $\sigma$ $\oplus$ $p$, page where $p$ starts, heading path of $\sigma$) to $P$\;
+    }
+  }
+  $E \gets \textsc{Embed}(\langle \mathit{context} \oplus p.\mathit{text} : p \in P \rangle)$ \tcp*{BGE-M3, 32 per request}
+  \textbf{in one transaction:} delete the old passages of $d$; store $P$ with $E$\;
+  \ForEach{stored passage $p$}{
+    $p.\mathit{vector} \gets \text{tsvector}(\mathit{context})^{\text{weight A}} \parallel \text{tsvector}(p.\mathit{text})^{\text{weight B}}$ \tcp*{leading zeros removed}
+  }
+\end{algorithm}
+
+\begin{algorithm}[htbp]
+  \caption{Hybrid Search-Retrieval}\label{alg:search}
+  \KwIn{query $q$; user $u$; optional document, year and tag filters; result count $k$}
+  \KwOut{up to $k$ passages, at most 3 per document}
+  $C \gets$ passages of ready documents that $u$ may see and that match the filters\;
+  $\mathbf{q} \gets \textsc{Embed}(q)$\;
+  $L_v \gets$ the 30 passages of $C$ with the smallest cosine distance to $\mathbf{q}$ \tcp*{Equation~\ref{eq:cosine-distance}}
+  $\mathit{terms} \gets$ distinct words and numbers of $q$, without leading zeros\;
+  $L_k \gets$ the 30 passages of $C$ matching any term, ranked by \code{ts\_rank\_cd}\;
+  \ForEach{passage $p \in L_v \cup L_k$}{
+    $\mathit{score}(p) \gets \sum_{L \in \{L_v, L_k\},\, p \in L} 1 / (60 + \operatorname{rank}_L(p))$ \tcp*{Equation~\ref{eq:rrf}}
+  }
+  $F \gets$ passages in order of $\mathit{score}$, keeping those in $L_k$ or with $\cos(\mathbf{q}, \mathbf{p}) \ge 0.42$\;
+  $F \gets$ the first 20 passages of $F$\;
+  \If{a reranker is configured}{
+    $\mathit{score}(p) \gets \textsc{Rerank}(q, p)$ for $p \in F$; sort $F$ by it\;
+    drop each $p$ with $\mathit{score}(p) < 0.05$ unless $p \in L_k$\;
+  }
+  \Return the first $k$ passages of $F$, skipping a document's fourth and later passages\;
+\end{algorithm}
+
+\begin{algorithm}[htbp]
+  \caption{Interactive Chat}\label{alg:chat}
+  \KwIn{question $x$ in chat $c$; optional document scope $D$}
+  \KwOut{a streamed answer with numbered citations, and the numbered sources}
+  $H \gets$ the last 12 questions and answers of $c$, without earlier search results\;
+  $\mathit{sources} \gets \langle\rangle$; $\mathit{searches} \gets 0$\;
+  \Repeat{the model answers without calling the tool}{
+    $y \gets \textsc{LLM}(\text{instructions}, H, x, \text{results so far})$ with tool \code{search\_documents} if $\mathit{searches} < 3$, required when $\mathit{searches} = 0$ unless $x$ is a greeting\;
+    \If{$y$ calls \code{search\_documents}$(q')$}{
+      \eIf{$D$ is one document of fewer than 60{,}000 characters}{
+        $R \gets$ all passages of $D$ in reading order \tcp*{read whole}
+      }{
+        $R \gets \textsc{HybridSearch}(q', \text{scope } D, k = 6)$ \tcp*{Algorithm~\ref{alg:search}}
+      }
+      number each new document of $R$ after those in $\mathit{sources}$; keep earlier numbers\;
+      send the events \code{search}($q'$) and \code{sources} to the browser\;
+      $\mathit{searches} \gets \mathit{searches} + 1$\;
+    }
+  }
+  stream the tokens of $y$ to the browser as they arrive\;
+  \lIf{$c$ has no title}{$c.\mathit{title} \gets \textsc{FastLLM}(x)$}
+  save the conversation state of $c$\;
+\end{algorithm}

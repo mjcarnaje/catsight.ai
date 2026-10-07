@@ -1,0 +1,25 @@
+% The deployed library (48 documents) after reprocessing with Marker 2 and the open models, 7 October 2026.
+\begin{tikzpicture}
+  \begin{axis}[
+      name=decades, width=6.4cm, height=6.2cm,
+      ybar, bar width=0.55cm, ymin=0, ymax=30, enlarge x limits=0.15,
+      symbolic x coords={1970s,1980s,2000s,2010s,2020s}, xtick=data,
+      ylabel={Documents}, title={\footnotesize (a) By decade of issuance},
+      nodes near coords, nodes near coords style={font=\scriptsize},
+      tick label style={font=\scriptsize}, label style={font=\footnotesize},
+      axis lines*=left, ymajorgrids, grid style={line, densely dotted},
+      nodes near coords style={font=\scriptsize, text=ink}]
+    \addplot[fill=maroon!75, draw=maroon] coordinates {(1970s,4) (1980s,1) (2000s,6) (2010s,25) (2020s,12)};
+  \end{axis}
+  \begin{axis}[
+      at={($(decades.east)+(2.9cm,0)$)}, anchor=west, width=7.0cm, height=6.2cm,
+      xbar, bar width=0.3cm, xmin=0, xmax=30, enlarge y limits=0.06,
+      symbolic y coords={Memorandum,Academic Calendar,Suspension,Charter Day,Policy,Incentive,Travel Order,Other,Finance,Designation,Board Resolution,Special Order},
+      ytick=data, xlabel={Documents}, title={\footnotesize (b) By tag (a document has 1--3 tags)},
+      nodes near coords, nodes near coords style={font=\scriptsize},
+      tick label style={font=\scriptsize}, label style={font=\footnotesize},
+      axis lines*=left, xmajorgrids, grid style={line, densely dotted},
+      nodes near coords style={font=\scriptsize, text=ink}]
+    \addplot[fill=ink!65, draw=ink] coordinates {(1,Memorandum) (2,Academic Calendar) (3,Suspension) (5,Charter Day) (6,Policy) (9,Incentive) (11,Travel Order) (17,Other) (17,Finance) (21,Designation) (23,Board Resolution) (25,Special Order)};
+  \end{axis}
+\end{tikzpicture}

@@ -1,1 +1,27 @@
 \chapter{Conclusion and Recommendations}\label{ch:conclusion}
+
+\section{Conclusion}
+
+This study set out to develop and evaluate a content-based document retrieval system for MSU-IIT that integrates OCR, vector embeddings, and LLM-powered conversational interaction. Each specific objective (Section~\ref{sec:objectives}) was addressed as follows.
+
+\begin{enumerate}
+  \item \textbf{Collection.} A corpus of 50 issuances was assembled from IIT Docs and the BOR Resolutions archive across six categories, including scanned, typewritten, watermarked, and table-heavy files (Table~\ref{tab:corpus}). Two exact duplicates were detected automatically, leaving 48 documents.
+  \item \textbf{Design.} The architecture (Figure~\ref{fig:architecture}) combines a resumable document pipeline, hybrid retrieval that fuses semantic and keyword search, and a single-agent chat that answers from retrieved passages with page-level citations. Every model is open-weight, so the institution can host the whole system on its own hardware (Table~\ref{tab:gpu}).
+  \item \textbf{Implementation.} The pipeline, search, and chat were implemented and deployed as a public demonstration. Marker 2 with Surya OCR 2 reads scanned pages, with Qwen3-VL correcting tables, forms, and handwriting; documents are catalogued zero-shot, with map-reduce for long texts; and the agent's answers stream with citations that open the source page.
+  \item \textbf{Evaluation.} Among the converters compared, Marker with its LLM mode and the vision-model approaches recovered by far the most facts from scanned pages, while MarkItDown recovered none (Section~\ref{sec:converter-comparison}). In the evaluation of the defended prototype, users rated \cs{} at 77.17 on the System Usability Scale against 50.33 for the existing system (Section~\ref{sec:usability-results}). \TODO{Add the retrieval-accuracy and summary-quality results of Sections~\ref{sec:retrieval-results} and~\ref{sec:summary-results} once measured.}
+  \item \textbf{Analysis.} The results and the issues met during development (Chapter~\ref{ch:design}) lead to the recommendations below.
+\end{enumerate}
+
+Overall, \cs{} shows that the limitations of keyword search in MSU-IIT's repositories---semantic blindness, the exclusion of scanned files, and rigid interaction---can be addressed with open models: users ask in their own words, scanned issuances become searchable, and every answer can be checked against the page it came from.
+
+\section{Recommendations}
+
+\begin{enumerate}
+  \item \textbf{Complete the evaluation of the rebuilt system.} Repeat the usability study, and run the retrieval and summary evaluations of Section~\ref{sec:evaluation-procedure} with a larger set of questions and human-written reference summaries, including questions in Filipino and Cebuano.
+  \item \textbf{Host the models on campus.} Serve the open models on an institutional GPU server (Table~\ref{tab:gpu}) so that no document text leaves the campus network, as the Data Privacy Act may require for confidential records; the local configuration of Section~\ref{sec:local-mode} already supports this.
+  \item \textbf{Scale the library.} Ingest the complete IIT Docs and BOR archives. Beyond a few hundred thousand passages, add an approximate vector index (Section~\ref{sec:issue-ann}) and measure its effect on filtered searches.
+  \item \textbf{Read images and seals.} Describe photographs, diagrams, and seals with the vision model, and recognize signatures, which the current system records only as ``[signature]''.
+  \item \textbf{Index tables on their own.} Reading a short document whole fixes questions within one document (Section~\ref{sec:issue-table}); for questions across the whole library, index each table as a passage of its own together with the sentence that introduces it, and keep stamps that OCR turns into headings out of the section names.
+  \item \textbf{Learn from use.} Let users mark answers as helpful or not, and use the feedback to tune the similarity threshold, the reranker gate, and the instructions.
+  \item \textbf{Integrate with the repositories.} Index new issuances automatically as they are posted to IIT Docs, instead of uploading them by hand.
+\end{enumerate}

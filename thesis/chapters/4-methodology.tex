@@ -1,140 +1,329 @@
 \chapter{Research Methodology}\label{ch:methodology}
 
-This chapter outlines the methodology used to develop CatSight AI, a document retrieval system (DRS) tailored for Mindanao State University – Iligan Institute of Technology (MSU-IIT). Adapted from Pallavi Sinha’s framework for building LLM-powered applications, the process excludes deployment-related steps to align with the project’s timeline (January–April 2025) as shown in \textbf{Figure 2.} However, this study only follows six key phases. The structured approach ensures that CatSight AI meets MSU-IIT’s specific needs, following best practices in AI development such as iterative testing and data-driven refinement. \begin{figure}[htbp]
+This chapter outlines the methodology used to develop \cs{}, a document retrieval system (DRS) tailored for Mindanao State University -- Iligan Institute of Technology (MSU-IIT). It is adapted from Pallavi Sinha's framework for building LLM-powered applications \citep{sinha2024}, shown in Figure~\ref{fig:sinha}. The framework has eight steps; this study follows the first six, from use case discovery to the development of the application, and leaves out observability and deployment pipelines, which fall outside the project's development window. The structured approach ensures that \cs{} meets MSU-IIT's specific needs, following best practices in AI development such as iterative testing, ethical considerations, and data-driven refinement \citep{amershi2019}. Sections~\ref{sec:use-case} to~\ref{sec:development} follow the six adopted phases in order, and Section~\ref{sec:evaluation-procedure} describes how the system is evaluated.
+
+\begin{figure}[htbp]
   \centering
-  \includegraphics[width=\linewidth]{figures/defended/sinha-steps.png}
-  \caption{Steps Breakdown for Building LLM-Powered Applications (Sinha, 2024)}
-\end{figure} Only six key phases were adopted to ensure the feasibility and relevance of the system during its limited development window. This structured approach ensures that CatSight AI meets MSU-IIT’s specific needs, following best practices in AI development, such as iterative testing, ethical considerations, and data-driven refinement (Amershi et al., 2019).
+  \input{figures/sinha-steps}
+  \caption{Steps for Building LLM-Powered Applications, Adapted from \citet{sinha2024}; Steps 1--6 Were Adopted}\label{fig:sinha}
+\end{figure}
 
-\section{Use Case Discovery}
+\section{Use Case Discovery}\label{sec:use-case}
 
-The proponents observed that MSU-IIT’s current document retrieval system posed challenges for students, faculty, and staff. The keyword-based search often failed to return relevant results when queries didn’t match exact terms, making it difficult to find necessary documents. For instance, searching for “policy updates” might miss files labeled differently, such as “revised regulations.” These limitations revealed the system’s lack of contextual understanding and highlighted the need for a more intelligent solution. CatSight AI addresses this by integrating OCR, vector similarity search, and LLM-based chat interfaces, enabling semantic search and conversational interaction to improve search accuracy and user experience.
+The proponents observed that MSU-IIT's current document retrieval system posed challenges for students, faculty, and staff. The keyword-based search often failed to return relevant results when queries didn't match exact terms, making it difficult to find necessary documents. For instance, searching for ``policy updates'' might miss files labeled differently, such as ``revised regulations.'' These limitations revealed the system's lack of contextual understanding and highlighted the need for a more intelligent solution. \cs{} addresses this by integrating OCR, vector similarity search, and LLM-based chat interfaces, enabling semantic search and conversational interaction to improve search accuracy and user experience.
 
-\subsection{Process of Document Collection and Preparation}
+\subsection{Process of Document Collection and Preparation}\label{sec:collection}
 
-Building on the identified limitations of MSU-IIT’s traditional document retrieval system, the study moves toward developing and evaluating a more intelligent solution—CatSight AI. To ensure that the system is tested under realistic and representative conditions, the process begins with the careful collection and preparation of institutional documents. These documents are sourced from two main repositories: (1) MSU-IIT’s internal document archives and (2) the MSU System Board of Regents (BOR) Resolutions.
+Building on the identified limitations of MSU-IIT's traditional document retrieval system, the study moves toward developing and evaluating a more intelligent solution. To ensure that the system is tested under realistic and representative conditions, the process begins with the careful collection and preparation of institutional documents. These documents are sourced from two main repositories: (1)~MSU-IIT's internal document archive, IIT Docs \citep{msuiitdocs}, and (2)~the MSU System Board of Regents (BOR) Resolutions archive \citep{msuiitbor}.
 
-Both scanned and text-based PDF files are gathered, curated, and pre-processed to serve as the dataset for evaluating the proposed Document Retrieval System (DRS). This step ensures the inclusion of a wide variety of document types, formats, and complexities, particularly those that require Optical Character Recognition (OCR) for semantic interpretation.
-
-To maintain relevance and comprehensiveness, specific criteria were observed in selecting the documents:
+Both scanned and text-based PDF files are gathered, curated, and pre-processed to serve as the dataset for evaluating the proposed DRS. This step ensures the inclusion of a wide variety of document types, formats, and complexities, particularly those that require Optical Character Recognition (OCR) for interpretation. To maintain relevance and comprehensiveness, specific criteria were observed in selecting the documents:
 
 \begin{itemize}
-  \item \textbf{Relevance}: Files were chosen based on their alignment with commonly referenced administrative functions and institutional topics.
-  \item \textbf{Diversity of Content}: The dataset includes various categories such as policies, appointments, and event-related issuances.
-  \item \textbf{Format Variety}: Both scanned and digitally native PDFs were included to assess the system’s performance in handling OCR and different file structures.
-  \item \textbf{Structural Complexity}: Documents featuring tables, multiple sections, and complex layouts were prioritized to rigorously test the DRS's retrieval capabilities.
+  \item \textbf{Relevance:} files were chosen based on their alignment with commonly referenced administrative functions and institutional topics.
+  \item \textbf{Diversity of content:} the dataset includes policies, designations, incentives, travel orders, suspensions, and Charter Day issuances.
+  \item \textbf{Format variety:} both scanned and digitally produced PDFs were included to assess the system's handling of OCR and different file structures.
+  \item \textbf{Structural complexity:} documents with tables, multiple sections, watermarks, and typewritten text were included to test the retrieval capabilities rigorously.
 \end{itemize}
 
-This comprehensive document preparation process sets the foundation for a meaningful evaluation of CatSight AI’s ability to overcome the limitations of the current system and deliver more accurate, context-aware search results.
+Table~\ref{tab:corpus} summarizes the resulting corpus of 50 PDF files: five per category and repository, 25 from each repository. Two files are byte-for-byte duplicates of other files and are recognized as such on upload, leaving 48 distinct documents with 158 pages, issued between 1970 and 2024. Thirteen files have no text layer at all (pure scans), and most of the others carry a text layer produced by the repositories' own OCR, of varying quality; 33 of the 48 documents are a single page long, and the longest has 36 pages.
 
-\subsection{Problem Definition \& Stakeholders}
+\begin{table}[htbp]
+  \centering
+  \caption{Composition of the Document Corpus}\label{tab:corpus}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    \textbf{Category} & \textbf{IIT Docs} & \textbf{BOR Resolutions} & \textbf{Total} \\
+    \midrule
+    Charter Day   & 5 & -- & 5 \\
+    Designation   & 5 & 5  & 10 \\
+    Incentive     & 5 & 5  & 10 \\
+    Policy        & 5 & 5  & 10 \\
+    Suspension    & -- & 5 & 5 \\
+    Travel Order  & 5 & 5  & 10 \\
+    \midrule
+    \textbf{Total} & \textbf{25} & \textbf{25} & \textbf{50} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
-The development of CatSight AI was motivated by critical limitations observed in the existing Document Retrieval System (DRS) at Mindanao State University - Iligan Institute of Technology (MSU-IIT). The institution relies on two primary repositories: the Board of Regents (BOR) Resolutions Archive, which governs MSU System policies, and IIT Docs, a repository of Special Orders, Memorandum Orders, and administrative issuances built on Google Drive’s keyword-based search. While functional, these systems exhibit significant shortcomings:
+This comprehensive document preparation process sets the foundation for a meaningful evaluation of \cs{}'s ability to overcome the limitations of the current system and deliver more accurate, context-aware search results.
+
+\subsection{Problem Definition and Stakeholders}
+
+The development of \cs{} was motivated by critical limitations observed in the existing DRS at MSU-IIT. The institution relies on two primary repositories: the BOR Resolutions Archive, which governs MSU System policies, and IIT Docs, a repository of Special Orders, Memorandum Orders, and administrative issuances built on Google Drive's keyword-based search. While functional, these systems exhibit significant shortcomings:
 
 \begin{enumerate}
-  \item Semantic Blindness: The keyword-only mechanism fails to interpret contextual nuances or semantic relationships, leading to irrelevant or incomplete results. For example:
+  \item \textbf{Semantic blindness.} The keyword-only mechanism fails to interpret contextual nuances or semantic relationships, leading to irrelevant or incomplete results. Queries for ``Special Orders'' miss documents labeled with abbreviations like ``SO''; synonym-rich content (``academic calendar'' versus ``term schedule'') remains undiscovered; and paraphrased queries (``student allowances'' versus ``financial aid'') yield inconsistent results.
+  \item \textbf{Format exclusion.} Scanned or image-based PDFs are excluded from search results because the repositories lack OCR. Documents with complex layouts, such as tables, multi-column text, or handwritten annotations, are similarly unsearchable.
+  \item \textbf{Rigid interaction.} Users cannot refine queries iteratively because there is no conversational interface, which forces them to rely on repetitive keyword adjustments.
 \end{enumerate}
 
-\begin{itemize}
-  \item Queries for "Special Orders" miss documents labeled with abbreviations like "SO."
-  \item Synonym-rich content (e.g., "academic calendar" vs. "term schedule") remains undiscovered.
-  \item Paraphrased queries (e.g., "student allowances" vs. "financial aid") yield inconsistent results.
-\end{itemize}
+The primary stakeholders are \textbf{students}, who need timely access to academic policies (for example, scholarship resolutions and enrollment guidelines) and event announcements, and \textbf{staff}, who locate memoranda (for example, procurement procedures and compliance records) to streamline operational workflows.
 
-\begin{enumerate}
-  \item Format Exclusion: Scanned or image-based PDFs are entirely excluded from search results due to the lack of Optical Character Recognition (OCR) capabilities. Documents with complex layouts—such as tables, multi-column text, or handwritten annotations—are similarly unsearchable.
-  \item Rigid Interaction: Users cannot refine queries iteratively due to the absence of a conversational interface, forcing them to rely on repetitive keyword adjustments.
-\end{enumerate}
+\section{Agent Prototype Building}\label{sec:prototype}
 
-\textbf{Primary Stakeholders:}
+The first prototype was built between January and April 2025 to validate the idea before full development. It used a Django REST API, a React interface, Marker for OCR, LangChain's recursive text splitter, a pgvector store, and models running locally in Ollama. Several local models were compared on sample MSU-IIT documents for text generation, question answering, and semantic similarity search, considering response accuracy, latency, and resource use (Table~\ref{tab:prototype-models}).
 
-\begin{itemize}
-  \item Students: Require timely access to academic policies (e.g., scholarship resolutions, enrollment guidelines) and event announcements.
-  \item Staff: Responsible for locating memorandums (e.g., procurement procedures, compliance records) to streamline operational workflows.
-\end{itemize}
+\begin{table}[htbp]
+  \centering
+  \caption{Local Models Compared During Prototype Building (January--April 2025)}\label{tab:prototype-models}
+  \small
+  \begin{tabularx}{\linewidth}{@{}lX@{}}
+    \toprule
+    \textbf{Model (Ollama)} & \textbf{Observation} \\
+    \midrule
+    \multicolumn{2}{@{}l}{\emph{Language models}} \\
+    \code{llama3.1:8b} & Strong language understanding, but too demanding for real-time use on the available hardware. \\
+    \code{llama3.2:1b} & Light, but insufficient for conversations that need deep contextual understanding. \\
+    \code{qwen3:1.7b} & Good language ability, but struggled with long documents. \\
+    \code{qwen2.5:7b-instruct-q4\_K\_M} & Followed instructions well, with higher latency. \\
+    \code{llama3.1:8b-text-fp16} & Good text processing at a higher resource cost. \\
+    \code{llama3.1:8b} (4-bit) & Selected for the prototype: the best balance of quality and resource use \citep{metaai2024}. \\
+    \midrule
+    \multicolumn{2}{@{}l}{\emph{Embedding models}} \\
+    \code{bge-m3} & Multilingual, but in this prototype weaker on names, numbers and local terms. \\
+    \code{mxbai-embed-large} & Selected for the prototype for its precision on such entities (1024 dimensions) \citep{mixedbread2024}. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
 
-\section{Agent Prototype Building}
+The prototype established three lessons that shaped the final design. First, on CPU-only hardware even the selected 8-billion-parameter model answered slowly, and OCR of a scanned page took longer still, so model hosting had to be separated from the application (Section~\ref{sec:hosting}). Second, dense embeddings alone missed exact identifiers such as reference numbers and surnames, whichever embedding model was used; the final system therefore pairs BGE-M3 with a keyword index and fuses the two (Section~\ref{sec:rrf}), which recovers exactly the queries on which BGE-M3 had looked weaker. Third, answers needed visible evidence to be trusted, which led to numbered, page-level citations.
 
-\section{LLM System Strategy}
+\section{LLM System Strategy}\label{sec:strategy}
 
-Strategic design decisions were made, including model selection, embedding strategies, and chunking techniques for documents. The LLM System Strategy for CatSight AI prioritized a single LLM approach to streamline development and reduce computational overhead, opting against multi-agent systems that are better suited for complex, specialized tasks (Chen et al., 2023). This decision was informed by a rigorous evaluation of multiple candidate models from \textbf{Ollama} to ensure optimal performance for document retrieval and conversational interaction at MSU-IIT. Several models were tested for both the primary LLM and the embedding model:
+Strategic design decisions were made on model selection, embedding strategy, and document chunking. \cs{} uses a \emph{single agent with one tool}: one language model reads the question and the conversation, decides whether and what to search, calls the search tool up to three times per question, and writes the answer from the passages it retrieved. This was preferred over a multi-agent design, which suits complex tasks that need several specialized roles \citep{chen2023}; answering from a document library needs one well-grounded retrieval loop, and a single agent is simpler to build, faster, and easier to evaluate. Document processing, by contrast, is a fixed pipeline rather than an agent (Section~\ref{sec:algorithms}), because every document goes through the same steps.
 
-For the LLM:
+All language models are used zero-shot (Section~\ref{sec:zero-shot}). Every model in the system is \emph{open-weight}: its weights are published under a license that allows the institution to download and run it on its own hardware. Because the proponents have no GPU server of their own, the models are reached through OpenRouter, a service that hosts the same open models behind one API; the system can be moved to self-hosted copies of the same weights without changing its behavior (Section~\ref{sec:hosting}). Table~\ref{tab:models} lists the models and their roles.
 
-\begin{itemize}
-  \item \textbf{llama3.1:8b}: Demonstrated strong language understanding but required significant computational resources, making it less feasible for real-time applications.
-  \item \textbf{llama3.2:1b}: A lightweight model with low resource demands but insufficient for handling complex conversational tasks requiring deep contextual understanding.
-  \item \textbf{qwen3:1.7b}: Offered good language capabilities but struggled with processing long-context documents, a critical requirement for MSU-IIT’s use case.
-  \item \textbf{qwen2.5:7b-instruct-q4\_K\_M}: Excelled in instruction-following tasks but was less efficient for real-time interaction due to higher latency.
-  \item \textbf{llama3.1:8b-text-fp16}: Optimized for text processing, it performed well but was less versatile than Llama 3.1 for conversational applications but requires more resources.
-  \item \textbf{llama3.18b-q4}: Selected as the primary LLM for its balanced performance, efficiency, and ability to handle complex queries and generate context-aware responses, fine-tuned for MSU-IIT’s institutional context (Meta AI, 2025).
-\end{itemize}
+\begin{table}[htbp]
+  \centering
+  \caption{Open-Weight Models Used by \cs{}}\label{tab:models}
+  \small
+  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{2.0cm}X@{}}
+    \toprule
+    \textbf{Model} & \textbf{License} & \textbf{Role in \cs{}} \\
+    \midrule
+    Surya OCR 2 (0.69B) & OpenRAIL & Marker's OCR engine: reads the text of every page, run locally with llama.cpp. \\
+    Qwen3-VL-30B-A3B-Instruct & Apache-2.0 & Marker's LLM mode (tables, forms, handwriting), cataloguing, chat answers, chat titles. \\
+    BGE-M3 (0.57B) & MIT & Embeddings of passages and queries (1024 dimensions, multilingual). \\
+    Qwen3-Reranker-8B & Apache-2.0 & Reranking of the fused search results. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
 
-For the embedding model:
+\section{LLM Setup}\label{sec:llm-setup}
 
-\begin{itemize}
-  \item \textbf{bge-m3:latest}: Initially evaluated for its multi-lingual support but found lacking in accurately capturing specific entities such as names, numbers, and native terms prevalent in MSU-IIT’s documents.
-  \item \textbf{mxbai-embed-large}: Chosen for its superior semantic accuracy, particularly in handling nuanced entities, making it ideal for semantic search across MSU-IIT’s diverse document set (mixedbread.ai, 2024).
-\end{itemize}
-
-Benchmarking was conducted using sample documents from MSU-IIT, focusing on tasks such as text generation, question answering, and semantic similarity search. Metrics included response accuracy, latency, and resource utilization. Llama 3.1 8B Q4 outperformed other LLMs in generating accurate and contextually relevant responses with moderate computational requirements, making it suitable for real-time applications. Similarly, mxbai-embed-large demonstrated higher precision in embedding tasks compared to bge-m3, particularly for documents containing names, numbers, and native terms, ensuring robust retrieval performance (Brown et al., 2020; mixedbread.ai, 2024).
-
-\section{LLM Setup}
-
-One of the key processes of this study is choosing the right LLM setup. This section discusses the LLM setup chosen by the proponents:
+One of the key processes of this study is choosing the right LLM setup. This section explains how a language model works and why each model in Table~\ref{tab:models} was chosen.
 
 \subsection{LLM Underlying Process}
 
-According to Mulugeta (2023), a Large Language Model (LLM) operates through a series of structured processes to interpret and generate human-like text. A simplified representation of this workflow is illustrated in the following image
+According to \citet{mulugeta2023}, a Large Language Model operates through a series of structured processes to interpret and generate human-like text, illustrated in Figure~\ref{fig:llm-process}. The prompt is split into tokens (Section~\ref{sec:tokens}), each token is mapped to a vector that also encodes its position, and a stack of transformer layers relates every token to every other through self-attention \citep{vaswani2017}. The final layer yields a probability for every possible next token; the decoder picks one (at temperature 0, the most likely; at higher temperatures, with some randomness), appends it, and repeats until it produces a stop token. Training, which builds these weights, falls outside the scope of this study: \cs{} uses pre-trained models as they are.
 
-\emph{IMAGE}
-
-The article then provides a deeper exploration of several key steps in the process while intentionally excluding more advanced topics—such as model training—that fall outside the scope of the current discussion.
-
-\subsection{Ollama}
-
-Ollama is an open-source framework optimized for local deployment and efficient inference of large language models (LLMs). In CatSight AI, Ollama serves as the foundational LLM engine, running entirely on-premises within MSU-IIT’s infrastructure to guarantee compliance with the Philippine Data Privacy Act. It integrates seamlessly with Django’s REST framework to expose inference endpoints and with our Retrieval-Augmented Generation (RAG) pipeline for context-aware academic document retrieval. This setup balances low-latency performance, domain-specific customization (e.g., adherence to MSU-IIT’s document schemas and terminologies), and institutional governance requirements—ensuring a scalable, privacy-preserving AI solution tailored to an academic environment.
-
-\subsection{Llama 3.1:8b-Q4}
-
-Llama 3.1’s 8-billion-parameter variant, quantized to 4 bits per weight (Q4), offers nearly FP16-level performance (∼99.3 \% relative quality) while reducing memory footprint by over 4×—making on-premises inference feasible on modest hardware of 4–8 GB RAM (Meta AI, 2024). This quantized model runs natively in Ollama, enabling CatSight AI to deliver fast, context-aware responses without offloading data externally.
-
-\subsection{mxbai-embed-large}
-
-The mxbai-embed-large model from Mixedbread AI produces dense, 768-dimensional sentence embeddings optimized for semantic retrieval. Trained without overlap on the MTEB benchmark, it outperforms many same-sized and even larger proprietary models (Mixedbread AI, 2024). This ensures high-quality vector representations for MSU-IIT’s diverse document corpus. In CatSight AI, these embeddings power our pgvector store, underpinning precise similarity search in the RAG pipeline.
-
-\section{LLM Hosting}
-
-CatSight AI’s core LLM is hosted on-premises via Ollama, ensuring all document embeddings and inference remain within MSU-IIT’s infrastructure to uphold institutional data-privacy requirements (Philippine Data Privacy Act compliance). Ollama’s lightweight local runtime provides cloud-like elasticity—seamlessly scaling to accommodate peak query loads, while exposing inference endpoints through Django’s REST framework. This integration delivers low-latency, auditable API calls for document retrieval, fits naturally into CatSight AI’s unified agent architecture, and aligns with MSU-IIT’s governance policies around data sovereignty.
-
-\section{Development of the System}
-
-This section outlines the technical implementation of the system. Under this section are the dependency management, system algorithm, system functions, environment, and resources that underpin the system operation.
-
-\subsection{Dependency Management and Setting up Development Environment}
-
-CatSight AI leverages \textbf{Docker} to package the application and all its dependencies into a containerized environment. Docker is an open platform for developing, shipping, and running applications in lightweight, self-contained units called containers. By defining a \textbf{Dockerfile} that lists the base image, required system packages, Python runtime, and Python libraries (in a `requirements.txt`), every developer and deployment environment uses the exact same setup, eliminating “it works on my machine” issues. Containers isolate CatSight AI’s runtime from host-level variations, streamline onboarding (one `docker build` + `docker run` command), and support consistent CI/CD pipelines across development, testing, and production stages (Docker, 2024).
-
-\subsection{System Algorithm}
-
-The core logic of the system is captured in three complementary algorithms: the Document Process Algorithm, which the user uploads files which will then be converted into Markdown, then from Markdown, it will be broken down using \emph{RecursiveTextSplitter} from \emph{Langchain} for context-aware retrieval, then the retrieved markdown will be embedded, then the contents that have been embedded will be summarized which will also result to metadata extraction, the Search-Retrieval Algorithm, which handles both traditional keyword and semantic (AI-powered) document searches, and the Interactive-Chat Algorithm, which enables users to engage in dynamic, conversational queries for more contextual and human-like interactions. Each user request includes the input query along with session-specific metadata, enabling personalized and efficient response generation.
-
-\subsubsection{Document Process Algorithm}
-
-\subsubsection{Search-Retrieval Algorithm}
-
-\subsubsection{Interactive-Chat Algorithm}
-
-\subsection{Flowchart of CatSightAI}
-
-The chatbot engine processes user input and generates responses through a structured, LLM-powered workflow, as illustrated in Fig. 3.17. Each user message follows these stages: \begin{figure}[htbp]
+\begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.55\linewidth]{figures/defended/system-workflow.png}
-  \caption{System Workflow}
+  \input{figures/llm-process}
+  \caption{How a Large Language Model Generates Text, After \citet{mulugeta2023}}\label{fig:llm-process}
 \end{figure}
 
-\subsection{System Workflow Diagram}
+\subsection{Marker and Surya OCR 2}
 
-\subsection{System Functions}
+Marker converts PDF files to Markdown \citep{marker2025}. Version 2 performs OCR with Surya OCR 2, a 0.69-billion-parameter vision-language model trained to transcribe document images, which it serves through llama.cpp, an efficient inference engine for open models \citep{surya2025,llamacpp2025}. Marker first detects the text lines and layout blocks of each page, then has Surya OCR 2 read every block, ignoring any existing text layer, and finally assembles the blocks into Markdown in reading order. Marker was the OCR tool of the defended prototype; version 2 replaces its earlier recognition models with this vision-language model.
 
-\subsection{Environment and Resources}
+\paragraph{LLM mode.} Marker can additionally send the regions it finds hardest---tables, forms, handwriting, and complex regions---to a general vision-language model, which corrects their text using the image \citep{marker2025}. \cs{} enables this mode with Qwen3-VL-30B-A3B-Instruct. The combination keeps the strength of each model: Surya OCR 2 transcribes characters faithfully, including unusual surnames that a general model may ``normalize'', while Qwen3-VL restructures the tables of stipend rates and incentive amounts that line-by-line OCR tends to flatten. Section~\ref{sec:converter-comparison} compares this setup with Docling, MarkItDown, and the vision model on its own.
+
+\subsection{Qwen3-VL-30B-A3B-Instruct}
+
+Qwen3-VL-30B-A3B-Instruct is an open-weight vision-language model released under the Apache-2.0 license \citep{qwen3vl2025}. It is a \emph{mixture-of-experts} model: of its roughly 31 billion parameters, only about 3 billion are active for each token, so it answers about as fast as a 3-billion-parameter model while drawing on the knowledge of a much larger one. It accepts page images, follows instructions in many languages including Filipino, calls tools, and produces output that conforms to a JSON schema, which covers every language task in \cs{}: Marker's LLM mode, cataloguing, chat answers, and chat titles. Using one model for all four keeps self-hosting simple, since only one large model has to be served.
+
+\subsection{BGE-M3}
+
+BGE-M3 is a multilingual text-embedding model of 0.57 billion parameters released under the MIT license \citep{chen2024bgem3}. It maps passages of up to 8,192 tokens to 1024-dimensional vectors and supports over 100 languages, so questions in Filipino or Cebuano can still find English passages. It is small enough to run on a CPU.
+
+\subsection{Qwen3-Reranker-8B}
+
+A reranker, or cross-encoder, reads the query and a candidate passage \emph{together} and outputs a relevance score \citep{nogueira2019}. This is more accurate than comparing two independently computed embeddings, but too slow to apply to the whole library, so \cs{} applies it only to the 20 best candidates after rank fusion. Qwen3-Reranker-8B is released under the Apache-2.0 license \citep{qwen3reranker2025}.
+
+\subsection{Local Configuration with Ollama}\label{sec:local-mode}
+
+For confidential records that must not leave the campus network, as required by the Data Privacy Act of 2012 \citep{dpa2012}, \cs{} can run every model locally through Ollama, an open-source runtime for language models \citep{ollama2024}. In this configuration the answers and catalogue come from Qwen3-4B-Instruct (4-bit), chat titles from Qwen3-1.7B, embeddings from BGE-M3, OCR from Marker with Surya OCR 2, and Marker's LLM mode from a local vision model such as Qwen3-VL-8B. The switch is a single setting; the pipeline, search, and agent are unchanged. Because the smaller local models have an 8,192-token context window, long documents take the map-reduce path of Algorithm~\ref{alg:summary} (Section~\ref{sec:mapreduce-theory}).
+
+\section{LLM Hosting}\label{sec:hosting}
+
+\cs{} separates the application from the models. The application---the web interface, the API, the document pipeline, and the database---runs on an on-premises server with Docker Compose, so all documents, extracted text, embeddings, and conversations stay on institutional hardware. Surya OCR 2, the smallest model, also runs on this server, on its integrated GPU through llama.cpp. The language, embedding, and reranking models are reached through OpenRouter's OpenAI-compatible API \citep{openrouter2026}, because the proponents have no GPU server to host them; each request carries only the page region, passages, or question being processed, and the documents themselves are stored only on the server.
+
+Because every model is open-weight, the institution can move them onto its own GPU server later by pointing the same settings at a self-hosted, OpenAI-compatible endpoint (for example, vLLM or llama.cpp). Table~\ref{tab:gpu} estimates the GPU memory each model needs. A single 80~GB data-center GPU (NVIDIA A100 or H100) can serve all four models at once if Qwen3-VL is served in 8-bit precision; two 24~GB GPUs (for example, NVIDIA L4 or RTX 4090) can serve them with Qwen3-VL in 4-bit precision.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Estimated GPU Requirements for Self-Hosting the Models}\label{tab:gpu}
+  \small
+  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.3cm}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+    \toprule
+    \textbf{Model} & \textbf{Weights (16-bit)} & \textbf{Comfortable GPU} & \textbf{Smaller option} \\
+    \midrule
+    Surya OCR 2 & $\approx$1.4 GB & Any 8 GB GPU (e.g., RTX 3060, RTX 4060) & Runs on a CPU, slowly \\
+    Qwen3-VL-30B-A3B-Instruct & $\approx$62 GB & 1$\times$ A100 or H100, 80 GB & 8-bit ($\approx$31 GB): 1$\times$ L40S, 48 GB; 4-bit ($\approx$17 GB): 1$\times$ RTX 4090, 24 GB \\
+    BGE-M3 & $\approx$1.1 GB & Any 4 GB GPU (e.g., T4) & Runs well on a CPU \\
+    Qwen3-Reranker-8B & $\approx$16 GB & 1$\times$ 24 GB GPU (L4, A10G, RTX 4090) & Qwen3-Reranker-4B or -0.6B \\
+    \bottomrule
+  \end{tabularx}
+  \par\smallskip
+  \parbox{\linewidth}{\footnotesize\singlespacing\emph{Note.} Weights $\approx$ parameters $\times$ bytes per parameter (2 bytes at 16-bit precision). ``Comfortable'' leaves about 20--30\% of GPU memory for the attention cache of concurrent requests.}
+\end{table}
+
+\section{Development of the System}\label{sec:development}
+
+This section outlines the technical implementation of the system: the development environment, the architecture, the algorithms, the workflow of a request, the system's functions, and the environment and resources that underpin its operation.
+
+\subsection{Dependency Management and Development Environment}
+
+\cs{} uses Docker to package the application and all its dependencies into containers. Docker is an open platform for developing, shipping, and running applications in lightweight, self-contained units called containers \citep{docker2024}. A \code{Dockerfile} lists the base image, system packages, Python runtime, and Python libraries; Docker Compose then starts the services of Figure~\ref{fig:architecture} together with one command. Every developer and the server therefore use the same setup, eliminating ``it works on my machine'' issues. The backend has an automated test suite that replaces every model with a deterministic stand-in, so it runs without network access or API costs, and the frontend is type-checked with TypeScript before each build.
+
+\subsection{System Architecture}\label{sec:architecture}
+
+Figure~\ref{fig:architecture} shows the components of \cs{} and how they interact. The numbered interactions are:
+
+\begin{enumerate}[label=(\arabic*)]
+  \item The user's browser loads the React single-page application and calls the API over HTTPS. The server publishes only one port, behind a secure tunnel.
+  \item nginx serves the application's static files and forwards API requests to the Django REST API. Chat answers stream back as Server-Sent Events.
+  \item When a document is uploaded, the API stores the file, records the document, and places a processing task on the Redis queue.
+  \item A Celery worker takes the task and runs the document pipeline (Algorithm~\ref{alg:process}).
+  \item The worker and the API read and write PostgreSQL, which stores the documents, their extracted text, the passages with their embeddings (pgvector) and full-text vectors, the users, and the chat histories with the agent's saved state.
+  \item The chat agent inside the API calls the language model, the embedding model, and the reranker.
+  \item The worker sends hard page regions to the vision model (Marker's LLM mode), the extracted text to the language model for cataloguing, and the passages to the embedding model.
+  \item Marker sends every page region to Surya OCR 2, which llama.cpp serves on the server's own GPU, outside the containers.
+\end{enumerate}
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/architecture}
+  \caption{System Architecture of \cs{}}\label{fig:architecture}
+\end{figure}
+
+\subsection{System Algorithms}\label{sec:algorithms}
+
+The core logic of the system is captured in six algorithms. Every uploaded document moves through the stages of Figure~\ref{fig:pipeline} under Algorithm~\ref{alg:process}, which validates the file, rejects exact duplicates by their SHA-256 hash, and runs three stages: \emph{extracting} the text of each page with Marker (Algorithm~\ref{alg:extract}), \emph{summarizing} the document into a catalogue entry (Algorithm~\ref{alg:summary}, drawn in Figure~\ref{fig:summarization}), and \emph{indexing} its passages (Algorithm~\ref{alg:index}). A failure stops the document at the failed stage with a readable message, and reprocessing resumes there instead of starting over. Questions are answered by the search-retrieval algorithm (Algorithm~\ref{alg:search}, drawn in Figure~\ref{fig:retrieval}), which serves both the search page and the chat agent, and by the interactive-chat algorithm (Algorithm~\ref{alg:chat}, whose states appear in Figure~\ref{fig:agent}).
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/pipeline-states}
+  \caption{Stages of the Document Pipeline}\label{fig:pipeline}
+\end{figure}
+
+\input{chapters/algorithms}
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/summarization-flow}
+  \caption{Summarization Flow: One Structured Call, or Map-Reduce for Long Text}\label{fig:summarization}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/retrieval-flow}
+  \caption{Hybrid Search-Retrieval Flow}\label{fig:retrieval}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/agent-graph}
+  \caption{The Chat Agent as a State Graph}\label{fig:agent}
+\end{figure}
+
+\subsection{System Workflow}\label{sec:workflow}\label{sec:alg-chat}
+
+Figure~\ref{fig:sequence} follows one chat question through the components of Figure~\ref{fig:architecture}. The browser posts the question; the API runs the agent's graph for the chat; the language model asks for a search; the search embeds the query, runs the vector and keyword searches in PostgreSQL, and reranks the candidates; the numbered sources go back to the model and, at the same time, to the browser, which can show them before the answer is written. The model then writes the answer from those passages, and its tokens stream to the browser as they are produced. Finally, the agent's state is saved, so the conversation can continue later, and a short title is generated for a new chat.
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/sequence-chat}
+  \caption{Sequence of One Chat Question}\label{fig:sequence}
+\end{figure}
+
+\subsection{System Functions}\label{sec:functions}
+
+This section presents the functions of \cs{} through screenshots of the deployed system. Visitors open the public landing page (Figure~\ref{fig:landing}) and enter with one click as a temporary guest, or sign in with an account (Figure~\ref{fig:sign-in}).
+
+\screenshot{landing}{Landing Page}
+\screenshot{sign-in}{Sign-In Page with One-Click Guest Access}
+
+\paragraph{Dashboard.} The dashboard (Figure~\ref{fig:dashboard}) opens with a question box and suggested questions written by the cataloguing model, followed by the size of the library, the ingestion pipeline with the number of documents at each stage, and the distribution of documents across tags.
+
+\screenshot{dashboard}{Dashboard}
+
+\paragraph{Uploading documents.} Administrators upload PDFs by dragging them onto the upload dialog (Figure~\ref{fig:upload}). Each file is checked, deduplicated, and queued; its progress then appears on the dashboard and on the document's page. In the public demonstration, visitors cannot upload.
+
+\screenshot{upload}{Upload Dialog with Three Special Orders Selected}
+
+\paragraph{Processing.} While documents are processed, the dashboard's pipeline card shows how many are at each stage and which ones are moving, with a progress bar for each (Figure~\ref{fig:dashboard-processing}); each document's page shows the same stages for that document (Figure~\ref{fig:document-processing}). Both update by themselves.
+
+\screenshot{dashboard-processing}{The Ingestion Pipeline on the Dashboard While the Library Is Processed}
+\screenshot{document-processing}{A Document at the Reading Stage}
+
+\paragraph{Document library.} The library (Figure~\ref{fig:library}) lists every document with its title, reference number, year, tags, page count, and status, and can be searched and filtered by tag, year, and status.
+
+\screenshot{library}{Document Library}
+
+\paragraph{Document details.} Each document has four tabs. \emph{Overview} (Figure~\ref{fig:document-overview}) shows the catalogue written by the model---summary, reference number, issue date, tags, and two questions the document answers---along with processing details and the history of its pipeline stages. \emph{PDF} (Figure~\ref{fig:document-pdf}) displays the original file. \emph{Text} (Figure~\ref{fig:document-text}) shows the Markdown extracted by Marker, which an administrator can correct. \emph{Passages} (Figure~\ref{fig:document-passages}) lists the indexed passages with their page numbers.
+
+\screenshot{document-overview}{Document Overview: the Catalogue Generated from the Document}
+\screenshot{document-pdf}{The Original PDF}
+\screenshot{document-text}{Text Extracted by Marker}
+\screenshot{document-passages}{Indexed Passages with Their Page Numbers}
+
+\paragraph{Chat.} The chat page (Figure~\ref{fig:chat-start}) offers suggested questions. An answer (Figure~\ref{fig:chat-answer}) shows which searches the agent ran, leads with the direct answer, and marks each claim with a numbered citation; the cited documents are listed beneath it. Selecting a citation opens the source passage with its page (Figure~\ref{fig:chat-source}).
+
+\screenshot{chat-start}{Chat with Suggested Questions}
+\screenshot{chat-answer}{A Cited Answer}
+\screenshot{chat-source}{A Citation Opened to Its Source Passage}
+
+\paragraph{Tags and settings.} Tags (Figure~\ref{fig:tags}) organize the library; each has a description that the cataloguing model uses to choose tags. Settings (Figure~\ref{fig:settings}) shows the account, the light or dark theme, the user's daily allowance, and the models the deployment uses.
+
+\screenshot{tags}{Tags}
+\screenshot{settings}{Settings}
+
+\paragraph{Phones.} The interface adapts to phone screens (Figure~\ref{fig:mobile}).
+
+\begin{figure}[htbp]
+  \centering
+  {\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.4pt}\color{line}%
+   \fbox{\includegraphics[height=9cm]{screenshots/mobile-chat}}\hspace{1.2cm}%
+   \fbox{\includegraphics[height=9cm]{screenshots/mobile-dashboard}}}
+  \caption{Chat and Dashboard on a Phone}\label{fig:mobile}
+\end{figure}
+
+\subsection{Environment and Resources}\label{sec:environment}
+
+Table~\ref{tab:software} lists the software \cs{} is built with. The deployed system runs on a small on-premises server with an integrated GPU, which serves the OCR model; its containers, which cannot use the GPU, are allocated 10 CPU cores and 8~GB of memory. Development and the converter comparison of Section~\ref{sec:converter-comparison} used a laptop with an Apple M4~Pro processor and 24~GB of memory.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Software Used to Build \cs{}}\label{tab:software}
+  \small
+  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.2cm}X@{}}
+    \toprule
+    \textbf{Layer} & \textbf{Software} \\
+    \midrule
+    Interface & React 18, TypeScript 5.6, Vite 6, Tailwind CSS 3.4, shadcn/ui, TanStack Query 5, react-pdf 9 (PDF.js) \\
+    API & Python 3.11, Django 5.1, Django REST Framework 3.15, gunicorn 23, Server-Sent Events \\
+    Document pipeline & Celery 5.5, Redis 7, pypdfium2 4.30, Marker 2.0 with Surya OCR 0.22, llama.cpp (build b11429), PyTorch (CPU) \\
+    Retrieval and agent & LangChain 1.x, LangGraph 1.x with a PostgreSQL checkpointer \\
+    Database & PostgreSQL 17 with pgvector and full-text search \\
+    Models & Surya OCR 2, Qwen3-VL-30B-A3B-Instruct, BGE-M3, Qwen3-Reranker-8B (Table~\ref{tab:models}) through OpenRouter; Ollama for the local configuration \\
+    Converters compared & Docling 2.134, MarkItDown 0.1.8 \\
+    Deployment & Docker Compose, nginx, an outbound-only HTTPS tunnel \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{Evaluation Procedure}\label{sec:evaluation-procedure}
+
+The system is evaluated with the measures defined in Section~\ref{sec:evaluation-theory}.
+
+\begin{enumerate}
+  \item \textbf{Text extraction.} The four converters supported by \cs{} and two vision-model variants are run on a sample of seven documents (26 pages) chosen to cover pure scans, partial text layers, digital files, a watermark, tables, and a typewritten page from 1970. For each document, 8 to 11 facts (reference numbers, names, dates, amounts) were read from the page images, and a converter is credited with a fact when it appears in its output, ignoring case, spacing, punctuation, and leading zeros. Time per page is also recorded.
+  \item \textbf{Retrieval accuracy.} A set of test questions, each with the documents that answer it, is run through \cs{}'s search and through the keyword search of IIT Docs; P@5, R@5, and MRR (Equations~\ref{eq:precision-recall} and~\ref{eq:mrr}) are compared. \TODO{Number of test questions and how the relevant documents were judged.}
+  \item \textbf{Summary quality.} For a sample of documents, a person writes a reference summary without seeing the generated one; ROUGE-1, ROUGE-2, ROUGE-L, BLEU, and BERTScore (Equations~\ref{eq:rouge-n}--\ref{eq:bertscore}) compare each generated summary with its reference. \TODO{Number of documents and who wrote the references.}
+  \item \textbf{Efficiency.} Search time is reported by the server for each search; time to first token and total response time are measured for chat answers; ingestion time is measured per page.
+  \item \textbf{Usability.} Participants complete tasks with the existing system and with \cs{} and then answer the SUS questionnaire (Equation~\ref{eq:sus}) for each.
+\end{enumerate}

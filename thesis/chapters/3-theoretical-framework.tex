@@ -1,45 +1,172 @@
 \chapter{Theoretical Framework}\label{ch:framework}
 
-This chapter lays the conceptual foundation for the development of CatSight AI. The study integrates theories and models from the domains of information retrieval (IR), human-computer interaction (HCI), and large language models (LLMs), ensuring the system addresses both technical effectiveness and user satisfaction.
+This chapter lays the conceptual foundation for the development of \cs{}. The study integrates theories and models from the domains of information retrieval (IR), large language models (LLMs), technology acceptance, and human-computer interaction (HCI), so that the system addresses both technical effectiveness and user satisfaction. Section~\ref{sec:ir-theory} covers the retrieval theory behind the search engine, Section~\ref{sec:llm-ir} the language-model concepts behind cataloguing and chat, Section~\ref{sec:evaluation-theory} the measures used to evaluate the system, and Sections~\ref{sec:tam}--\ref{sec:conceptual} the theories of adoption and usability and how all of these combine in the study's conceptual framework (Figure~\ref{fig:conceptual}).
 
-\section{Information Retrieval Theory}
+\section{Information Retrieval Theory}\label{sec:ir-theory}
 
-Information Retrieval (IR) Theory is the study of methods and systems for finding relevant information from large collections of data, especially unstructured data such as text. It forms the foundation of technologies like search engines, digital libraries, and question-answering systems. At its core, IR involves documents—units of data stored in the system—and queries, which represent users' information needs. To enable efficient retrieval, documents undergo preprocessing through indexing, which includes tokenization, stopword removal, stemming or lemmatization, and the construction of inverted indexes.
+Information Retrieval (IR) Theory is the study of methods and systems for finding relevant information from large collections of data, especially unstructured data such as text. It forms the foundation of technologies like search engines, digital libraries, and question-answering systems. At its core, IR involves documents---units of data stored in the system---and queries, which represent users' information needs. To enable efficient retrieval, documents undergo preprocessing through indexing, which includes tokenization, stopword removal, stemming or lemmatization, and the construction of inverted indexes \citep{manning2008}.
 
-\subsection{Tokenization}
+\subsection{Tokenization}\label{sec:tokens}
 
-Tokenization in Information Retrieval (IR) is the process of breaking down text into smaller units called tokens, typically words or meaningful terms, which serve as the basic building blocks for indexing and matching documents to queries. It is a crucial preprocessing step that standardizes text by removing punctuation, handling case sensitivity, and separating compound words, thereby enabling efficient and accurate information retrieval. For instance, the sentence "Information retrieval is powerful" would be tokenized into ["Information", "retrieval", "is", "powerful"], allowing the IR system to analyze and compare textual content effectively. The complexity of tokenization can vary depending on the language—English tokenization is relatively straightforward, whereas languages like Chinese or Japanese require more sophisticated segmentation techniques. Tokenization facilitates the construction of structures like inverted indexes and significantly impacts retrieval performance. For a comprehensive discussion of tokenization, Jurafsky and Martin (2023).
+Tokenization in Information Retrieval (IR) is the process of breaking down text into smaller units called tokens, typically words or meaningful terms, which serve as the basic building blocks for indexing and matching documents to queries. It is a crucial preprocessing step that standardizes text by removing punctuation, handling case sensitivity, and separating compound words, thereby enabling efficient and accurate information retrieval. For instance, the sentence ``Information retrieval is powerful'' would be tokenized into [``Information'', ``retrieval'', ``is'', ``powerful''], allowing the IR system to analyze and compare textual content effectively. The complexity of tokenization can vary depending on the language---English tokenization is relatively straightforward, whereas languages like Chinese or Japanese require more sophisticated segmentation techniques. Tokenization facilitates the construction of structures like inverted indexes and significantly impacts retrieval performance \citep{jurafsky2023}.
 
-\subsection{Cosine Similarity in Semantic Search}
+\cs{} uses two kinds of tokens, and the distinction matters for the rest of this paper.
 
-Cosine similarity is a method used in semantic search to measure how similar two texts are by comparing their vector representations. In CatSight AI, it helps match the meaning of user queries with institutional documents using vectors generated from language models. This method focuses on the angle between vectors, not their length, allowing for more accurate, context-aware search results than traditional keyword matching (Huang, 2008). \textbf{Equation 1,} shows the equation of getting the cosine silimilarity of the semantic search.
+\begin{enumerate}
+  \item \textbf{Search tokens (lexemes).} For keyword search, PostgreSQL's \code{english} text-search configuration splits a passage into words, lower-cases them, drops stop words such as \emph{of} and \emph{the}, and reduces each remaining word to its stem \citep{postgres2024fts}. The title ``Designation of the Director'' becomes the lexemes \code{design} (position 1) and \code{director} (position 4). Because a query is reduced in the same way, ``designated directors'' still matches it. Before this step \cs{} also strips leading zeros from numbers and splits on hyphens, so the reference ``SO 01592-2023'' is indexed and searched as \code{so}, \code{1592} and \code{2023}.
+  \item \textbf{Model tokens (subwords).} Language models read and write text as subword tokens produced by byte-pair encoding or a similar algorithm \citep{sennrich2016bpe,kudo2018sentencepiece}. Frequent words are single tokens, while rare words and names are split into pieces: a surname such as ``Vilela-Malabanan'' may take several tokens. In English text a token averages roughly three to four characters. Model limits, prices, and response times are all counted in these tokens: the \emph{context window} is the number of tokens a model can read at once, which is why long documents need the map-reduce procedure of Section~\ref{sec:mapreduce-theory}.
+\end{enumerate}
 
-\begin{verbatim}
+\subsection{Vector Space Model and Embeddings}\label{sec:vsm}
+
+The Vector Space Model represents documents and queries as vectors in a shared space, so that relevance becomes a geometric question \citep{salton1975vsm}. Classical systems build these vectors from term weights; modern systems use \emph{dense embeddings}, vectors of a few hundred to a few thousand real numbers produced by a neural encoder, in which texts with similar meaning lie close together even when they share no words \citep{mikolov2013,devlin2019}. \cs{} encodes every passage and every query with BGE-M3, a multilingual encoder that outputs vectors of $d = 1024$ dimensions \citep{chen2024bgem3}.
+
+\subsection{Cosine Similarity in Semantic Search}\label{sec:cosine}
+
+Cosine similarity is a method used in semantic search to measure how similar two texts are by comparing their vector representations. In \cs{}, it matches the meaning of user queries with institutional documents using vectors generated from language models. This method focuses on the angle between vectors, not their length, allowing for more accurate, context-aware search results than traditional keyword matching \citep{huang2008}. Equation~\ref{eq:cosine} defines the cosine similarity of a query vector $\mathbf{q}$ and a passage vector $\mathbf{p}$, and Equation~\ref{eq:cosine-sum} writes it out over the $d$ dimensions:
+\begin{align}
+  \cos(\mathbf{q}, \mathbf{p}) &= \frac{\mathbf{q} \cdot \mathbf{p}}{\lVert \mathbf{q} \rVert \, \lVert \mathbf{p} \rVert} \label{eq:cosine}\\[4pt]
+  &= \frac{\sum_{i=1}^{d} q_i \, p_i}{\sqrt{\sum_{i=1}^{d} q_i^{2}} \; \sqrt{\sum_{i=1}^{d} p_i^{2}}} \label{eq:cosine-sum}
+\end{align}
+where $\mathbf{q} \cdot \mathbf{p}$ is the dot product of the two vectors, $\lVert \mathbf{q} \rVert$ and $\lVert \mathbf{p} \rVert$ are their magnitudes (Euclidean norms), and $q_i$ and $p_i$ are their $i$-th components.
+
+\paragraph{Interpreting the score.} The cosine similarity ranges from $-1$ (opposite directions) through $0$ (unrelated, orthogonal vectors) to $1$ (the same direction). Because only the angle matters, a long passage and a short query can still score highly. The pgvector extension used by \cs{} computes the \emph{cosine distance} of Equation~\ref{eq:cosine-distance}, and the search orders passages by increasing distance, which is the same as decreasing similarity \citep{pgvector2024}:
 \begin{equation}
-\text{Cosine Similarity} = \frac{\vec{A} \cdot \vec{B}}{\|\vec{A}\| \times \|\vec{B}\|}
+  \operatorname{dist}(\mathbf{q}, \mathbf{p}) = 1 - \cos(\mathbf{q}, \mathbf{p}) \label{eq:cosine-distance}
 \end{equation}
-Explaination:
-\vec{A} and \vec{B} denote vectors A and B
+With BGE-M3 on this corpus, passages that answer a question typically score between 0.55 and 0.75, while unrelated passages score between 0.30 and 0.40. \cs{} therefore treats a passage found only by vector search as relevant when $\cos(\mathbf{q},\mathbf{p}) \ge \tau$ with $\tau = 0.42$.
 
-\cdot represents the dot product
+\paragraph{Worked example.} Consider three-dimensional vectors (real embeddings have 1024 dimensions) for a query $\mathbf{q} = (0.8, 0.1, 0.6)$, a related passage $\mathbf{a} = (0.7, 0.2, 0.7)$, and an unrelated passage $\mathbf{b} = (0.1, 0.9, 0.2)$. Then $\lVert\mathbf{q}\rVert = \sqrt{1.01} \approx 1.005$, $\lVert\mathbf{a}\rVert = \sqrt{1.02} \approx 1.010$ and $\lVert\mathbf{b}\rVert = \sqrt{0.86} \approx 0.927$, so
+\begin{equation*}
+  \cos(\mathbf{q}, \mathbf{a}) = \frac{0.56 + 0.02 + 0.42}{1.005 \times 1.010} \approx 0.985,
+  \qquad
+  \cos(\mathbf{q}, \mathbf{b}) = \frac{0.08 + 0.09 + 0.12}{1.005 \times 0.927} \approx 0.311 .
+\end{equation*}
+Passage $\mathbf{a}$ points in nearly the same direction as the query and is ranked first; passage $\mathbf{b}$ falls below the threshold $\tau = 0.42$ and is discarded unless keyword search also finds it.
 
-\| \vec{A} \| and \| \vec{B} \| are the magnitudes (norms) of the vectors
-\end{verbatim}
+\subsection{Lexical Ranking}\label{sec:lexical}
 
-\section{Large Language Models in IR}
+Dense vectors capture meaning but blur exact identifiers: two special orders with different numbers look almost identical to an embedding model. Lexical retrieval ranks passages by the query terms they contain, as in the classic BM25 family of models \citep{robertson2009bm25}. \cs{} uses PostgreSQL full-text search for this: each passage stores a \code{tsvector} of its lexemes, in which the passage's context header (title, reference number, year) is weighted higher than its body, and passages are ranked with the cover-density function \code{ts\_rank\_cd}, which rewards passages where the query terms occur close together \citep{postgres2024fts}. The query is the logical OR of its terms, so a passage does not need to contain every word of a question to be found.
 
-Recent advancements in transformer-based LLMs such as BERT (Devlin et al., 2018) and GPT (Radford et al., 2019) have revolutionized retrieval-based tasks through semantic search and contextual query understanding. CatSight AI adopts such LLMs to handle open-ended queries with improved precision, echoing approaches validated in contemporary research (Gao et al., 2021).
+\subsection{Reciprocal Rank Fusion}\label{sec:rrf}
 
-\subsection{LLM Hallucinations}
+The vector and keyword searches return two ranked lists whose scores are not comparable: a cosine similarity of 0.6 and a \code{ts\_rank\_cd} of 0.1 are on different scales. Reciprocal Rank Fusion (RRF) combines lists by rank alone \citep{cormack2009rrf}. For a passage $p$ and a set of rankings $R$,
+\begin{equation}
+  \operatorname{RRF}(p) = \sum_{r \in R} \frac{1}{k + \operatorname{rank}_r(p)} \label{eq:rrf}
+\end{equation}
+where $\operatorname{rank}_r(p)$ is the 1-based position of $p$ in ranking $r$ (a ranking that does not contain $p$ contributes nothing) and $k$ is a damping constant, set to the customary $k = 60$. A passage ranked first by keyword search and fourth by vector search scores $\tfrac{1}{61} + \tfrac{1}{64} \approx 0.0320$, ahead of a passage ranked second by vector search only, at $\tfrac{1}{62} \approx 0.0161$. Agreement between the two searches is thus rewarded without either one having to be calibrated against the other \citep{bruch2022}.
 
-Hallucination in Large Language Models (LLMs) refers to the generation of text that is fluent and contextually relevant but factually incorrect or fabricated. This phenomenon poses a significant challenge in systems like CatSight AI, which rely on LLMs to interpret and retrieve information from documents. Since LLMs are trained on vast, mixed-quality datasets using statistical language modeling, they generate responses based on learned word patterns rather than verified facts. Without grounding in external knowledge bases or the original document context, LLMs may produce answers that appear relevant but do not accurately reflect the source material. This issue is particularly critical in document retrieval systems, where factual accuracy and source traceability are essential. Furthermore, reinforcement techniques like RLHF (Reinforcement Learning from Human Feedback) may unintentionally favor responses that are convincing over those that are correct. Understanding and mitigating hallucination is thus crucial to improving the reliability and trustworthiness of CatSight AI’s LLM-based chat interface (Ji et al., 2023).
+\section{Large Language Models in IR}\label{sec:llm-ir}
 
-\section{System Evaluation}
+Recent advancements in transformer-based LLMs such as BERT \citep{devlin2019} and GPT \citep{radford2019,brown2020} have revolutionized retrieval-based tasks through semantic search and contextual query understanding. \cs{} adopts such LLMs to handle open-ended queries with improved precision, echoing approaches validated in contemporary research \citep{gao2021coil,zhu2023survey}. A transformer reads a sequence of tokens and, through layers of self-attention, predicts a probability distribution over the next token \citep{vaswani2017}; generation repeats this prediction one token at a time (Figure~\ref{fig:llm-process} in Chapter~\ref{ch:methodology}).
 
-\section{Cognitive Load Theory and Usability}
+\subsection{Zero-Shot Prompting}\label{sec:zero-shot}
 
-Drawing from Cognitive Load Theory (Sweller, 1988), CatSight AI is designed to minimize user confusion through a clean interface and structured interactions. This theory guides UI/UX choices, ensuring users can process and retrieve information without cognitive overload (Paas \& Van Merriënboer, 1994).
+A model can be adapted to a task in three ways. \emph{Fine-tuning} updates the model's weights on labelled examples of the task. \emph{Few-shot prompting} leaves the weights unchanged but includes a handful of solved examples in the prompt. \emph{Zero-shot prompting} gives only a natural-language description of the task, with no examples at all \citep{brown2020}. Instruction-tuned models follow such descriptions well \citep{wei2022flan}, and zero-shot prompting can even elicit multi-step reasoning \citep{kojima2022}.
 
-\section{Summary of Theoretical Model}
+\cs{} is zero-shot throughout. No model was fine-tuned and no prompt contains worked examples of the task: the transcription of each scanned page, the cataloguing of each document (title, summary, reference number, date, tags and suggested questions), the chat answers, and the chat titles are all produced from written instructions alone. Two techniques make zero-shot output dependable. First, cataloguing uses \emph{structured output}: the model must return JSON that matches a fixed schema, so every field is present and typed. Second, the model's choices are constrained by data the system controls---for example, tags must be copied from the list of existing tags and their descriptions, and anything else is discarded. Zero-shot prompting keeps the system adaptable: adding a document type or a tag needs a new description, not new training data.
 
-The integrated framework—composed of IR principles, LLM-driven search, TAM for adoption, and cognitive load for usability—guides both the functional and experiential design of CatSight AI. This synthesis ensures a technically sound, user-friendly system tailored to MSU-IIT’s academic needs.
+\subsection{LLM Hallucination}\label{sec:hallucination}
+
+Hallucination in Large Language Models (LLMs) refers to the generation of text that is fluent and contextually relevant but factually incorrect or fabricated. This phenomenon poses a significant challenge in systems like \cs{}, which rely on LLMs to interpret and retrieve information from documents. Since LLMs are trained on vast, mixed-quality datasets using statistical language modeling, they generate responses based on learned word patterns rather than verified facts. Without grounding in external knowledge bases or the original document context, LLMs may produce answers that appear relevant but do not accurately reflect the source material. This issue is particularly critical in document retrieval systems, where factual accuracy and source traceability are essential. Furthermore, reinforcement techniques like RLHF (Reinforcement Learning from Human Feedback) may unintentionally favor responses that are convincing over those that are correct. Understanding and mitigating hallucination is thus crucial to improving the reliability and trustworthiness of \cs{}'s LLM-based chat interface \citep{ji2023hallucination}.
+
+\paragraph{Types.} \citet{ji2023hallucination} distinguish \emph{intrinsic} hallucinations, which contradict the source the model was given (for example, stating the wrong effectivity date of a special order that is in the context), from \emph{extrinsic} hallucinations, which cannot be verified from the source at all (for example, naming an official who appears in none of the retrieved passages).
+
+\paragraph{Basis.} The causes lie in both data and modelling. Training text contains errors and statements that diverge from their sources; the model stores knowledge implicitly in its parameters and may prefer this \emph{parametric} knowledge over the passage in front of it; it is trained to predict the most likely next token, not the true one; and sampling during decoding adds randomness, so a fluent but unsupported continuation can be chosen \citep{ji2023hallucination}. Questions about a specific institution's records are especially exposed, because the model has seen little or none of that information in training.
+
+\paragraph{Mitigation in \cs{}.} The system applies retrieval-augmented generation (Section~\ref{sec:rag}) and four further measures, described in detail in Section~\ref{sec:issue-hallucination}: (1)~the assistant is instructed to answer only from the retrieved passages and to say so plainly when they do not contain the answer; (2)~every claim must carry a numbered citation to a passage, and the user can open the cited page; (3)~answers are generated at a low temperature (0.2), which reduces sampling randomness; and (4)~questions unrelated to the university's documents are declined.
+
+\subsection{Retrieval-Augmented Generation}\label{sec:rag}
+
+Retrieval-augmented generation (RAG) conditions a language model on passages retrieved for the input, instead of relying only on what the model memorized \citep{lewis2020rag}. In its probabilistic form, the probability of an answer $y$ to a question $x$ marginalizes over the top-$k$ retrieved passages $z$:
+\begin{equation}
+  p(y \mid x) \approx \sum_{z \,\in\, \operatorname{top-}k\left(p_{\eta}(\cdot \mid x)\right)} p_{\eta}(z \mid x)\; p_{\theta}(y \mid x, z) \label{eq:rag}
+\end{equation}
+where $p_{\eta}$ is the retriever and $p_{\theta}$ the generator. \cs{} uses the common practical simplification: the retriever is the hybrid search of Section~\ref{sec:rrf}, and the $k$ passages it returns are placed together in the model's context, numbered so that the answer can cite them. Because the model can call the search tool several times per question (Section~\ref{sec:alg-chat}), it can also reformulate a search when the first results are insufficient, in the spirit of adaptive retrieval \citep{asai2023selfrag,jeong2024adaptiverag}.
+
+\subsection{Map-Reduce Summarization}\label{sec:mapreduce-theory}
+
+MapReduce is a programming model for processing data too large for one machine: a \emph{map} function is applied independently to each piece of the input, and a \emph{reduce} function combines the intermediate results \citep{dean2004mapreduce}. The same idea applies to text that is too long for one model call. Let a document's text $T$ of length $n$ characters exceed the budget $B$ that one call may read. $T$ is split into sections $c_1, \dots, c_m$ of at most $S$ characters each (with a small overlap), and each section is summarized independently, in parallel:
+\begin{equation}
+  T = c_1 \oplus c_2 \oplus \dots \oplus c_m, \quad \lvert c_i \rvert \le S, \qquad\quad n_i = f_{\text{map}}(c_i) \label{eq:map}
+\end{equation}
+where $\oplus$ denotes concatenation and $n_i$ are compact notes that keep names, dates, amounts and reference numbers. If the notes together still exceed the budget, the map step is applied again to the notes themselves (a reduce round), at most three times. The final structured call then reads the document's opening $T_{[1:O]}$, which holds its letterhead, subject and reference number, together with the notes:
+\begin{equation}
+  A = f_{\text{final}}\left(T_{[1:O]},\; n_1, \dots, n_m\right) \quad \text{when} \quad \sum_{i=1}^{m} \lvert n_i \rvert \le B - O \label{eq:reduce}
+\end{equation}
+In \cs{}, $B = 300{,}000$, $S = 60{,}000$ and $O = 4{,}000$ characters for hosted models. Because most administrative issuances are a few pages long, nearly every document is catalogued in a single call ($n \le B$), and map-reduce is the fallback for long resolutions and policies. With a local model limited to 8,192 tokens, the budgets shrink to $B = 14{,}000$ and $S = 6{,}000$ characters, and map-reduce becomes the common path. The procedure is given as Algorithm~\ref{alg:summary} and drawn in Figure~\ref{fig:summarization}.
+
+\section{System Evaluation}\label{sec:evaluation-theory}
+
+\cs{} is evaluated on four qualities: whether it retrieves the right documents, whether its summaries are faithful, whether it responds quickly, and whether people find it usable. This section defines the measure used for each; Section~\ref{sec:evaluation-procedure} describes how they are applied.
+
+\subsection{Retrieval Accuracy}\label{sec:retrieval-metrics}
+
+For a test question $q$ with a set of relevant documents $\mathit{Rel}_q$, let $\mathit{Ret}_{q,k}$ be the first $k$ documents the system returns. Precision and recall at $k$ \citep{manning2008}, and the mean reciprocal rank over a set of questions $Q$ \citep{voorhees1999}, are
+\begin{align}
+  \operatorname{P@}k &= \frac{\lvert \mathit{Rel}_q \cap \mathit{Ret}_{q,k} \rvert}{k}, \qquad
+  \operatorname{R@}k = \frac{\lvert \mathit{Rel}_q \cap \mathit{Ret}_{q,k} \rvert}{\lvert \mathit{Rel}_q \rvert}, \label{eq:precision-recall}\\[4pt]
+  \operatorname{MRR} &= \frac{1}{\lvert Q \rvert} \sum_{q \in Q} \frac{1}{\operatorname{rank}_q} \label{eq:mrr}
+\end{align}
+where $\operatorname{rank}_q$ is the position of the first relevant document for question $q$ (the term is zero if none is returned).
+
+\subsection{Summary Quality: ROUGE, BLEU and BERTScore}\label{sec:summary-metrics}
+
+Each document's generated summary $\hat{y}$ is compared with a reference summary $y$ written by a person (Section~\ref{sec:evaluation-procedure}). Three complementary metrics are used.
+
+\paragraph{ROUGE.} ROUGE-N measures the recall of reference n-grams in the generated summary \citep{lin2004rouge}:
+\begin{equation}
+  \text{ROUGE-N} = \frac{\sum_{g \in \operatorname{grams}_N(y)} \operatorname{Count}_{\text{match}}(g)}{\sum_{g \in \operatorname{grams}_N(y)} \operatorname{Count}(g)} \label{eq:rouge-n}
+\end{equation}
+where $\operatorname{grams}_N(y)$ are the n-grams of length $N$ in the reference and $\operatorname{Count}_{\text{match}}(g)$ is the number of times $g$ also occurs in $\hat{y}$ (at most its count in $\hat{y}$). ROUGE-1 and ROUGE-2 use unigrams and bigrams. ROUGE-L uses the longest common subsequence (LCS) of the reference ($m$ words) and the candidate ($n$ words), which rewards in-order matches without requiring them to be contiguous:
+\begin{equation}
+  R_{\text{lcs}} = \frac{\operatorname{LCS}(y, \hat{y})}{m}, \qquad
+  P_{\text{lcs}} = \frac{\operatorname{LCS}(y, \hat{y})}{n}, \qquad
+  F_{\text{lcs}} = \frac{(1 + \beta^2)\, R_{\text{lcs}} P_{\text{lcs}}}{R_{\text{lcs}} + \beta^2 P_{\text{lcs}}} \label{eq:rouge-l}
+\end{equation}
+with $\beta = 1$ weighting precision and recall equally.
+
+\paragraph{BLEU.} BLEU measures the precision of the candidate's n-grams against the reference, with counts clipped so that repeating a correct word is not rewarded, and a brevity penalty that stops very short candidates from scoring well \citep{papineni2002bleu}:
+\begin{equation}
+  \text{BLEU} = \text{BP} \cdot \exp\!\left(\sum_{n=1}^{N} w_n \log p_n\right), \qquad
+  \text{BP} = \begin{cases} 1 & \text{if } c > r \\ e^{\,1 - r/c} & \text{if } c \le r \end{cases} \label{eq:bleu}
+\end{equation}
+where $p_n$ is the clipped n-gram precision, $N = 4$ with uniform weights $w_n = \tfrac{1}{4}$, $c$ is the length of the candidate and $r$ the length of the reference.
+
+\paragraph{BERTScore.} ROUGE and BLEU only credit identical words, so a correct paraphrase (``designates'' for ``appoints'') scores poorly. BERTScore instead matches each token to its most similar token in the other text using contextual embeddings and cosine similarity (Equation~\ref{eq:cosine}) \citep{zhang2020bertscore}. With $\mathbf{x}_i$ the normalized embeddings of the reference tokens and $\hat{\mathbf{x}}_j$ those of the candidate,
+\begin{equation}
+  R_{\text{BERT}} = \frac{1}{\lvert y \rvert} \sum_{\mathbf{x}_i \in y} \max_{\hat{\mathbf{x}}_j \in \hat{y}} \mathbf{x}_i^{\top} \hat{\mathbf{x}}_j, \qquad
+  P_{\text{BERT}} = \frac{1}{\lvert \hat{y} \rvert} \sum_{\hat{\mathbf{x}}_j \in \hat{y}} \max_{\mathbf{x}_i \in y} \mathbf{x}_i^{\top} \hat{\mathbf{x}}_j, \qquad
+  F_{\text{BERT}} = \frac{2\, P_{\text{BERT}} R_{\text{BERT}}}{P_{\text{BERT}} + R_{\text{BERT}}} \label{eq:bertscore}
+\end{equation}
+Together, the three metrics show whether a summary keeps the reference's key terms (ROUGE), avoids adding unsupported wording (BLEU), and preserves its meaning even when phrased differently (BERTScore).
+
+\subsection{Efficiency}\label{sec:efficiency-metrics}
+
+Responsiveness is measured as the \emph{time to first token}, from sending a question to the first word of the answer appearing, and the \emph{total response time}, until the answer is complete. Because answers stream, the first measure governs how responsive the system feels. For search, the server reports the time taken to retrieve and rank passages. For ingestion, throughput is measured in pages processed per minute.
+
+\subsection{Usability: System Usability Scale}\label{sec:sus}
+
+The System Usability Scale (SUS) is a ten-item questionnaire answered on a five-point scale \citep{brooke1996sus}. Odd-numbered items are positively worded and even-numbered items negatively worded, so the score $s_i \in \{1,\dots,5\}$ of item $i$ contributes as follows:
+\begin{equation}
+  \text{SUS} = 2.5 \left[ \sum_{i \in \{1,3,5,7,9\}} (s_i - 1) + \sum_{i \in \{2,4,6,8,10\}} (5 - s_i) \right] \label{eq:sus}
+\end{equation}
+giving a score from 0 to 100. Scores are commonly interpreted against an average of about 68; scores in the 70s correspond to ``good'' usability and scores around 50 to ``OK'' or marginal usability \citep{bangor2009}.
+
+\section{Technology Acceptance Model}\label{sec:tam}
+
+The Technology Acceptance Model (TAM) explains whether people adopt a new system through two beliefs: \emph{perceived usefulness}, the degree to which a person believes the system would improve their work, and \emph{perceived ease of use}, the degree to which they believe using it would be free of effort \citep{davis1989tam}. Both shape the attitude toward the system and, through it, the intention to use it. For \cs{}, perceived usefulness rests on retrieving the right issuance and answering with verifiable citations, which the retrieval and summary measures of Section~\ref{sec:evaluation-theory} assess. Perceived ease of use rests on asking in one's own words instead of guessing the keywords a document uses, which the SUS assesses. The model explains a design decision of this study: an accurate system that is hard to use, or an easy one whose answers cannot be trusted, would not be adopted by MSU-IIT's students, faculty, and staff.
+
+\section{Cognitive Load Theory and Usability}\label{sec:cognitive-load}
+
+Drawing from Cognitive Load Theory \citep{sweller1988}, \cs{} is designed to minimize user confusion through a clean interface and structured interactions. This theory guides UI/UX choices, ensuring users can process and retrieve information without cognitive overload \citep{paas1994}. Concretely, answers lead with a one- or two-sentence direct answer before details; citations are short numbered markers that open the source passage on demand rather than long quotations; suggested questions remove the effort of composing a first query; and the interface uses one consistent layout for the dashboard, documents, search, and chat (Section~\ref{sec:functions}).
+
+\section{Conceptual Framework}\label{sec:conceptual}
+
+The integrated framework---composed of IR principles, LLM-driven search, TAM for adoption, and cognitive load for usability---guides both the functional and experiential design of \cs{}. Figure~\ref{fig:conceptual} presents it as an input--process--output model. The \emph{inputs} are the scanned and digital issuances, the users' questions, and the tag definitions and limits set by administrators. The \emph{process} applies the theories of this chapter in sequence: OCR turns page images into text; zero-shot cataloguing with map-reduce describes each document; tokenization and embeddings index each passage for both keyword and vector search; cosine similarity, lexical ranking, rank fusion, and reranking retrieve the passages for a question; and retrieval-augmented generation answers from them with citations, limiting hallucination. The \emph{outputs} are a searchable library, cited answers, and the evaluation results that test the framework: retrieval accuracy, ROUGE, BLEU and BERTScore for summaries, response times, and SUS scores. This synthesis ensures a technically sound, user-friendly system tailored to MSU-IIT's academic needs.
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/conceptual-framework}
+  \caption{Conceptual Framework of the Study}\label{fig:conceptual}
+\end{figure}

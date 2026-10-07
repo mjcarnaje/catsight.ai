@@ -1,0 +1,31 @@
+% Main tables and their relationships.
+\begin{tikzpicture}[
+    entity/.style={rectangle split, rectangle split parts=2, draw=ink, rounded corners=2pt,
+                   text width=3.95cm, font=\scriptsize, inner sep=3pt,
+                   rectangle split part fill={maroon!10, white}, align=left},
+    rel/.style={draw=ink, line width=0.6pt},
+    card/.style={font=\scriptsize, text=maroon, inner sep=1pt}]
+  \node[entity] (doc) at (0,0) {\textbf{\small Document}\nodepart{two}
+    title, summary, reference\_number\\issued\_on, year, questions\\file, file\_hash (SHA-256), page\_count\\status, is\_failed, error\_message\\progress\_done / progress\_total\\extractor, chunk\_count, is\_private};
+  \node[entity] (chunk) at (5.6,0.4) {\textbf{\small DocumentChunk}\nodepart{two}
+    index, page, section\\context (title · reference · year)\\text\\embedding (1024-d vector)\\search\_vector (tsvector, GIN)};
+  \node[entity] (full) at (5.6,-3.1) {\textbf{\small DocumentFullText}\nodepart{two}
+    text (Markdown with page markers)};
+  \node[entity] (hist) at (5.6,-4.9) {\textbf{\small DocumentStatusHistory}\nodepart{two}
+    status, is\_failed, changed\_at};
+  \node[entity] (tag) at (0,-5.2) {\textbf{\small Tag}\nodepart{two}
+    name, description};
+  \node[entity] (user) at (-5.6,0) {\textbf{\small User}\nodepart{two}
+    email, name, role\\(guest, user, admin, super admin)};
+  \node[entity] (chat) at (-5.6,-3.3) {\textbf{\small Chat}\nodepart{two}
+    title, updated\_at\\thread\_id $\to$ agent checkpoints};
+  \node[entity] (usage) at (-5.6,-5.6) {\textbf{\small UsageEvent}\nodepart{two}
+    kind (message, upload, pages)\\amount, created\_at};
+  \draw[rel] (doc.east) -- node[card, pos=0.1, above] {1} node[card, pos=0.88, above] {N} (doc.east -| chunk.west);
+  \draw[rel] ($(doc.east)+(0,-1.0)$) -- ++(0.45,0) |- node[card, pos=0.62, above] {1} node[card, pos=0.95, above] {1} (full.west);
+  \draw[rel] ($(doc.east)+(0,-1.4)$) -- ++(0.95,0) |- node[card, pos=0.62, above] {1} node[card, pos=0.95, above] {N} (hist.west);
+  \draw[rel] (doc.south) -- node[card, pos=0.15, right] {N} node[card, pos=0.85, right] {M} (tag.north);
+  \draw[rel] (user.east) -- node[card, pos=0.12, above] {1} node[card, pos=0.88, above] {N} (doc.west);
+  \draw[rel] (user.south) -- node[card, pos=0.2, right] {1} node[card, pos=0.8, right] {N} (chat.north);
+  \draw[rel] (user.west) -- ++(-0.3,0) |- node[card, pos=0.1, left] {1} node[card, pos=0.95, above] {N} (usage.west);
+\end{tikzpicture}

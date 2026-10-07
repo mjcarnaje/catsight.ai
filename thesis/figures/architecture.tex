@@ -1,0 +1,40 @@
+% System architecture: components and their interactions (revision 17).
+\begin{tikzpicture}[
+    comp/.style={box=3.0cm, minimum height=1.25cm},
+    core/.style={accent=3.0cm, minimum height=1.25cm},
+    ext/.style={muted=3.0cm, minimum height=1.25cm},
+    n/.style={circle, fill=maroon, text=white, font=\scriptsize\bfseries, inner sep=1.2pt, minimum size=4.2mm}]
+  % Client and edge
+  \node[comp] (browser) at (0,0) {\textbf{Web browser}\\\footnotesize React single-page app};
+  \node[ext]  (tunnel)  at (0,-2.6) {\textbf{Secure tunnel}\\\footnotesize HTTPS, outbound only};
+  \node[core] (ocr)     at (0,-9.4) {\textbf{Surya OCR 2}\\\footnotesize llama.cpp on the server's GPU};
+  % Docker Compose stack on the server
+  \node[comp] (nginx)   at (4.4,-2.6) {\textbf{nginx}\\\footnotesize static files, reverse proxy};
+  \node[core] (api)     at (4.4,-5.2) {\textbf{Django REST API}\\\footnotesize + LangGraph chat agent};
+  \node[comp] (redis)   at (4.4,-7.3) {\textbf{Redis}\\\footnotesize task queue, cache};
+  \node[core] (worker)  at (4.4,-9.4) {\textbf{Celery worker}\\\footnotesize document pipeline};
+  \node[comp] (db)      at (8.5,-6.2) {\textbf{PostgreSQL}\\\footnotesize pgvector, full text, chat state};
+  \node[comp] (media)   at (8.5,-11.2) {\textbf{Media volume}\\\footnotesize PDFs, page previews};
+  % Hosted models
+  \node[ext, text width=3.0cm, minimum height=4.2cm] (or) at (12.4,-6.9)
+    {\textbf{OpenRouter}\\\footnotesize open-weight models\\[5pt]Qwen3-VL-30B-A3B\\(LLM mode, cataloguing, answers)\\[4pt]BGE-M3\\(embeddings)\\[4pt]Qwen3-Reranker-8B\\(reranking)};
+
+  \begin{scope}[on background layer]
+    \node[group, fit=(nginx)(api)(redis)(worker)(db)(media), inner sep=10pt] (stack) {};
+  \end{scope}
+  \node[note, anchor=south east] at (stack.north east) {Docker Compose on the on-premises server};
+
+  \draw[arrow, <->] (browser) -- node[n, left=4pt] {1} (tunnel);
+  \draw[arrow, <->] (tunnel) -- (nginx);
+  \draw[arrow, <->] (nginx) -- node[n, left=4pt] {2} (api);
+  \draw[arrow] (api) -- node[n, left=4pt] {3} (redis);
+  \draw[arrow] (redis) -- node[n, left=4pt] {4} (worker);
+  \draw[arrow, <->] (api.east) -- ($(db.west)+(0,0.25)$);
+  \draw[arrow, <->] ($(worker.east)+(0,0.3)$) -- node[n, pos=0.45, right=4pt] {5} ($(db.west)+(0,-0.3)$);
+  \draw[arrow, <->] (worker.south) |- (media.west);
+  \draw[arrow, <->] (worker.west) -- node[n, above=3pt] {8} (ocr.east);
+  \coordinate (a6) at ($(api.east)+(0,0.4)$);
+  \draw[arrow, <->] (a6) -- node[n, pos=0.72, above=2pt] {6} (a6 -| or.west);
+  \coordinate (a7) at ($(worker.east)+(0,-0.25)$);
+  \draw[arrow, <->] (a7) -- node[n, pos=0.5, above=2pt] {7} (a7 -| or.south) -- (or.south);
+\end{tikzpicture}

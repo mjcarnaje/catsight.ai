@@ -1,1 +1,120 @@
 \chapter{Results and Observations}\label{ch:results}
+
+This chapter reports the results of the evaluation described in Section~\ref{sec:evaluation-procedure}. Because the system was rebuilt after the defense (Section~\ref{sec:scope}), each section states which version a result was measured on: the text-extraction comparison, the processing of the library, and the search and chat observations come from the rebuilt system in October 2026; the usability scores come from the evaluation of the defended prototype.
+
+\section{Text Extraction}\label{sec:converter-comparison}
+
+Table~\ref{tab:converters} and Figure~\ref{fig:converters} compare six ways of turning the seven sample documents (26 pages, 67 facts; Section~\ref{sec:evaluation-procedure}) into text. Four of the documents are pure scans or carry almost no text layer (36 facts); the other three carry a text layer produced by the repositories' own OCR.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Facts Recovered and Speed of Six Text-Extraction Setups}\label{tab:converters}
+  \small
+  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.3cm}ccc>{\raggedright\arraybackslash}X@{}}
+    \toprule
+    \textbf{Setup} & \makecell{\textbf{All facts}\\(67)} & \makecell{\textbf{Scanned}\\(36)} & \makecell{\textbf{Seconds}\\\textbf{per page}} & \textbf{Observation} \\
+    \midrule
+    MarkItDown (text layer) & 27 (40\%) & 0\% & 0.01 & Nothing from scanned pages; repeats the repositories' OCR errors \\
+    Docling (standard OCR) & 45 (67\%) & 56\% & 3.1 & Missed most of the watermarked BOR resolutions and the typewritten page \\
+    Docling with Qwen3-VL & 64 (96\%) & 100\% & 6.4 & Shortened the surname ``Vilela-Malabanan'' \\
+    Qwen3-VL on page images & 63 (94\%) & 97\% & 4.8 & Shortened the same surname; omitted three dates of issue \\
+    Marker 2 (Surya OCR 2) & 58 (87\%) & 83\% & 13.8 & Exact names and dates; missed signatory names crossed by signatures and watermark-covered typewriting \\
+    Marker 2 with Qwen3-VL & 61 (91\%) & 86\% & 22.2 & Exact names and dates, plus three signatory names; eight handwriting requests failed and kept Marker's text \\
+    \bottomrule
+  \end{tabularx}
+  \par\smallskip
+  \parbox{\linewidth}{\footnotesize\singlespacing\emph{Note.} Local models ran on a laptop GPU (Apple M4~Pro); Qwen3-VL-30B-A3B-Instruct ran through OpenRouter. Marker's time excludes the first document, which includes loading its models.}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/converter-chart}
+  \caption{Share of Facts Recovered by Each Text-Extraction Setup}\label{fig:converters}
+\end{figure}
+
+Three observations follow. First, the repositories' text layers are not enough: MarkItDown, which reads only those layers, recovered nothing from the scanned pages, so a system that indexes text layers alone cannot find a third of the corpus. Second, sending whole pages to a general vision-language model recovered the most facts, but its errors are of a dangerous kind: in both setups that did so, the model silently shortened an unusual surname, and when given page images directly it also skipped the date printed above the reference number. Such errors are plausible enough to go unnoticed, and they propagate into the catalogue; the summary of the affected special order, generated from that text, repeated the shortened name. Third, Marker's Surya OCR 2, a model trained only to transcribe, copied names, numbers, and dates exactly; its misses were text physically obscured by signatures and by the watermark on the 1970 resolution. Marker's LLM mode, in which Qwen3-VL corrects only the hard regions, recovered three more facts than Marker alone---signatory names partly covered by signatures---while keeping its exact names and dates. Eight of its requests on handwriting regions failed because the model repeated blank lines until its reply was cut off; Marker then kept Surya's own text for those regions, so a failed request costs only the improvement, never the text. \cs{} therefore uses Marker with its LLM mode: it gives up a few points of recall compared with the whole-page vision setups in exchange for transcriptions that do not silently alter names, numbers, or dates, which are what users search for.
+
+Marker was also the slowest setup: about 14 seconds per page on a laptop GPU, 22 seconds with its LLM mode, and about two minutes per page on the laptop's CPU alone. This is acceptable for building a library, which happens once per document, but it is the main reason to run the OCR model on a GPU (Section~\ref{sec:issue-ocr-server}, Table~\ref{tab:gpu}).
+
+\section{Processing of the Library}\label{sec:processing-results}
+
+The deployed system processed all 48 documents with Marker~2---Surya OCR~2 with Qwen3-VL in LLM mode---and catalogued and indexed them with the open-weight models of Table~\ref{tab:models}. The library holds 158 pages split into 556 passages, issued between 1970 and 2024. Eleven documents failed during a brief restart of the OCR service and were resumed from the extracting stage without further intervention, as designed (Section~\ref{sec:issue-tasks}); none failed otherwise. Extraction dominated the processing time: with six pages read at once, the server extracted the last 132 pages in 94 minutes, about 43 seconds per page including Marker's LLM mode. Cataloguing took a median of 8.5 seconds per document and indexing 2.2 seconds. Each document received one to three of the 13 tags; Figure~\ref{fig:library-charts} shows how the documents are distributed across decades and tags.
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/library-charts}
+  \caption{The Library by Decade of Issuance and by Tag}\label{fig:library-charts}
+\end{figure}
+
+\section{Retrieval}\label{sec:retrieval-results}
+
+Figures~\ref{fig:search-identifier} and~\ref{fig:search-semantic} show the two kinds of matching at work. A search for ``SO 1592'' (Figure~\ref{fig:search-identifier}) finds Special Order No.~01592-IIT although the query omits the leading zero and the word ``Special Order'': the keyword search matches the normalized number, and the passage is labelled an exact match. A search for ``scholarship stipend for engineering technology students'' (Figure~\ref{fig:search-semantic}) finds the 2003 resolution on grants-in-aid, whose text speaks of ``Grants-in-Aid'' and ``School of Engineering Technology'' rather than ``scholarship stipend'': here the semantic search contributes. When the query is a question, the search page also writes a short cited answer above the results (Figure~\ref{fig:search-answer}).
+
+\screenshot{search-identifier}{Search by Reference Number: ``SO 1592'' Finds Special Order No. 01592-IIT}
+\screenshot{search-semantic}{Search by Meaning: a Paraphrased Query Finds the Grants-in-Aid Resolution}
+\screenshot{search-answer}{A Question in the Search Page, with a Short Cited Answer}
+
+Table~\ref{tab:retrieval} compares the retrieval accuracy of \cs{} with the keyword search of IIT Docs.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Retrieval Accuracy}\label{tab:retrieval}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    \textbf{System} & \textbf{P@5} & \textbf{R@5} & \textbf{MRR} \\
+    \midrule
+    IIT Docs (keyword search) & \TODO{} & \TODO{} & \TODO{} \\
+    \cs{} (hybrid search) & \TODO{} & \TODO{} & \TODO{} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Chat}\label{sec:chat-observations}
+
+Asked who was designated Director of the MSU-IIT Center for eLearning in 2022 (Figure~\ref{fig:chat-answer} in Chapter~\ref{ch:methodology}), the chat searched, named the faculty member and the effectivity date with a citation to Special Order No.~01176-IIT, and noted that the order does not state a fixed term. The follow-up in Figure~\ref{fig:chat-follow-up} refers only to ``that position''; the assistant searched for the teaching-load reduction of the MICeL director and answered with the 12-unit reduction granted under BOR Resolution No.~114, s.~2007, citing the order. In a chat limited to the 2003 grants-in-aid resolution (Figure~\ref{fig:chat-scoped}), it read the whole resolution and answered that the new maximum monthly stipend of a full grantee is PhP 1,200.00, broken down into meals and lodging. A question in Filipino was answered in Filipino from an English resolution, with a citation (Figure~\ref{fig:chat-filipino}).
+
+These answers came after three fixes described in Chapter~\ref{ch:design}. In the first run on the rebuilt system, the same follow-up was answered without a search---the documents ``do not specify'' the reduction---the scoped question was answered with PhP 800, the old maximum quoted in the resolution's rationale, and most answers carried no citation numbers (Sections~\ref{sec:issue-followup}--\ref{sec:issue-citations}). Neither wrong answer invented a fact, but both would have misled a reader who did not open the source. After the fixes, all eight answers in a check of eight questions carried citations, and both questions were answered correctly.
+
+\screenshot{chat-follow-up}{A Follow-Up Question Answered from the Conversation}
+\screenshot{chat-scoped}{A Chat Limited to One Document}
+\screenshot{chat-filipino}{A Question in Filipino Answered in Filipino}
+
+\section{Summary Quality}\label{sec:summary-results}
+
+Table~\ref{tab:summary-metrics} reports the agreement of the generated summaries with the human-written references (Section~\ref{sec:summary-metrics}).
+
+\begin{table}[htbp]
+  \centering
+  \caption{Summary Quality against Human-Written References}\label{tab:summary-metrics}
+  \begin{tabular}{@{}lccccc@{}}
+    \toprule
+    & \textbf{ROUGE-1} & \textbf{ROUGE-2} & \textbf{ROUGE-L} & \textbf{BLEU} & \textbf{BERTScore F$_1$} \\
+    \midrule
+    \cs{} & \TODO{} & \TODO{} & \TODO{} & \TODO{} & \TODO{} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Efficiency}\label{sec:efficiency-results}
+
+Table~\ref{tab:efficiency} reports response times measured on the deployed system as a guest, over the public internet, with five searches and five chat questions. A search takes about 3.3 seconds, which includes embedding the query, running both searches, and reranking, all with models reached over the internet. A chat answer streams: the search finishes after about 1.3 seconds, the first words of the answer appear after a median of 9.1 seconds, and the answer is complete after about 14 seconds. The hosted models' response times vary with load: earlier runs on the same day had medians as low as 5.1 seconds to the first word and 8.5 seconds to a complete answer. Building the library is slower, at about 43 seconds per page (Section~\ref{sec:processing-results}), but it happens once per document.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Response Times of the Deployed System}\label{tab:efficiency}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    \textbf{Measure} & \textbf{Median} & \textbf{Range} \\
+    \midrule
+    Search (5 queries) & 3.3 s & 2.3--5.3 s \\
+    Chat: search completed (5 questions) & 1.3 s & 1.1--2.4 s \\
+    Chat: first word of the answer & 9.1 s & 6.4--10.0 s \\
+    Chat: complete answer & 13.6 s & 11.0--15.0 s \\
+    Extraction of a page (132 pages) & \multicolumn{2}{c}{43 s on average} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Usability}\label{sec:usability-results}
+
+In the usability evaluation of the defended prototype, participants rated \cs{} at an average of 77.17 on the System Usability Scale, against 50.33 for the existing keyword-based system. On the adjective scale of \citet{bangor2009}, a score in the high 70s corresponds to ``good'' usability and a score near 50 to ``OK'' or marginal usability, below the commonly cited average of 68. The difference of almost 27 points reflects what the participants could do with \cs{} that the existing system did not allow: ask in their own words, search scanned documents, and see the source of an answer. \TODO{Number of participants and their roles (students, faculty, staff) from the defended evaluation.} The interface was redesigned in the rebuilt system, so the study should be repeated with it (Chapter~\ref{ch:conclusion}).

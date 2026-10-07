@@ -1,0 +1,18 @@
+% The chat agent as a LangGraph state graph.
+\begin{tikzpicture}[
+    term/.style={circle, draw=ink, fill=ink, text=white, font=\footnotesize\bfseries, minimum size=1.05cm, inner sep=0pt},
+    nodebox/.style={accent=3.0cm, minimum height=1.2cm},
+    node distance=1.5cm]
+  \node[term] (start) {START};
+  \node[nodebox, right=of start] (assistant) {\textbf{assistant}\\\footnotesize LLM with the search tool};
+  \node[box=3.0cm, minimum height=1.2cm, above right=0.4cm and 1.7cm of assistant] (tools) {\textbf{tools}\\\footnotesize \code{search\_documents}};
+  \node[box=3.0cm, minimum height=1.2cm, below right=0.4cm and 1.7cm of assistant] (title) {\textbf{generate\_title}\\\footnotesize first answer only};
+  \node[term, right=6.2cm of assistant] (end) {END};
+  \draw[arrow] (start) -- (assistant);
+  \draw[arrow] (assistant.north) |- node[note, pos=0.75, above] {tool call (at most 3 per question)} (tools.west);
+  \draw[arrow] (tools.south) to[bend left=10] node[note, right, pos=0.5] {passages} (assistant.east);
+  \draw[arrow] (assistant.south) |- node[note, pos=0.75, below] {new chat, no title yet} (title.west);
+  \draw[arrow] (title.east) -| (end.south);
+  \draw[arrow] (assistant.east) ++(0,-0.25) -- node[note, below, pos=0.72] {answer} ($(end.west)+(0,-0.25)$);
+  \node[note, below=1.95cm of assistant, text width=7cm] {State: messages, chat title, optional document scope; saved after every step in PostgreSQL (one thread per chat)};
+\end{tikzpicture}

@@ -1,5 +1,142 @@
-\chapter{Design and Implementation Issue}\label{ch:design}
+\chapter{Design and Implementation Issues}\label{ch:design}
 
-This chapter discusses the design and implementation of the major data structures and algorithms used in the software. It includes a discussion on the major issues and problems encountered, and the corresponding solutions and alternatives employed by the proponents. Parts of the design tools in the Technical Manual may be lifted as figures in this chapter.
+This chapter discusses the design and implementation of the major data structures and algorithms used in \cs{}. It describes the data model (Section~\ref{sec:data-model}) and the main data structures (Section~\ref{sec:data-structures}), then the major issues encountered during development and the solutions and alternatives the proponents employed (Section~\ref{sec:issues}, summarized in Table~\ref{tab:issues}).
 
-This chapter discusses the design and implementation of the
+\section{Data Model}\label{sec:data-model}
+
+Figure~\ref{fig:data-model} shows the main tables of the PostgreSQL database and their relationships. A \textbf{Document} holds the catalogue fields written by the model (title, summary, reference number, issue date, year, suggested questions), the file and its SHA-256 hash, and the pipeline fields (stage, failure flag, error message, progress). Its extracted Markdown lives in a separate \textbf{DocumentFullText} row, so that listing documents never loads full texts. A document has many \textbf{DocumentChunk} passages, each with its page, section, context header, text, a 1024-dimensional embedding, and a full-text vector with a GIN index. Every stage change is appended to \textbf{DocumentStatusHistory}, which drives the document's timeline. \textbf{Tag}s relate to documents many-to-many. A \textbf{User} has a role (guest, user, administrator, or super administrator), owns \textbf{Chat}s, and accumulates \textbf{UsageEvent}s for the demonstration's daily limits. Each chat's conversation state is stored by the agent's checkpointer in its own tables, keyed by the chat's thread identifier.
+
+\begin{figure}[htbp]
+  \centering
+  \input{figures/data-model}
+  \caption{Data Model of \cs{}}\label{fig:data-model}
+\end{figure}
+
+\section{Major Data Structures}\label{sec:data-structures}
+
+\paragraph{Page-marked Markdown.} Every converter returns a list of pages, which are joined into one Markdown text with an invisible marker before each page (\code{<!-{}- page:3 -{}->}). The markers survive manual edits of the text, do not show when the Markdown is displayed, and let the chunker attach a page number to every passage whichever converter produced the text. Citations such as ``p.~3'' depend on them.
+
+\paragraph{Passages with context.} A passage alone is often ambiguous: ``\ldots is hereby designated as Director'' does not say which order it belongs to. Each passage is therefore stored with a \emph{context header}---the document's title, reference number, and year---which is prepended when the passage is embedded and indexed, with the header weighted above the body in the full-text vector. The chunker splits the text at headings first, so that a passage never spans two sections, and then into pieces of about 1,000 characters with a 150-character overlap.
+
+\paragraph{Search hits.} A search result carries the passage, its final score, the cosine similarity if the vector search found it, the keyword rank if the keyword search found it, and its rank in each list. The interface uses these to label each passage as a ``related meaning'' match, an ``exact match'', or both.
+
+\paragraph{Agent state and numbered sources.} The agent's state is the list of messages, the chat's title, and an optional set of documents the user limited the chat to; it is saved after every step. Within one answer, each cited document receives a number the first time a search returns it and keeps that number across later searches, so the ``[2]'' in the text always refers to the second source shown in the interface.
+
+\section{Issues Encountered and Solutions}\label{sec:issues}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Major Design and Implementation Issues and Their Solutions}\label{tab:issues}
+  \small
+  \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{4.6cm}X@{}}
+    \toprule
+    \textbf{Issue} & \textbf{Solution} \\
+    \midrule
+    Scanned pages, watermarks and tables & Marker 2 with Surya OCR 2, plus LLM mode for hard regions (\ref{sec:issue-ocr}) \\
+    A CPU-only server for an OCR model & A separate llama.cpp service sized to avoid truncation (\ref{sec:issue-ocr-server}) \\
+    Crashes from concurrent PDF rendering & One process-wide lock around PDFium (\ref{sec:issue-pdfium}) \\
+    Long tasks and lost work & Acknowledge late, long visibility timeout, resume at the failed stage (\ref{sec:issue-tasks}) \\
+    Identifiers that embeddings blur & Hybrid search, leading-zero normalization, weighted context (\ref{sec:issue-identifiers}) \\
+    Irrelevant passages & A similarity floor and a reranker gate (\ref{sec:issue-relevance}) \\
+    Approximate indexes dropping results & Exact vector search at this scale (\ref{sec:issue-ann}) \\
+    Documents longer than the context & Map-reduce cataloguing (\ref{sec:issue-long}) \\
+    Unreliable structured output & Required fields, strict schemas, validation (\ref{sec:issue-structured}) \\
+    Hallucination and broken citations & Grounded instructions, stable numbering, low temperature (\ref{sec:issue-hallucination}) \\
+    Follow-ups answered without a search & A search required on every question but greetings (\ref{sec:issue-followup}) \\
+    A rates table the search missed & Short scoped documents read whole (\ref{sec:issue-table}) \\
+    Answers without citation numbers & A reminder where the model reads the results (\ref{sec:issue-citations}) \\
+    Growing conversations & A window of recent turns without old search results (\ref{sec:issue-memory}) \\
+    Public demonstration costs & Guest accounts, atomic daily limits, a provider credit cap (\ref{sec:issue-demo}) \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{Reading Scanned Pages}\label{sec:issue-ocr}
+
+\emph{Problem.} Thirteen of the 50 files have no text layer, many of the rest carry poor OCR from the repositories, BOR resolutions are overlaid with a large diagonal ``UNOFFICIAL'' watermark, and several issuances contain tables of rates or amounts. A converter must read all of these faithfully, because a wrong digit in a reference number or a misspelled surname makes a document unfindable.
+
+\emph{Solution and alternatives.} Four converters and two vision-model variants were compared on a sample of seven documents (Section~\ref{sec:converter-comparison}). MarkItDown only reads text layers and returned nothing for scanned pages. Docling's standard pipeline missed much of the scanned text. Sending page images straight to Qwen3-VL recovered most facts but showed two systematic errors: it omitted the date of issue printed above the reference number, and it shortened the surname ``Vilela-Malabanan'' to ``Vilela-Malaban''---a silent error that propagated into the generated summary. Marker 2, whose Surya OCR 2 model is trained only to transcribe, copied that surname and the dates correctly. \cs{} therefore uses Marker 2, re-OCRs every page instead of trusting existing text layers, and enables Marker's LLM mode so that Qwen3-VL corrects the tables, forms, and handwriting that line-level OCR handles worst. The other converters remain available as alternatives. Two details of Marker's LLM mode also needed handling: with image extraction turned off, it wrote a description of every logo and seal into the text, where it would have been indexed as content, so images are left in and their links removed instead; and on signature regions the vision model sometimes fell into a loop, repeating blank lines. Marker then keeps its own OCR text for the region, but Marker sets no limit on the length of a reply, and because the provider keeps a long-running connection alive, its timeout never fired: one region held up a document for several minutes. Each reply is therefore capped at 4,096 tokens, which bounds a loop to about a minute.
+
+\subsection{Serving the OCR Model Without a GPU}\label{sec:issue-ocr-server}
+
+\emph{Problem.} Marker 2 does not run its OCR model inside Python: it starts a llama.cpp server and sends it page regions over an OpenAI-compatible API. Without that server program, Marker stops with an error. On the deployment server, the application's containers cannot use the server's GPU, and on a CPU the model needed about two minutes per page in testing (Section~\ref{sec:efficiency-results}), which would make building the library take hours.
+
+\emph{Solution.} The OCR model runs outside the containers as a background service on the server's GPU, started with the same options Marker would use: the model name Marker expects and a context of 12,288 tokens per slot, below which long pages are silently truncated. With two slots the small model left the GPU mostly idle and each page took about two minutes; six slots, about 0.55~GB of memory each, let it read six pages at once. It listens only on the server's loopback interface, and a setting points Marker inside the containers to it. A containerized CPU version of the same service remains available for servers without a usable GPU, and on a Linux GPU server the service can use a CUDA build of llama.cpp or vLLM without changing the application.
+
+\subsection{Crashes from Concurrent PDF Rendering}\label{sec:issue-pdfium}
+
+\emph{Problem.} The worker processes up to four documents at once in threads. PDFium, the library that renders PDF pages, is not thread-safe: two threads rendering pages at the same moment, even of different files, crashed the whole worker process with a segmentation fault, and the documents it was processing stopped mid-stage.
+
+\emph{Solution.} Every call into PDFium goes through one process-wide lock. Rendering takes milliseconds, while the model requests that follow it run in parallel outside the lock, so the lock costs little. Marker and Docling call PDFium internally, so their conversions also run under this lock. Documents interrupted by the earlier crashes were requeued from their stage.
+
+\subsection{Long Tasks and Lost Work}\label{sec:issue-tasks}
+
+\emph{Problem.} Converting a long scanned resolution takes minutes. With the task queue's defaults, a task that ran longer than the broker's visibility timeout could be delivered to a second worker, and a worker restart could silently drop a task in progress.
+
+\emph{Solution.} Tasks are acknowledged only after they finish, the visibility timeout is raised to 30 minutes, and processing is \emph{resumable}: each stage's result is saved before the next begins, a failure records the stage and a readable message, and reprocessing starts at that stage instead of from the beginning (Figure~\ref{fig:pipeline}). Editing a document's text restarts it at summarizing; changing its converter restarts it at extracting.
+
+\subsection{Identifiers That Embeddings Blur}\label{sec:issue-identifiers}
+
+\emph{Problem.} Most searches in an issuance repository name a reference number, a surname, or a year, and these are exactly what dense embeddings represent worst: ``Special Order No. 01592'' and ``Special Order No. 01593'' have almost identical embeddings. The repositories also write the same number inconsistently (``01592'', ``1592'', ``01592-IIT'').
+
+\emph{Solution.} A keyword search over PostgreSQL full-text vectors runs alongside the vector search, and the two rankings are fused with Reciprocal Rank Fusion (Section~\ref{sec:rrf}). Leading zeros are removed from numbers and hyphenated identifiers are split, both when indexing and when searching, so ``SO 1592'' finds ``Special Order No. 01592-IIT''. The context header is weighted above the passage body, so a match on a document's title or reference number counts for more.
+
+\subsection{Irrelevant Passages}\label{sec:issue-relevance}
+
+\emph{Problem.} Vector search always returns the nearest passages, even when nothing in the library is relevant, which invites the model to answer from unrelated text.
+
+\emph{Solution.} With BGE-M3, passages relevant to a question scored about 0.55 to 0.75 in cosine similarity on this corpus and unrelated passages about 0.30 to 0.40; a passage found only by vector search must therefore reach 0.42. After fusion, the reranker scores the top 20 candidates and passages below 0.05 are dropped---except exact keyword matches, which are kept even when the reranker is unsure, because an identifier match is strong evidence. At most three passages per document are returned, so one long document cannot crowd out the rest.
+
+\subsection{Approximate Indexes Dropping Results}\label{sec:issue-ann}
+
+\emph{Problem.} Approximate nearest-neighbour indexes such as HNSW speed up vector search on large collections, but they search a fixed number of candidates first and apply filters (a user's visible documents, a year, a tag) afterwards, so a filtered search can return fewer results than exist.
+
+\emph{Alternative chosen.} With a few hundred to a few thousand passages, an exact scan of all embeddings takes milliseconds, so \cs{} uses no approximate index and never loses filtered results. An HNSW index can be added when the library grows to hundreds of thousands of passages.
+
+\subsection{Documents Longer than the Context Window}\label{sec:issue-long}
+
+\emph{Problem.} The longest document in the corpus has 36 pages, and with a local 8,192-token model even a six-page resolution exceeds what one call can read.
+
+\emph{Solution.} Cataloguing uses the map-reduce procedure of Section~\ref{sec:mapreduce-theory} (Algorithm~\ref{alg:summary}): the text is split into sections, each section is condensed into notes in parallel, the notes are condensed again if needed, and the final call reads the document's opening together with the notes. With hosted models, whose context is large, almost every document is catalogued in one call.
+
+\subsection{Unreliable Structured Output}\label{sec:issue-structured}
+
+\emph{Problem.} The catalogue must arrive as typed fields, but models occasionally omit optional fields, return the year as 0 or a page number, invent tag names, or write dates in different formats.
+
+\emph{Solution.} The JSON schema makes every field required, using null where a value may be absent, because models skip optional fields far more often than required ones; the request enforces the schema strictly. The application then validates the result: dates must parse, years must lie between 1900 and next year, and tags are kept only if they match an existing tag, ignoring case. Qwen3-VL also tended to condense a subject line into a generic title, dropping the names and positions people search for (``Grant of Permission to Travel to the United States for a Summit'' instead of ``Grant of Permission to Assoc. Prof. Dante D. Dinawanao to Travel to the United States of America''); the instruction now asks for the subject line word for word, including every name, position, place, and date.
+
+\subsection{Hallucination and Citation Integrity}\label{sec:issue-hallucination}
+
+\emph{Problem.} Without safeguards, the model could answer from general knowledge, cite a number that matches no source, or renumber sources between searches so that citations point to the wrong document.
+
+\emph{Solution.} The instructions require the assistant to search before answering questions about the university, to answer only from the search results, to say plainly when they do not contain the answer, and to decline questions unrelated to the documents. Sources are numbered once per answer and keep their numbers across searches. Answers are generated at temperature 0.2. If the model returns an empty answer, it is asked once more before a polite failure message is shown. Section~\ref{sec:hallucination} gives the theoretical basis.
+
+\subsection{Follow-up Questions Answered Without a Search}\label{sec:issue-followup}
+
+\emph{Problem.} The instructions tell the assistant to search before answering, but on a follow-up question---``What teaching load reduction comes with that position?''---Qwen3-VL answered from the conversation instead. Because earlier search results are not shown to the model again (Section~\ref{sec:issue-memory}), it said the documents did not specify the reduction, and in a separate test it invented ``2 units per semester''.
+
+\emph{Solution.} The first step of every question now requires the model to call the search tool; only short greetings, thanks, and questions about the assistant itself are exempt. The model still writes the query, so a follow-up is searched with the subject of the conversation (``teaching load reduction MICeL director''), and the answer now gives the 12-unit reduction with its citation.
+
+\subsection{A Table the Search Did Not Find}\label{sec:issue-table}
+
+\emph{Problem.} In a chat limited to the 2003 grants-in-aid resolution, asked for the new maximum stipend of a full grantee of the School of Engineering Technology, the search returned three passages from the resolution's rationale but neither the table of new rates nor the line ``The highest amount of stipend, PhP 1,200.00'': both are worded unlike the question, and Marker had turned the ``ANNEX K-2'' stamps on those pages into headings, which became their section names. The model answered PhP 800, the old maximum quoted in the rationale.
+
+\emph{Solution.} A chat limited to one document of fewer than 60,000 characters (about 15,000 tokens) now reads the whole document in reading order instead of searching it, which nine pages of administrative text easily fit; longer documents are still searched, but without the usual limit of three passages per document. With the whole resolution in view, the answer is PhP 1,200.00, with its breakdown into meals and lodging.
+
+\subsection{Answers Without Citation Numbers}\label{sec:issue-citations}
+
+\emph{Problem.} After the switch to Qwen3-VL, three of four answers in one session carried no citation numbers, although the instructions require them, so the interface had no passages to link.
+
+\emph{Solution.} The search results now end with a line naming the numbers to cite---the last thing the model reads before it answers---and the instructions close with the rule. In a check of eight questions, including a follow-up, a scoped question, and a question in Filipino, all eight answers carried citations.
+
+\subsection{Growing Conversations}\label{sec:issue-memory}
+
+\emph{Problem.} Each search adds several passages to the conversation. Sending every earlier search result with each new question would make long chats slow and expensive and would distract the model with old material.
+
+\emph{Solution.} Each request includes the last twelve questions and answers but not the search results behind earlier answers, which already contain what mattered; the current question's searches are included in full.
+
+\subsection{Costs and Abuse in a Public Demonstration}\label{sec:issue-demo}
+
+\emph{Problem.} The demonstration is open to anyone, and every question and every uploaded page costs model usage.
+
+\emph{Solution.} Visitors enter as guest accounts that are deleted with their chats after 24 hours. Each visitor has a daily allowance of questions, enforced inside a database transaction under an advisory lock, so parallel requests cannot exceed it; usage is refunded only when no model call has returned. Uploads are turned off for visitors, and the API key has a spending limit at the provider, which caps costs even if the application's own limits were bypassed.
