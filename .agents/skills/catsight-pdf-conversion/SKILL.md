@@ -18,14 +18,17 @@ description: How CATSight.AI turns uploaded PDFs into Markdown with marker, docl
 | Re-extract with another converter | `reextract_doc` in `documents.py`: deletes vectors (`doc_id` filter) + `DocumentFullText`, resets to `PENDING`, re-queues |
 | Extracted text storage | `DocumentFullText.text` |
 | Files on disk | `MEDIA_ROOT = backend/media` (`/usr/src/app/media` in containers) |
+| Chunking (page + section aware) | `backend/app/utils/chunking.py` (`split_markdown`) |
+| Vector store helpers | `backend/app/services/vectorstore.py`: `search_chunks`, `get_document_chunks`, `delete_document_chunks` |
+| Model tags + Ollama URL | `backend/inteldocs/settings.py` (`CHAT_MODEL`, `FAST_MODEL`, `EMBEDDING_MODEL`, `OLLAMA_BASE_URL`); clients from `services/ollama.py` |
 
 ## Flow
 
-`process_document_task(document_id)` (queued with `.delay`) resumes from the document's current status and runs, in order:
+`process_document_task(document_id)` (queued with `.delay`) reads the saved status *before* marking the document `PROCESSING`, then runs only the unfinished steps (via `STATUS_ORDER`):
 
-1. `extract_text_task`: picks the converter from `document.markdown_converter` and writes Markdown to `DocumentFullText`. Status goes `TEXT_EXTRACTING` → `TEXT_EXTRACTION_DONE`.
-2. `generate_document_summary_task`: an LLM (via Ollama) fills in `title`, `summary` and `year`.
-3. `chunk_and_embed_text_task`: `RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)`, then `vector_store.add_documents` (pgvector, bge-m3 embeddings via Ollama), then `COMPLETED`.
+1. `extract_text_task`: picks the converter from `CONVERTERS[document.markdown_converter]` and writes Markdown to `DocumentFullText`. Status goes `TEXT_EXTRACTING` → `TEXT_EXTRACTION_DONE`. A converter exception or an empty result **fails the document** and stops the pipeline.
+2. `generate_document_summary_task`: map-reduce summary, then one structured call for `title`, `year` (null when unstated) and `tags` (`services/summarization_agent.py`), with `max_concurrency=SUMMARY_MAX_CONCURRENCY`.
+3. `chunk_and_embed_text_task`: `split_markdown()` splits at headings (each chunk starts with its heading and records `page` + `section`), then `save_document_chunks` deletes the old chunks and upserts new ones with stable ids `doc_{id}_chunk_{i}`, then `COMPLETED`.
 
 Tasks run in the `celery_worker` container (`celery -A inteldocs worker --concurrency=1`), not in `backend`.
 
@@ -36,9 +39,9 @@ All three are created lazily behind `@lru_cache(maxsize=1)`, so each worker proc
 ### marker (`get_marker_converter`)
 Built from `ConfigParser(marker_config)` → `PdfConverter(...)`, then `text_from_rendered(rendered)` returns the Markdown. The current config:
 - `force_ocr: True`, `strip_existing_ocr: True`: always re-OCRs, even PDFs that already have a text layer. This is the right choice for scanned documents but the slowest path for digital PDFs.
-- `paginate_output: True`: page separators appear in the Markdown, and they end up inside chunks.
+- `paginate_output: True`: page separators (`{n}` + 48 dashes) appear in the Markdown. `split_markdown` strips them and turns them into each chunk's `page`, so keep this on.
 - `format_lines: True`, `disable_image_extraction: True`, `output_format: "markdown"`.
-- `use_llm: False`: the Ollama settings (`ollama_base_url` from `OLLAMA_URL`, `ollama_model` `qwen2.5:7b-instruct-q4_K_M`) are **unused** unless you flip this. Turning it on requires that model to be pulled in Ollama.
+- `use_llm: False`: the Ollama settings (`settings.OLLAMA_BASE_URL`, `settings.CHAT_MODEL`) are **unused** unless you flip this.
 - `create_model_dict()` loads the layout/OCR models, which are downloaded on first use rather than baked into the image. Expect the first conversion after a fresh container to be slow.
 
 ### docling (`get_docling_converter`)
@@ -55,10 +58,11 @@ Uses a plain `DocumentConverter()` with default pipeline options, then `result.d
 
 ## Gotchas
 
-- **Failures look like success.** Each converter branch catches its exception and stores placeholder Markdown (`"# <title>\n\nError extracting text ... using Marker..."`). The document still reaches `TEXT_EXTRACTION_DONE` and gets summarized and embedded. When a document "worked" but search returns junk, check `DocumentFullText.text` for that placeholder and read the worker logs (`logger.exception`).
-- `requirements.txt` lists both `marker-pdf[full]` and `marker`. These are different PyPI projects. Verify that `marker` is really needed and doesn't shadow `marker-pdf`'s `marker` package before relying on imports.
-- `OLLAMA_URL` is `http://host.docker.internal:7869` (the host-mapped Ollama port), not the `ollama` service name.
-- Adding a converter means touching the `MarkdownConverter` enum, a new `get_*_converter` / `convert_pdf_with_*` pair, the `if/elif` in `extract_text_task`, and the frontend option list (`frontend/src/lib/markdown-converter.tsx`, used by `upload-documents-modal.tsx`).
+- **Never add the PyPI package `marker`.** It's an unrelated tool that installs into the same `marker/` package as `marker-pdf` and breaks `from marker.converters...` (this once silently broke the default converter). Check with `python -c "from marker.converters.pdf import PdfConverter"` in the container.
+- **Failed documents:** `is_failed=True` and `status` is the step that failed. Read the worker logs (`logger.exception`) for the cause; retrying resumes from that step.
+- **Deleting chunks:** `PGVector.delete()` only accepts explicit ids and silently ignores `filter=`. Use `delete_document_chunks(doc_id)`. To list a document's chunks use `get_document_chunks(doc_id)`, not a similarity search for `""`.
+- Ollama is reached at `settings.OLLAMA_BASE_URL` (`http://ollama:11434`, the compose service name).
+- Adding a converter means touching the `MarkdownConverter` enum, a new `get_*_converter` / `convert_pdf_with_*` pair registered in `CONVERTERS` (tasks.py), and the frontend option list (`frontend/src/lib/markdown-converter.tsx`, used by `upload-documents-modal.tsx`).
 
 ## Trying a converter by hand
 
