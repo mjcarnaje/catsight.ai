@@ -21,7 +21,7 @@ from ..tasks.tasks import (generate_document_summary_task,
                           update_document_status,
                           process_document_task)
 from ..utils.upload import UploadUtils
-from ..utils.permissions import IsAuthenticated, IsSuperAdmin, IsOwnerOrAdmin, AllowAny
+from ..utils.permissions import IsAuthenticated, IsSuperAdmin, AllowAny, can_modify
 from ..services.vectorstore import delete_document_chunks, get_document_chunks
 from ..services.catsight_agent import catsight_agent
 from ..models import DocumentStatus
@@ -32,6 +32,16 @@ from ..services.summarization_agent import summarization_agent
 from ..utils.langgraph import _print_event
 
 logger = logging.getLogger(__name__)
+
+
+def _modify_denied(request, document):
+    """403 response unless the user may change this document (uploader or admin), else None."""
+    if can_modify(request.user, document):
+        return None
+    return Response(
+        {"status": "error", "message": "Only the uploader or an admin can change this document."},
+        status=status.HTTP_403_FORBIDDEN,
+    )
 
 
 def _csv_ints(value: str) -> list[int]:
@@ -281,14 +291,17 @@ def get_doc_markdown(request, doc_id):
 
 
 @api_view(['DELETE'])
-@permission_classes([IsOwnerOrAdmin])
+@permission_classes([IsAuthenticated])
 def delete_doc(request, doc_id):
     """
     Delete a document by its ID, cancel any running tasks, and remove associated files.
-    Only admins can delete documents.
+    Only the uploader or an admin can delete a document.
     """
     try:
         document = Document.objects.get(id=doc_id)
+        denied = _modify_denied(request, document)
+        if denied is not None:
+            return denied
         
         # Revoke any running tasks
         revoke_task(document.task_id)
@@ -324,12 +337,14 @@ def delete_chunks(request, doc_id):
     Delete the chunks for a document by its ID.
     """
     try:
-        # Try to get document but don't require it to exist
         try:
             document = Document.objects.get(id=doc_id)
         except Document.DoesNotExist:
-            logger.warning(f"Document not found: {doc_id}")
-        
+            return Response({"status": "error", "message": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
+        denied = _modify_denied(request, document)
+        if denied is not None:
+            return denied
+
         _delete_chunks(doc_id)
         return Response({"status": "success", "message": "Chunks deleted successfully"}, status=status.HTTP_200_OK)
     except Exception as e:
@@ -364,6 +379,13 @@ def get_doc_chunks(request, doc_id):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def update_doc_markdown(request, doc_id):
+    document = Document.objects.filter(pk=doc_id).first()
+    if document is None:
+        return Response({"detail": "Document not found"}, status=404)
+    denied = _modify_denied(request, document)
+    if denied is not None:
+        return denied
+
     new_md = request.data.get("markdown")
     if new_md is None:
         return Response(
@@ -379,7 +401,6 @@ def update_doc_markdown(request, doc_id):
     fulltext.save()
 
     # 3) Reset document status to "extracted" so chunk task can proceed
-    document = Document.objects.get(pk=doc_id)
     update_document_status(document, DocumentStatus.TEXT_EXTRACTION_DONE)
 
     # 4) Kick off re‐chunk & re‐summary using the process_document_task
@@ -704,6 +725,9 @@ def regenerate_preview(request, doc_id):
     """
     try:
         document = Document.objects.get(id=doc_id)
+        denied = _modify_denied(request, document)
+        if denied is not None:
+            return denied
         
         # Get the original file path
         file_path = os.path.join(settings.MEDIA_ROOT, document.file)
@@ -774,6 +798,9 @@ def regenerate_summary(request, doc_id):
     """
     try:
         document = Document.objects.get(id=doc_id)
+        denied = _modify_denied(request, document)
+        if denied is not None:
+            return denied
         
         # Check if a new summarization model is provided
         summarization_model = request.data.get('summarization_model')
@@ -818,6 +845,9 @@ def reextract_doc(request, doc_id):
     try:
         # Get the document
         document = Document.objects.get(id=doc_id)
+        denied = _modify_denied(request, document)
+        if denied is not None:
+            return denied
 
         # Get the new markdown converter from request
         markdown_converter = request.data.get("markdown_converter")

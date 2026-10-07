@@ -6,7 +6,7 @@ from django.core.paginator import Paginator
 
 from ..models import Chat
 from ..serializers import ChatSerializer
-from ..utils.permissions import IsAuthenticated, IsOwnerOrAdmin
+from ..utils.permissions import IsAuthenticated
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ def create_chat(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE'])
-@permission_classes([IsOwnerOrAdmin])
+@permission_classes([IsAuthenticated])  # chats are private: owner-only, checked below
 def delete_chat(request, chat_id):
     """
     Delete a chat session and all its messages.

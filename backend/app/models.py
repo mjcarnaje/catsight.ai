@@ -21,7 +21,7 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('role', UserRole.SUPER_ADMIN)
+        extra_fields.setdefault('role', UserRole.SUPER_ADMIN.value)
         return self.create_user(email, password, **extra_fields)
 
 
@@ -30,7 +30,8 @@ class User(AbstractUser):
     role                = models.CharField(
         max_length=20,
         choices=UserRole.choices(),
-        default=UserRole.USER
+        # Store the enum's value ("user"); an Enum member was saved as "UserRole.USER"
+        default=UserRole.USER.value
     )
     first_name          = models.CharField(max_length=255, null=True, blank=True)
     last_name           = models.CharField(max_length=255, null=True, blank=True)
@@ -51,12 +52,21 @@ class User(AbstractUser):
         return self.email
 
     @property
+    def role_value(self) -> str:
+        """The role as a plain value ("user" / "admin" / "super_admin").
+
+        `role` is a CharField, so loaded users hold a string; comparing it to
+        UserRole members (as these checks used to) was always False.
+        """
+        return self.role.value if isinstance(self.role, UserRole) else self.role
+
+    @property
     def is_admin(self):
-        return self.role in {UserRole.ADMIN, UserRole.SUPER_ADMIN}
+        return self.role_value in {UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value}
 
     @property
     def is_super_admin(self):
-        return self.role == UserRole.SUPER_ADMIN
+        return self.role_value == UserRole.SUPER_ADMIN.value
 
 class DocumentQuerySet(models.QuerySet):
     def ordered(self):
