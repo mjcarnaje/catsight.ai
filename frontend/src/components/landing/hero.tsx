@@ -1,13 +1,8 @@
-import { Link } from "react-router-dom";
-
-import { Button } from "@/components/ui/button";
-import { useSession } from "@/contexts/session-context";
+import { PrimaryCta } from "./primary-cta";
 import { ProductPreview } from "./product-preview";
 import { Reveal } from "./reveal";
 
 export function Hero() {
-  const { user } = useSession();
-
   return (
     <section id="top" className="px-4 pt-28 sm:px-6 sm:pt-40">
       <div className="mx-auto max-w-6xl">
@@ -22,16 +17,7 @@ export function Hero() {
             <span className="text-foreground">CATSight.AI reads the PDFs, scans and memos your campus runs on.</span>{" "}
             Ask in your own words and get an answer with the page it came from.
           </p>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button asChild size="lg" className="px-5">
-              <Link to={user ? "/dashboard" : "/register"}>{user ? "Open dashboard" : "Get started"}</Link>
-            </Button>
-            {!user && (
-              <Button asChild size="lg" variant="ghost" className="px-5 text-muted-foreground hover:text-foreground">
-                <Link to="/login">Sign in</Link>
-              </Button>
-            )}
-          </div>
+          <PrimaryCta />
         </Reveal>
       </div>
 

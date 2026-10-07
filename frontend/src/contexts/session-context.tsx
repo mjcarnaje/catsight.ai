@@ -1,103 +1,64 @@
-import axios from "axios";
-import { createContext, useContext, useEffect, useState } from "react";
-import { authApi } from "../lib/auth";
-import { User } from "@/types/user";
+import { useQueryClient } from "@tanstack/react-query";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-interface SessionContextValue {
+import { authApi, SESSION_EXPIRED, tokens } from "@/lib/api";
+import type { AuthResponse, User } from "@/types";
+
+interface SessionValue {
   user: User | null;
-  setUser: (user: User) => void;
+  /** True until we know whether a stored token is still valid. */
   isLoading: boolean;
-  hasToken: boolean;
-  logout: () => void;
-  setHasTokenAndUser: (token: string | null, refreshToken: string | null, newUser: User | null) => void;
+  isAuthenticated: boolean;
+  signIn: (response: AuthResponse) => void;
+  signOut: () => void;
+  setUser: (user: User) => void;
 }
 
-const SessionContext = createContext<SessionContextValue | undefined>(
-  undefined
-);
+const SessionContext = createContext<SessionValue | undefined>(undefined);
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+export function SessionProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [hasToken, setHasToken] = useState<boolean>(() => !!localStorage.getItem("access_token"));
+  const [isLoading, setIsLoading] = useState(() => Boolean(tokens.access()));
 
-  const getUser = async () => {
-    try {
-      const response = await authApi.getProfile();
-      return response;
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        authApi.logout();
-      }
-      throw error;
-    }
-  };
+  const signOut = useCallback(() => {
+    tokens.clear();
+    setUser(null);
+    queryClient.clear();
+  }, [queryClient]);
 
-  useEffect(() => {
-    const accessToken = localStorage.getItem("access_token");
-    setHasToken(!!accessToken);
-
-    if (accessToken && !user) {
-      getUser().then((response) => {
-        setUser(response);
-        setIsLoading(false);
-      });
-    } else {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const setHasTokenAndUser = (token: string | null, refreshToken: string | null, newUser: User | null) => {
-    if (token) {
-      localStorage.setItem("access_token", token);
-      if (refreshToken) {
-        localStorage.setItem("refresh_token", refreshToken);
-      }
-    } else {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-    }
-    setHasToken(!!token);
-    setUser(newUser);
-  };
-
-  const logout = () => {
-    setHasTokenAndUser(null, null, null);
-  };
-
-  useEffect(() => {
-    const updateTokenStatus = (e: StorageEvent) => {
-      if (e.key === "access_token") {
-        setHasToken(!!e.newValue);
-      }
-    };
-
-    window.addEventListener("storage", updateTokenStatus);
-    return () => {
-      window.removeEventListener("storage", updateTokenStatus);
-    };
-  }, []);
-
-  return (
-    <SessionContext.Provider
-      value={{
-        user: user || null,
-        setUser,
-        isLoading,
-        hasToken,
-        logout,
-        setHasTokenAndUser,
-      }}
-    >
-      {children}
-    </SessionContext.Provider>
+  const signIn = useCallback(
+    (response: AuthResponse) => {
+      queryClient.clear(); // nothing cached from a previous account
+      tokens.set(response.tokens.access, response.tokens.refresh);
+      setUser(response.user);
+    },
+    [queryClient]
   );
+
+  useEffect(() => {
+    if (!tokens.access()) return;
+    authApi
+      .me()
+      .then(setUser)
+      .catch(() => signOut())
+      .finally(() => setIsLoading(false));
+  }, [signOut]);
+
+  useEffect(() => {
+    window.addEventListener(SESSION_EXPIRED, signOut);
+    return () => window.removeEventListener(SESSION_EXPIRED, signOut);
+  }, [signOut]);
+
+  const value = useMemo(
+    () => ({ user, isLoading, isAuthenticated: Boolean(user), signIn, signOut, setUser }),
+    [user, isLoading, signIn, signOut]
+  );
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
 export function useSession() {
   const context = useContext(SessionContext);
-  if (context === undefined) {
-    throw new Error("useSession must be used within a SessionProvider");
-  }
+  if (!context) throw new Error("useSession must be used inside SessionProvider");
   return context;
 }

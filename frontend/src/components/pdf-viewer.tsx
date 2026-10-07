@@ -170,11 +170,11 @@ export default function PDFViewer({ url }: PDFViewerProps) {
   }
 
   return (
-    <div className="flex h-full bg-zinc-100 dark:bg-zinc-900">
+    <div className="flex h-full bg-muted/40">
       {/* Preview Sidebar */}
       <div
         className={cn(
-          "border-r bg-white dark:bg-zinc-950 transition-all duration-300 ease-in-out shadow-lg",
+          "border-r bg-card transition-all duration-300 ease-in-out",
           isPreviewOpen ? "w-44" : "w-0"
         )}
       >
@@ -239,7 +239,7 @@ export default function PDFViewer({ url }: PDFViewerProps) {
       {/* Main Content */}
       <div className="flex flex-col flex-1 overflow-hidden">
         <ScrollArea
-          className="flex-1 bg-zinc-100 dark:bg-zinc-900"
+          className="flex-1 bg-muted/40"
           ref={mainContentRef}
         >
           <div className="min-h-full py-8">
@@ -267,7 +267,7 @@ export default function PDFViewer({ url }: PDFViewerProps) {
                     data-page={index + 1}
                   >
                     <div className="flex justify-center">
-                      <div className="overflow-hidden bg-white shadow-xl rounded-xl dark:bg-zinc-950 hover:shadow-2xl ring-1 ring-black/5">
+                      <div className="overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-border">
                         <Page
                           pageNumber={index + 1}
                           scale={1}
@@ -291,7 +291,7 @@ export default function PDFViewer({ url }: PDFViewerProps) {
         </ScrollArea>
 
         {/* Controls */}
-        <div className="flex items-center justify-between p-4 border-t bg-white/80 backdrop-blur-sm dark:bg-zinc-950/80">
+        <div className="flex items-center justify-between border-t bg-background/80 p-4 backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <Button
               variant="outline"

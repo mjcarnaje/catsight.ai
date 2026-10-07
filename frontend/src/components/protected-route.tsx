@@ -1,29 +1,42 @@
-import { useSession } from "@/contexts/session-context";
-import { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
-interface ProtectedRouteProps {
-  children: ReactNode;
+import { CatMark } from "@/components/brand/cat-mark";
+import { useSession } from "@/contexts/session-context";
+
+export function FullPageLoader() {
+  return (
+    <div className="grid h-screen place-items-center bg-background">
+      <CatMark className="size-9 animate-pulse" sparkle={false} />
+    </div>
+  );
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { hasToken, user } = useSession();
+/** Full-screen loader while a lazily loaded page's code arrives. */
+export function Lazy({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<FullPageLoader />}>{children}</Suspense>;
+}
+
+/** Pages for signed-in people; others go to /login and come back afterwards. */
+export function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated, isLoading } = useSession();
   const location = useLocation();
+  if (isLoading) return <FullPageLoader />;
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
+  return <>{children}</>;
+}
 
-  // If not authenticated, redirect to login
-  if (!hasToken) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+/**
+ * Sign-in pages; signed-in people go straight to where they were headed.
+ * Guests may still open them, to sign in or create a real account.
+ */
+export function PublicOnlyRoute({ children }: { children: ReactNode }) {
+  const { user, isAuthenticated, isLoading } = useSession();
+  const location = useLocation();
+  if (isLoading) return <FullPageLoader />;
+  if (isAuthenticated && !user?.is_guest) {
+    const from = (location.state as { from?: Location } | null)?.from?.pathname;
+    return <Navigate to={from && from !== "/login" ? from : "/dashboard"} replace />;
   }
-
-  // If authenticated but not onboarded, and not already on the onboarding page,
-  // redirect to onboarding
-  if (
-    user &&
-    !user.is_onboarded &&
-    !location.pathname.includes("/onboarding")
-  ) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
   return <>{children}</>;
 }

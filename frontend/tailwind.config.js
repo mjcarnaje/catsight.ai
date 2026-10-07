@@ -52,6 +52,7 @@ module.exports = {
           foreground: "hsl(var(--gold-foreground))",
         },
         tabby: "hsl(var(--tabby))",
+        success: "hsl(var(--success))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

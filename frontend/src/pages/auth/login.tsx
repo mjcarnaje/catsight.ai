@@ -1,215 +1,145 @@
-"use client";
-
-import type React from "react";
-import { useEffect } from "react";
-
-import { BrandLogo } from "@/components/brand/brand-logo";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/components/ui/use-toast";
-import { useSession } from "@/contexts/session-context";
-import { authApi } from "@/lib/auth";
-import { LoginCredentials } from "@/types/auth";
 import { useMutation } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
-const GOOGLE_CLIENT_ID =
-  "***REMOVED-GOOGLE-CLIENT-ID***";
-const REDIRECT_URI = "https://catsightai.ngrok.app/login";
+import { AuthShell, Divider, GoogleIcon } from "@/components/auth/auth-shell";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useSession } from "@/contexts/session-context";
+import { useGuestSignIn } from "@/hooks/use-guest-sign-in";
+import { authApi, errorMessage } from "@/lib/api";
+import { useConfig } from "@/lib/queries";
 
 export default function LoginPage() {
-  const [searchParams] = useSearchParams();
-  const { toast } = useToast();
-  const { setHasTokenAndUser } = useSession();
-  const [email, setEmail] = useState("michaeljames.carnaje@g.msuiit.edu.ph");
-  const [password, setPassword] = useState("password");
+  const { signIn } = useSession();
+  const { data: config } = useConfig();
+  const guest = useGuestSignIn();
+  const [params, setParams] = useSearchParams();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const loginMutation = useMutation({
-    mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
-    onSuccess: (data) => {
-      const { tokens, user } = data;
-      if (tokens) {
-        setHasTokenAndUser(tokens.access, tokens.refresh, user);
-      }
-    },
-    onError: (error) => {
-      toast({
-        title: "Login failed",
-        description: "Invalid email or password.",
-        variant: "destructive",
-      });
-    },
+  const login = useMutation({
+    mutationFn: () => authApi.login(email.trim(), password),
+    onSuccess: signIn,
   });
+  const google = useMutation({ mutationFn: authApi.google, onSuccess: signIn });
+  const exchangeGoogleCode = google.mutate;
 
-  const googleAuthMutation = useMutation({
-    mutationFn: (code: string) => authApi.googleAuth({ token: code }),
-    onSuccess: (data) => {
-      const { tokens, user } = data;
-      if (tokens) {
-        setHasTokenAndUser(tokens.access, tokens.refresh, user);
-      }
-    },
-    onError: (error) => {
-      toast({
-        title: "Login failed",
-        description: "Invalid email or password.",
-        variant: "destructive",
-      });
-    },
-  });
-
+  // Google redirects back here with ?code=...; exchange it once
+  const exchanged = useRef(false);
   useEffect(() => {
-    const code = searchParams.get("code");
-    if (code) {
-      handleGoogleCallback(code);
+    const code = params.get("code");
+    if (code && !exchanged.current) {
+      exchanged.current = true;
+      setParams({}, { replace: true });
+      exchangeGoogleCode(code);
     }
-  }, [searchParams]);
+  }, [params, setParams, exchangeGoogleCode]);
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const startGoogle = () => {
+    const query = new URLSearchParams({
+      client_id: config!.google_client_id,
+      redirect_uri: `${window.location.origin}/login`,
+      response_type: "code",
+      scope: "openid email profile",
+      prompt: "select_account",
+    });
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${query}`;
+  };
+
+  const submit = (e: FormEvent) => {
     e.preventDefault();
-
-    if (!email.endsWith("@g.msuiit.edu.ph")) {
-      toast({
-        title: "Invalid email",
-        description: "Only @g.msuiit.edu.ph email addresses are allowed.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    await loginMutation.mutateAsync({ email, password });
+    login.mutate();
   };
 
-  const handleGoogleLogin = () => {
-    const scope = "email profile";
-
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${REDIRECT_URI}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
-  };
-
-  const handleGoogleCallback = async (code: string) => {
-    await googleAuthMutation.mutateAsync(code);
-  };
+  const error = login.error ?? google.error;
 
   return (
-    <div className="relative flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
-      <Card className="z-10 w-full max-w-sm shadow-lg sm:max-w-md lg:max-w-lg">
-        <CardHeader className="pb-4 space-y-1 text-center">
-          <CardTitle className="flex items-center justify-center">
-            <BrandLogo size="md" />
-          </CardTitle>
-          <CardDescription className="text-sm">
-            Sign in to access the document management system
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="email" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="email">Email</TabsTrigger>
-              <TabsTrigger value="google">Google</TabsTrigger>
-            </TabsList>
-            <TabsContent value="email">
-              <form onSubmit={handleEmailLogin} className="mt-3 space-y-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-sm">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your.email@g.msuiit.edu.ph"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password" className="text-sm">
-                      Password
-                    </Label>
-                    <Button variant="link" className="h-auto px-0 py-0 text-xs">
-                      Forgot password?
-                    </Button>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute -translate-y-1/2 right-1 top-1/2 h-7 w-7"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                      <span className="sr-only">
-                        {showPassword ? "Hide password" : "Show password"}
-                      </span>
-                    </Button>
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full h-10 mt-4"
-                  disabled={loginMutation.isPending}
-                >
-                  {loginMutation.isPending ? "Signing in..." : "Sign In"}
-                </Button>
-              </form>
-            </TabsContent>
-            <TabsContent value="google">
-              <div className="mt-3 space-y-4">
-                <p className="text-sm text-center text-muted-foreground">
-                  Sign in with your MSU-IIT Google account
-                </p>
-                <Button
-                  onClick={handleGoogleLogin}
-                  className="w-full h-10"
-                  variant="outline"
-                  disabled={googleAuthMutation.isPending}
-                >
-                  {googleAuthMutation.isPending
-                    ? "Signing in..."
-                    : "Sign in with Google"}
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-        <CardFooter className="flex flex-col pb-6">
-          <div className="text-sm text-center">
-            Don't have an account?{" "}
-            <Link to="/register" className="text-primary hover:underline">
-              Sign up
-            </Link>
+    <AuthShell
+      title="Sign in to CATSight"
+      description="Ask the university's documents anything, with page-level citations."
+      footer={
+        <>
+          No account yet?{" "}
+          <Link to="/register" className="text-foreground underline-offset-4 hover:underline">
+            Create one
+          </Link>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-6">
+        {config?.guest_access && (
+          <>
+            <Button size="lg" onClick={() => guest.mutate()} disabled={guest.isPending} className="w-full">
+              {guest.isPending ? <Loader2 className="animate-spin" /> : null}
+              Try the live demo
+              <ArrowRight />
+            </Button>
+            <p className="-mt-3 text-center text-xs text-muted-foreground">
+              No sign-up. A private guest session that lasts {config.guest_ttl_hours} hours.
+            </p>
+            <Divider label="or sign in" />
+          </>
+        )}
+
+        {config?.google_login && (
+          <Button variant="outline" size="lg" onClick={startGoogle} disabled={google.isPending} className="w-full">
+            {google.isPending ? <Loader2 className="animate-spin" /> : <GoogleIcon />}
+            Continue with Google
+          </Button>
+        )}
+
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={config?.allowed_email_domains[0] ? `you@${config.allowed_email_domains[0]}` : "you@example.com"}
+              required
+            />
           </div>
-          <p className="mt-3 text-xs text-center text-muted-foreground">
-            Only users with @g.msuiit.edu.ph email addresses are allowed access.
-          </p>
-        </CardFooter>
-      </Card>
-    </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="password">Password</Label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pr-10"
+                required
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 size-7 -translate-y-1/2 text-muted-foreground"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff /> : <Eye />}
+              </Button>
+            </div>
+          </div>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {errorMessage(error)}
+            </p>
+          )}
+          <Button type="submit" variant={config?.guest_access ? "secondary" : "default"} disabled={login.isPending}>
+            {login.isPending && <Loader2 className="animate-spin" />}
+            Sign in
+          </Button>
+        </form>
+      </div>
+    </AuthShell>
   );
 }

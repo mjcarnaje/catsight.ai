@@ -1,42 +1,39 @@
-import { DocumentStatus } from "@/lib/document-status-config";
+import type { Document, DocumentStatus } from "@/types";
 
-/**
- * The backend reports nine fine-grained processing statuses. For people,
- * five stages are enough: queued → extracting → summarizing → embedding → ready.
- */
-export const DOCUMENT_STAGES = [
-  { key: "queued", label: "Queued", color: "hsl(var(--muted-foreground) / 0.35)" },
-  { key: "extracting", label: "Extracting text", color: "hsl(var(--chart-3))" },
-  { key: "summarizing", label: "Summarizing", color: "hsl(var(--chart-2))" },
-  { key: "embedding", label: "Indexing", color: "hsl(var(--chart-4))" },
-  { key: "ready", label: "Ready", color: "hsl(var(--chart-1))" },
-] as const;
+/** The pipeline, in order, as people see it. */
+export const STAGES: { key: DocumentStatus; label: string; doing: string; color: string }[] = [
+  { key: "queued", label: "Queued", doing: "Waiting to start", color: "hsl(var(--muted-foreground) / 0.45)" },
+  { key: "extracting", label: "Reading", doing: "Reading pages", color: "hsl(var(--chart-3))" },
+  { key: "summarizing", label: "Cataloguing", doing: "Writing the summary", color: "hsl(var(--chart-2))" },
+  { key: "indexing", label: "Indexing", doing: "Indexing passages", color: "hsl(var(--chart-4))" },
+  { key: "ready", label: "Ready", doing: "Searchable", color: "hsl(var(--success))" },
+];
 
-export type DocumentStageKey = (typeof DOCUMENT_STAGES)[number]["key"];
+export const FAILED_COLOR = "hsl(var(--destructive))";
 
-const STATUS_TO_STAGE: Record<DocumentStatus, DocumentStageKey> = {
-  [DocumentStatus.PENDING]: "queued",
-  [DocumentStatus.PROCESSING]: "queued",
-  [DocumentStatus.TEXT_EXTRACTING]: "extracting",
-  [DocumentStatus.TEXT_EXTRACTION_DONE]: "extracting",
-  [DocumentStatus.GENERATING_SUMMARY]: "summarizing",
-  [DocumentStatus.SUMMARY_GENERATION_DONE]: "summarizing",
-  [DocumentStatus.EMBEDDING_TEXT]: "embedding",
-  [DocumentStatus.TEXT_EMBEDDING_DONE]: "embedding",
-  [DocumentStatus.COMPLETED]: "ready",
-};
-
-export function getDocumentStage(status: string) {
-  const key = STATUS_TO_STAGE[status as DocumentStatus] ?? "queued";
-  return DOCUMENT_STAGES.find((s) => s.key === key)!;
+export function stageOf(status: DocumentStatus) {
+  return STAGES.find((s) => s.key === status) ?? STAGES[0];
 }
 
-/** Sums `documents_by_status` into the five stages, in pipeline order. */
-export function countByStage(byStatus: Record<string, number> = {}) {
-  const totals = new Map<DocumentStageKey, number>(DOCUMENT_STAGES.map((s) => [s.key, 0]));
-  for (const [status, count] of Object.entries(byStatus)) {
-    const key = getDocumentStage(status).key;
-    totals.set(key, (totals.get(key) ?? 0) + count);
-  }
-  return DOCUMENT_STAGES.map((stage) => ({ ...stage, count: totals.get(stage.key) ?? 0 }));
+export function stageIndex(status: DocumentStatus) {
+  return Math.max(0, STAGES.findIndex((s) => s.key === status));
+}
+
+/** One line describing where a document is, e.g. "Reading page 3 of 11". */
+export function describeProgress(doc: Pick<Document, "status" | "is_failed" | "progress_done" | "progress_total">) {
+  const stage = stageOf(doc.status);
+  if (doc.is_failed) return `Failed while ${stage.doing.toLowerCase()}`;
+  if (doc.status === "extracting" && doc.progress_total)
+    return `Reading page ${Math.min(doc.progress_done + 1, doc.progress_total)} of ${doc.progress_total}`;
+  if (doc.status === "indexing" && doc.progress_total)
+    return `Indexing ${doc.progress_done} of ${doc.progress_total} passages`;
+  return stage.doing;
+}
+
+/** 0-1 progress through the whole pipeline (for a thin progress bar). */
+export function overallProgress(doc: Pick<Document, "status" | "progress_done" | "progress_total">) {
+  const index = stageIndex(doc.status);
+  if (doc.status === "ready") return 1;
+  const within = doc.progress_total ? doc.progress_done / doc.progress_total : 0.15;
+  return (index - 1 + within) / (STAGES.length - 2);
 }

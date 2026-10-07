@@ -1,222 +1,61 @@
-import { Layout } from "@/components/layout";
-import { Toaster } from "@/components/ui/toaster";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
-import { ProtectedRoute } from "./components/protected-route";
-import { PublicRoute } from "./components/public-route";
-import { SessionProvider } from "./contexts/session-context";
-import LoginPage from "./pages/auth/login";
-import RegisterPage from "./pages/auth/register";
-import ChatPage from "./pages/chat/chat";
-import DashboardPage from "./pages/dashboard/dashboard";
-import DocumentsPage from "./pages/documents/documents";
-import { EditDocumentPage } from "./pages/documents/edit-document-page";
-import { DocumentPdfPage } from "./pages/documents/document-pdf";
-import { DocumentMarkdownPage } from "./pages/documents/document-markdown";
-import { DocumentComparisonPage } from "./pages/documents/document-comparison";
-import { LandingPage } from "./pages/landing/landing";
-import { PrivacyPolicyPage } from "./pages/landing/privacy-policty";
-import { TermsAndConditionPage } from "./pages/landing/terms-and-condition";
-import { SearchPage } from "./pages/search";
-import SettingsPage from "./pages/settings/settings";
-import { DocumentViewPage } from "./pages/documents/view-document";
-import { OnboardingPage } from "./pages/onboarding/onboarding";
-import { ChatProvider } from "./contexts/chat-context";
-import { ChatStreamProvider } from "./contexts/chat-stream-context";
-import { GraphPage } from "./pages/graph/graph-page";
-import TagsPage from "./pages/tags/tags";
-import DebugPage from "./pages/debug";
+import { lazy } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
-const queryClient = new QueryClient();
+import { AppLayout } from "@/components/layout/app-layout";
+import { Lazy, ProtectedRoute, PublicOnlyRoute } from "@/components/protected-route";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { SessionProvider } from "@/contexts/session-context";
+import { LandingPage } from "@/pages/landing/landing";
+import { PrivacyPolicyPage } from "@/pages/landing/privacy-policty";
+import { TermsAndConditionPage } from "@/pages/landing/terms-and-condition";
+
+// The landing page ships in the main bundle; the app loads per page on demand
+const LoginPage = lazy(() => import("@/pages/auth/login"));
+const RegisterPage = lazy(() => import("@/pages/auth/register"));
+const DashboardPage = lazy(() => import("@/pages/dashboard/dashboard"));
+const ChatPage = lazy(() => import("@/pages/chat/chat"));
+const DocumentsPage = lazy(() => import("@/pages/documents/documents"));
+const DocumentPage = lazy(() => import("@/pages/documents/document"));
+const SearchPage = lazy(() => import("@/pages/search/search"));
+const TagsPage = lazy(() => import("@/pages/tags/tags"));
+const SettingsPage = lazy(() => import("@/pages/settings/settings"));
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 10_000 },
+  },
+});
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
-        <div className="relative">
-          <Router>
-            <ChatProvider>
-              <ChatStreamProvider>
-                <Routes>
-                  <Route path="/" element={<LandingPage />} />
-                  <Route
-                    path="/terms-and-conditions"
-                    element={<TermsAndConditionPage />}
-                  />
-                  <Route
-                    path="/privacy-policy"
-                    element={<PrivacyPolicyPage />}
-                  />
-                  <Route path="/graph" element={<GraphPage />} />
+        <TooltipProvider delayDuration={200}>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-and-conditions" element={<TermsAndConditionPage />} />
+              <Route path="/login" element={<PublicOnlyRoute><Lazy><LoginPage /></Lazy></PublicOnlyRoute>} />
+              <Route path="/register" element={<PublicOnlyRoute><Lazy><RegisterPage /></Lazy></PublicOnlyRoute>} />
 
-                  <Route element={<Layout />}>
-                    <Route
-                      path="/login"
-                      element={
-                        <PublicRoute>
-                          <LoginPage />
-                        </PublicRoute>
-                      }
-                    />
-                    <Route
-                      path="/register"
-                      element={
-                        <PublicRoute>
-                          <RegisterPage />
-                        </PublicRoute>
-                      }
-                    />
-                    <Route
-                      path="/onboarding"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-10 p-8">
-                            <OnboardingPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/dashboard"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-10 p-4 sm:p-8">
-                            <DashboardPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/documents"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-10 p-8">
-                            <DocumentsPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/documents/:id"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-10 w-full max-w-6xl p-8 mx-auto">
-                            <DocumentViewPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/documents/:id/edit"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20 p-8">
-                            <EditDocumentPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/documents/:id/pdf"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20 w-full max-w-6xl p-8 mx-auto">
-                            <DocumentPdfPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/documents/:id/markdown"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20 w-full max-w-6xl p-8 mx-auto">
-                            <DocumentMarkdownPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/documents/:id/comparison"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20 p-8">
-                            <DocumentComparisonPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-
-                    <Route
-                      path="/chat"
-                      element={
-                        <ProtectedRoute>
-                          <ChatPage />
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/chat/:id"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20">
-                            <ChatPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/tags"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20 p-8">
-                            <TagsPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/search"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20 p-8">
-                            <SearchPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/settings"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20 p-8">
-                            <SettingsPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/debug"
-                      element={
-                        <ProtectedRoute>
-                          <div className="relative z-20 p-8">
-                            <DebugPage />
-                          </div>
-                        </ProtectedRoute>
-                      }
-                    />
-                  </Route>
-                </Routes>
-                <Toaster />
-              </ChatStreamProvider>
-            </ChatProvider>
-          </Router>
-        </div>
+              <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/documents" element={<DocumentsPage />} />
+                <Route path="/documents/:id" element={<DocumentPage />} />
+                <Route path="/search" element={<SearchPage />} />
+                {/* One route so a new chat keeps its state when it gets an id */}
+                <Route path="/chat/:id?" element={<ChatPage />} />
+                <Route path="/tags" element={<TagsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+            <Toaster />
+          </BrowserRouter>
+        </TooltipProvider>
       </SessionProvider>
     </QueryClientProvider>
   );

@@ -1,353 +1,191 @@
-import { ChatInput } from "@/components/chat/chat-input";
-import { ChatList } from "@/components/chat/chat-list";
-import { ChatSidebar } from "@/components/chat/chat-sidebar";
-import { useToast } from "@/components/ui/use-toast";
-import { useChatStream } from "@/contexts/chat-stream-context";
-import { useSession } from "@/contexts/session-context";
-import { chatsApi, documentsApi, llmApi } from "@/lib/api";
-import { DocumentStatus } from "@/lib/document-status-config";
-import { cn } from "@/lib/utils";
-import { LLMModel } from "@/types";
-import { Document } from "@/types";
-import { Message } from "@/types/message";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { AlertCircle, ArrowDown, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+
+import { Composer, type ComposerHandle } from "@/components/chat/composer";
+import type { ScopedDocument } from "@/components/chat/document-picker";
+import { EmptyChat } from "@/components/chat/empty-chat";
+import { AssistantAnswer, DraftAnswer, UserBubble } from "@/components/chat/messages";
+import { SourceSheet } from "@/components/chat/source-sheet";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useChat } from "@/hooks/use-chat";
+import type { Source } from "@/types";
+
+/** Navigation state other pages may pass: a question (sent right away if `send`) and/or a document scope. */
+interface ChatNavigationState {
+  prompt?: string;
+  send?: boolean;
+  documents?: ScopedDocument[];
+}
+
+const QUOTA_CODES = new Set(["message_limit", "rate_limited"]);
+const isSaved = (id: string) => !id.startsWith("pending-") && !id.startsWith("stopped-");
 
 export default function ChatPage() {
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const { id } = useParams();
+  const chatId = id ? Number(id) : undefined;
   const location = useLocation();
-  const { id: chatId } = useParams<{ id: string }>();
-  const { user } = useSession();
-  const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
-  // The dashboard's ask bar can hand over a draft prompt via router state.
-  const [text, setText] = useState<string>(
-    () => (location.state as { prompt?: string } | null)?.prompt ?? ""
-  );
-  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
-  const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadedFiles, setUploadedFiles] = useState<
-    {
-      id: number;
-      filename: string;
-    }[]
-  >([]);
-  const [selectedDocs, setSelectedDocs] = useState<Document[]>([]);
+  const navigate = useNavigate();
+  const chat = useChat(chatId);
+  const [input, setInput] = useState("");
+  const [scope, setScope] = useState<ScopedDocument[]>([]);
+  const [openSource, setOpenSource] = useState<Source | null>(null);
+  const composer = useRef<ComposerHandle>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const documentIds = scope.map((d) => d.id);
 
-  const {
-    sendMessage,
-    isStreaming,
-    messages,
-    dispatch,
-    newChatId,
-    setNewChatId,
-  } = useChatStream();
+  // A new chat starts unscoped; a saved one restores its scope
+  useEffect(() => {
+    if (chatId === undefined) setScope([]);
+  }, [chatId]);
+  useEffect(() => {
+    if (chat.savedScope) setScope(chat.savedScope);
+  }, [chat.savedScope]);
 
-  const {
-    data: llmModels,
-    isLoading: isLoadingModels,
-    error: errorModels,
-  } = useQuery({
-    queryKey: ["llm-models"],
-    queryFn: () => llmApi.getAll(),
-    staleTime: 1000 * 60 * 5,
-  });
+  // Questions and scopes handed over by the dashboard, search or a document page (once per navigation)
+  const consumed = useRef<string | null>(null);
+  useEffect(() => {
+    const state = location.state as ChatNavigationState | null;
+    if (!state || consumed.current === location.key) return;
+    consumed.current = location.key;
+    navigate(location.pathname, { replace: true, state: null });
+    const documents = state.documents ?? [];
+    setScope(documents);
+    if (state.prompt && state.send) chat.send(state.prompt, { documentIds: documents.map((d) => d.id) });
+    else if (state.prompt) setInput(state.prompt);
+    composer.current?.focus();
+  }, [location, navigate, chat]);
 
-  const uploadedFilesIds = uploadedFiles.map((file) => file.id);
-
-  const { data: uploadedDocs, isLoading: isLoadingDocs } = useQuery({
-    queryKey: ["uploaded-docs", uploadedFilesIds],
-    queryFn: async () => {
-      if (uploadedFilesIds.length === 0) return { documents: [] };
-      return documentsApi.getByIds(uploadedFilesIds).then((res) => res.data);
+  const send = useCallback(
+    (text = input) => {
+      if (!text.trim()) return;
+      chat.send(text, { documentIds });
+      setInput("");
+      setAtBottom(true);
     },
-    enabled: uploadedFilesIds.length > 0,
-    refetchInterval: uploadedFilesIds.length > 0 ? 2000 : false,
-  });
+    [chat, documentIds, input]
+  );
 
-  // Determine if documents are still processing
-  const isProcessingDocuments =
-    uploadedFilesIds.length > 0 &&
-    (isLoadingDocs ||
-      uploadedDocs?.documents?.some((doc) =>
-        ["pending", "processing", "extracting_text", "chunking"].includes(
-          doc.status
-        )
-      ));
-
-  const getChatHistory = useCallback((id: string) => {
-    setIsLoadingHistory(true);
-    setNewChatId(null);
-
-    return chatsApi
-      .getHistory(Number(id))
-      .then((response) => {
-        dispatch({
-          type: "SET_MESSAGES",
-          payload: response.data.messages as Message[],
-        });
-      })
-      .catch((err) => {
-        console.error("Failed to load chat history:", err);
-        toast({
-          title: "Error",
-          description: "Could not load chat history.",
-          variant: "destructive",
-        });
-      })
-      .finally(() => {
-        setIsLoadingHistory(false);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (Array.isArray(llmModels) && llmModels.length > 0) {
-      const _selectedModel =
-        llmModels?.find((model) => model.code === "qwen3:4b-instruct-2507-q4_K_M") ||
-        llmModels?.[0];
-
-      setSelectedModel({
-        id: _selectedModel.id,
-        name: _selectedModel.name,
-        description: _selectedModel.description,
-        logo: _selectedModel.logo,
-        code: _selectedModel.code,
-        instruct: _selectedModel.instruct,
-      });
-    }
-  }, [llmModels]);
-
-  const handleRegenerateMessage = (messageId: string) => { };
-
-  useEffect(() => {
-    if (newChatId == chatId) {
-      return;
-    }
-    setNewChatId(null);
-
-    dispatch({
-      type: "SET_MESSAGES",
-      payload: [] as Message[],
-    });
-
-    if (chatId) {
-      getChatHistory(chatId);
-    }
-  }, [newChatId, chatId]);
-
-  useEffect(() => {
-    if (location.pathname === "/chat") {
-      setNewChatId(null);
-      dispatch({
-        type: "SET_MESSAGES",
-        payload: [] as Message[],
-      });
-    }
-  }, [location]);
-
-  const handleSend = (text: string) => {
-    if (!selectedModel) {
-      toast({
-        title: "No Model Selected",
-        description: "Please select a model before sending a message.",
-      });
-      return;
-    }
-
-    // Combine uploaded files and selected existing documents
-    const uploadedFileIds = uploadedFiles.map((file) => file.id);
-    const selectedDocIds = selectedDocs.map((doc) => doc.id);
-
-    // Combine both arrays and remove duplicates
-    const fileIds = [...new Set([...uploadedFileIds, ...selectedDocIds])];
-
-    console.log("fileIds", fileIds);
-
-    // Clear the state variables
-    setUploadedFiles([]);
-    setSelectedDocs([]);
-
-    sendMessage(text, chatId, selectedModel.code, fileIds);
+  // Stay pinned to the newest content while answering, unless the reader scrolled up
+  const onScroll = () => {
+    const el = scroller.current;
+    if (el) setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
   };
+  useLayoutEffect(() => {
+    if (atBottom) scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+  }, [chat.messages, chat.draft, chat.error, atBottom]);
 
-  const handleSelectSuggestion = (text: string) => {
-    setText(text);
-  };
-
-  // Function to check for duplicate filenames
-  const checkForDuplicateFiles = async (files: File[]) => {
-    try {
-      const fileNames = files.map(file => file.name);
-      const response = await documentsApi.checkIfHasSimilarFilename(fileNames);
-
-      if (response.data.has_similar_filename) {
-        return {
-          hasDuplicates: true,
-          duplicateFiles: response.data.similar_files
-        };
-      }
-      return {
-        hasDuplicates: false,
-        duplicateFiles: []
-      };
-    } catch (error) {
-      console.error("Error checking for similar filenames:", error);
-      return {
-        hasDuplicates: false,
-        duplicateFiles: []
-      };
-    }
-  };
-
-  const handleFileUpload = async (files: File[]) => {
-    if (!files.length) return;
-
-    setUploadingFiles(files);
-    setUploadProgress(0);
-
-    try {
-      const response = await documentsApi.upload(
-        files,
-        undefined,
-        undefined,
-        (progress) => setUploadProgress(progress)
-      );
-
-      // Extract document IDs from successful uploads
-      const successfulUploads = response.data
-        .filter((item) => item.status === "success")
-        .map((item) => ({ id: item.id, filename: item.filename }));
-
-      if (successfulUploads.length > 0) {
-        setUploadedFiles((prevState) => [...prevState, ...successfulUploads]);
-
-        toast({
-          title: "Files Uploaded",
-          description: `Processing ${successfulUploads.length} file(s)...`,
-        });
-      } else {
-        toast({
-          title: "Upload Failed",
-          description: "No files were successfully uploaded.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error uploading files:", error);
-      toast({
-        title: "Upload Error",
-        description: "An error occurred while uploading files.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploadingFiles([]);
-    }
-  };
-
-  const handleSelectDocument = (doc: Document) => {
-    setSelectedDocs((prev) => {
-      // Check if document is already selected
-      if (prev.some((d) => d.id === doc.id)) {
-        return prev;
-      }
-      return [...prev, doc];
-    });
-  };
-
-  const handleRemoveDocument = (docId: number) => {
-    setSelectedDocs((prev) => prev.filter((doc) => doc.id !== docId));
-  };
-
-  const handleRemoveUploadedFile = async (docId: number) => {
-    try {
-      // Delete the document from the server
-      await documentsApi.delete(docId.toString());
-
-      // Remove from state
-      setUploadedFiles((prev) => prev.filter((file) => file.id !== docId));
-
-      toast({
-        title: "File removed",
-        description: "The file has been removed successfully.",
-      });
-    } catch (error) {
-      console.error("Error removing file:", error);
-      toast({
-        title: "Error",
-        description: "Failed to remove the file. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Cleanup uploaded files on unmount if they weren't used
-  useEffect(() => {
-    return () => {
-      // Delete any remaining uploaded files when component unmounts
-      uploadedFiles.forEach(file => {
-        documentsApi.delete(file.id.toString()).catch(err =>
-          console.error(`Failed to delete unused file ${file.id}:`, err)
-        );
-      });
-    };
-  }, []);
+  const lastAnswerIndex = chat.messages.map((m) => m.role).lastIndexOf("assistant");
+  const hasConversation = chat.messages.length > 0 || chat.draft !== null;
 
   return (
-    <div className="relative flex h-screen">
-      <ChatSidebar currentChatId={chatId} />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        {isLoadingHistory ? (
-          <div className="flex items-center justify-center flex-1">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-sm text-muted-foreground">Loading conversation...</p>
-            </div>
-          </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <div ref={scroller} onScroll={onScroll} className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {chat.loading ? (
+          <ConversationSkeleton />
+        ) : !hasConversation && !chat.error ? (
+          <EmptyChat scope={scope} onPick={(question) => send(question)} />
         ) : (
-          <div className="flex-1 overflow-y-auto">
-            <ChatList
-              messages={messages}
-              isStreaming={isStreaming}
-              onRegenerateMessage={handleRegenerateMessage}
-              onSelectSuggestion={handleSelectSuggestion}
-            />
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 pb-10 pt-8">
+            {chat.messages.map((message, index) =>
+              message.role === "user" ? (
+                <UserBubble
+                  key={message.id}
+                  message={message}
+                  canEdit={!chat.streaming && isSaved(message.id)}
+                  onEdit={(text) => chat.send(text, { replaceFrom: message.id, documentIds })}
+                />
+              ) : (
+                <AssistantAnswer
+                  key={message.id}
+                  message={message}
+                  onOpenSource={setOpenSource}
+                  onRegenerate={
+                    index === lastAnswerIndex && !chat.streaming && index > 0 && isSaved(chat.messages[index - 1].id)
+                      ? () => chat.regenerate(chat.messages[index - 1].id, documentIds)
+                      : undefined
+                  }
+                />
+              )
+            )}
+            {chat.draft && <DraftAnswer draft={chat.draft} onOpenSource={setOpenSource} />}
+            {chat.error && (
+              <div role="alert" className="flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+                <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+                <div className="flex flex-1 flex-col gap-2">
+                  <p>{chat.error.detail}</p>
+                  <div className="flex gap-2">
+                    {chat.error.question && !QUOTA_CODES.has(chat.error.code ?? "") && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => chat.send(chat.error!.question, { replaceFrom: chat.error!.replaceFrom, documentIds })}
+                      >
+                        <RotateCcw />
+                        Try again
+                      </Button>
+                    )}
+                    {QUOTA_CODES.has(chat.error.code ?? "") && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link to="/search">Browse with search instead</Link>
+                      </Button>
+                    )}
+                    {!chat.error.question && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link to="/chat">Start a new chat</Link>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
+      </div>
 
-        <ChatInput
-          models={llmModels}
-          selectedModel={selectedModel}
-          isLoading={isLoadingModels}
-          error={errorModels?.message}
-          text={text}
-          setText={setText}
-          onModelChange={(model) => setSelectedModel(model)}
-          onSend={handleSend}
-          onFileUpload={handleFileUpload}
-          onCheckDuplicates={checkForDuplicateFiles}
-          disabled={isStreaming || isLoadingModels}
-          showModelSelector={user?.is_dev_mode}
-          uploadProgress={uploadProgress}
-          uploadingFiles={uploadingFiles}
-          processingDocuments={isProcessingDocuments}
-          uploadedFiles={uploadedFiles.map((file) => {
-            const uploadedDoc = uploadedDocs?.documents?.find(
-              (doc) => doc.id === file.id
-            );
-            return {
-              id: file.id,
-              filename: uploadedDoc?.title || file.filename,
-              status: uploadedDoc?.status || DocumentStatus.PROCESSING,
-            };
-          })}
-          selectedDocs={selectedDocs}
-          onSelectDocument={handleSelectDocument}
-          onRemoveDocument={handleRemoveDocument}
-          onRemoveUploadedFile={handleRemoveUploadedFile}
+      <div className="relative mx-auto w-full max-w-3xl px-4 pb-4">
+        {!atBottom && hasConversation && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="absolute -top-11 left-1/2 h-8 -translate-x-1/2 rounded-full bg-background shadow-sm"
+            onClick={() => {
+              setAtBottom(true);
+              scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
+            }}
+          >
+            <ArrowDown />
+            Latest
+          </Button>
+        )}
+        <Composer
+          ref={composer}
+          value={input}
+          onChange={setInput}
+          onSend={() => send()}
+          onStop={chat.stop}
+          streaming={chat.streaming}
+          scope={scope}
+          onScopeChange={setScope}
+          hasMessages={hasConversation}
         />
+      </div>
+
+      <SourceSheet source={openSource} onClose={() => setOpenSource(null)} />
+    </div>
+  );
+}
+
+function ConversationSkeleton() {
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 pt-8">
+      <Skeleton className="ml-auto h-10 w-2/5 rounded-2xl" />
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-11/12" />
+        <Skeleton className="h-4 w-3/5" />
       </div>
     </div>
   );

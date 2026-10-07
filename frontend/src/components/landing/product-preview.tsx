@@ -130,7 +130,7 @@ export function ProductPreview({ className }: { className?: string }) {
           <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
             <span className="truncate text-[13px] font-medium">Scholarship renewal</span>
             <span className="ml-auto hidden rounded border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline">
-              qwen3:4b
+              hybrid search · cited
             </span>
           </header>
 

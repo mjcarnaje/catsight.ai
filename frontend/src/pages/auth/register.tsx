@@ -1,242 +1,89 @@
-"use client";
+import { useMutation } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 
-import type React from "react";
-
-import { BrandLogo } from "@/components/brand/brand-logo";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/components/ui/use-toast";
-import { authApi } from "@/lib/auth";
-import type { RegisterCredentials } from "@/types/auth";
-import { useMutation } from "@tanstack/react-query";
-import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { useSession } from "@/contexts/session-context";
+import { authApi, errorMessage } from "@/lib/api";
+import { useConfig } from "@/lib/queries";
 
 export default function RegisterPage() {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const { setHasTokenAndUser } = useSession();
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { signIn } = useSession();
+  const { data: config } = useConfig();
+  const [form, setForm] = useState({ first_name: "", last_name: "", email: "", password: "" });
+  const register = useMutation({ mutationFn: () => authApi.register(form), onSuccess: signIn });
+  const domains = config?.allowed_email_domains ?? [];
 
-  const registerMutation = useMutation({
-    mutationFn: (data: RegisterCredentials) => authApi.register(data),
-    onSuccess: (data) => {
-      const { tokens, user } = data;
-      if (tokens) {
-        setHasTokenAndUser(tokens.access, tokens.refresh, user);
-        toast({
-          title: "Success",
-          description: "Account created successfully!",
-        });
-      }
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+  const set = (field: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((f) => ({ ...f, [field]: e.target.value }));
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
-
-    if (!email.endsWith("@g.msuiit.edu.ph")) {
-      toast({
-        title: "Invalid email",
-        description: "Only @g.msuiit.edu.ph email addresses are allowed.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      toast({
-        title: "Password mismatch",
-        description: "Password and confirm password do not match.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const credentials: RegisterCredentials = {
-      first_name: firstName,
-      last_name: lastName,
-      username,
-      email,
-      password,
-      password_confirm: confirmPassword,
-    };
-
-    await registerMutation.mutateAsync(credentials);
+    register.mutate();
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 sm:p-6 md:p-8">
-      <Card className="w-full max-w-sm shadow-lg sm:max-w-md lg:max-w-lg">
-        <CardHeader className="pb-4 space-y-1 text-center">
-          <CardTitle className="flex items-center justify-center">
-            <BrandLogo size="md" />
-          </CardTitle>
-          <CardDescription className="text-sm">
-            Sign up to access the document management system
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleRegister} className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="firstName" className="text-sm">
-                  First Name
-                </Label>
-                <Input
-                  id="firstName"
-                  placeholder="First Name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="lastName" className="text-sm">
-                  Last Name
-                </Label>
-                <Input
-                  id="lastName"
-                  placeholder="Last Name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="username" className="text-sm">
-                Username
-              </Label>
-              <Input
-                id="username"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your.email@g.msuiit.edu.ph"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-sm">
-                Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute -translate-y-1/2 right-1 top-1/2 h-7 w-7"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                  <span className="sr-only">
-                    {showPassword ? "Hide password" : "Show password"}
-                  </span>
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword" className="text-sm">
-                Confirm Password
-              </Label>
-              <div className="relative">
-                <Input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute -translate-y-1/2 right-1 top-1/2 h-7 w-7"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                  <span className="sr-only">
-                    {showConfirmPassword ? "Hide password" : "Show password"}
-                  </span>
-                </Button>
-              </div>
-            </div>
-            <Button
-              type="submit"
-              className="w-full h-10 mt-4"
-              disabled={registerMutation.isPending}
-            >
-              {registerMutation.isPending
-                ? "Creating Account..."
-                : "Create Account"}
-            </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex flex-col pb-6">
-          <div className="text-sm text-center">
-            Already have an account?{" "}
-            <Link to="/login" className="text-primary hover:underline">
-              Sign in
-            </Link>
+    <AuthShell
+      title="Create your account"
+      description={
+        domains.length
+          ? `Use your ${domains.map((d) => "@" + d).join(" or ")} email address.`
+          : "Keep your chats and uploads between visits."
+      }
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link to="/login" className="text-foreground underline-offset-4 hover:underline">
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="first_name">First name</Label>
+            <Input id="first_name" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} required />
           </div>
-          <p className="mt-3 text-xs text-center text-muted-foreground">
-            Only users with @g.msuiit.edu.ph email addresses are allowed access.
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="last_name">Last name</Label>
+            <Input id="last_name" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} required />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" autoComplete="email" value={form.email} onChange={set("email")} required />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            minLength={8}
+            value={form.password}
+            onChange={set("password")}
+            aria-describedby="password-hint"
+            required
+          />
+          <p id="password-hint" className="text-xs text-muted-foreground">
+            At least 8 characters; not a common password.
           </p>
-        </CardFooter>
-      </Card>
-    </div>
+        </div>
+        {register.error && (
+          <p role="alert" className="text-sm text-destructive">
+            {errorMessage(register.error)}
+          </p>
+        )}
+        <Button type="submit" disabled={register.isPending}>
+          {register.isPending && <Loader2 className="animate-spin" />}
+          Create account
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

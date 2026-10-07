@@ -1,516 +1,172 @@
-"use client";
-
-import { DocumentCard } from "@/components/document-card";
-import { DocumentCardSkeleton } from "@/components/document-card-skeleton";
-import { DocumentTable } from "@/components/document-table";
-import { DocumentTableSkeleton } from "@/components/document-table-skeleton";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { UploadDocumentsModal } from "@/components/upload-documents-modal";
-import { documentsApi } from "@/lib/api";
-import { DocumentStatus } from "@/lib/document-status-config";
-import { cn } from "@/lib/utils";
-import { DocumentFilters, ViewMode } from "@/types";
-import { useQuery } from "@tanstack/react-query";
-import { FileText, LayoutGrid, List, Upload, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import axios from "axios";
+import { AlertCircle, ChevronLeft, ChevronRight, FileText, SearchX, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const PAGE_SIZE = 10;
+import { DocumentFilterBar } from "@/components/documents/document-filter-bar";
+import { DocumentRow, DocumentRowSkeleton } from "@/components/documents/document-row";
+import { PAGE_SIZE } from "@/components/documents/filter-params";
+import { UploadDialog } from "@/components/documents/upload-dialog";
+import { useDocumentFilters } from "@/components/documents/use-document-filters";
+import { EmptyState } from "@/components/empty-state";
+import { PageContainer, PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/api";
+import { plural } from "@/lib/format";
+import { useDashboard, useDocuments } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 
+/**
+ * The document library: a filterable, paginated list. Filters live in the URL
+ * (`/documents?tags=3&status=failed`), so other pages can link to a prepared view.
+ * Opening it with `state: { upload: true }` shows the upload dialog straight away.
+ */
 export default function DocumentsPage() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("card");
-
+  const state = useDocumentFilters();
+  const { filters, page, activeCount, update, clear } = state;
   const navigate = useNavigate();
   const location = useLocation();
+  const [uploadOpen, setUploadOpen] = useState(false);
 
-  const searchParams = new URLSearchParams(location.search);
-  const pageParam = searchParams.get("page");
-  const statusParam = searchParams.get("status");
+  const dashboard = useDashboard();
+  const documents = useDocuments({ ...filters, page_size: PAGE_SIZE });
+  const { data, isPending, isError, isPlaceholderData, error, refetch } = documents;
 
-  const [currentPage, setCurrentPage] = useState(
-    pageParam ? parseInt(pageParam) : 1
-  );
-  const [filters, setFilters] = useState<DocumentFilters>({
-    status: (statusParam as DocumentStatus) || "all",
-  });
-
-  // Count active filters
-  const activeFilterCount = filters.status !== "all" ? 1 : 0;
-
-  // Update URL when filters change
+  // Another page asked for the upload dialog; open it once and clear the state so a refresh doesn't
+  const wantsUpload = (location.state as { upload?: boolean } | null)?.upload === true;
   useEffect(() => {
-    const params = new URLSearchParams();
+    if (!wantsUpload) return;
+    setUploadOpen(true);
+    navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [wantsUpload, navigate, location.pathname, location.search]);
 
-    if (currentPage > 1) {
-      params.set("page", currentPage.toString());
-    }
-
-    if (filters.status && filters.status !== "all") {
-      params.set("status", filters.status);
-    }
-
-    const newSearch = params.toString();
-    const newPath = newSearch
-      ? `${location.pathname}?${newSearch}`
-      : location.pathname;
-
-    // Only update if the URL would change
-    if (location.search !== `?${newSearch}`) {
-      navigate(newPath, { replace: true });
-    }
-  }, [currentPage, filters, location.pathname, navigate]);
-
-  // Update state when URL changes
+  // A page that no longer exists (documents were deleted, or the filters changed) goes back to page 1
+  const pageGone = isError && page > 1 && axios.isAxiosError(error) && error.response?.status === 404;
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const pageParam = params.get("page");
-    const statusParam = params.get("status");
-    const yearParam = params.get("year");
-    const tagsParam = params.get("tags");
+    if (pageGone) update({ page: undefined }, { replace: true });
+  }, [pageGone, update]);
 
-    if (pageParam) {
-      setCurrentPage(parseInt(pageParam));
-    } else if (currentPage !== 1) {
-      setCurrentPage(1);
-    }
+  // Land at the top of the list after paging
+  const listRef = useRef<HTMLElement>(null);
+  const previousPage = useRef(page);
+  useEffect(() => {
+    if (previousPage.current !== page) listRef.current?.scrollIntoView({ block: "start" });
+    previousPage.current = page;
+  }, [page]);
 
-    setFilters((prev) => ({
-      ...prev,
-      status:
-        statusParam &&
-          Object.values(DocumentStatus).includes(statusParam as DocumentStatus)
-          ? (statusParam as DocumentStatus)
-          : "all",
-      year: yearParam ? yearParam.split(",") : [],
-      tags: tagsParam ? tagsParam.split(",") : [],
-    }));
-  }, [location.search]);
-
-  const { data: paginatedDocuments, isLoading: isDocumentsLoading } = useQuery({
-    queryKey: ["documents", currentPage, PAGE_SIZE, filters],
-    queryFn: () => {
-      const params: Record<string, string | number> = {
-        page: currentPage,
-        page_size: PAGE_SIZE,
-      };
-
-      if (filters.status && filters.status !== "all") {
-        params.status = filters.status;
-      }
-
-      if (filters.year && filters.year.length > 0) {
-        params.year = filters.year.join(",");
-      }
-
-      if (filters.tags && filters.tags.length > 0) {
-        params.tags = filters.tags.join(",");
-      }
-
-      return documentsApi
-        .getAll(currentPage, PAGE_SIZE, params)
-        .then((res) => res.data);
-    },
-    refetchInterval: 5000,
-  });
-
-  const totalPages = paginatedDocuments?.num_pages || 1;
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  // Handle filter changes
-  const handleStatusFilterChange = (value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      status: value as DocumentStatus | "all",
-    }));
-    setCurrentPage(1);
-  };
-
-  const handleYearFilterChange = (values: string[]) => {
-    setFilters((prev) => ({
-      ...prev,
-      year: values,
-    }));
-    setCurrentPage(1);
-  };
-
-  const handleTagsFilterChange = (values: string[]) => {
-    setFilters((prev) => ({
-      ...prev,
-      tags: values,
-    }));
-    setCurrentPage(1);
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      status: "all",
-      year: [],
-      tags: [],
-    });
-    setCurrentPage(1);
-  };
+  const library = dashboard.data?.library;
+  const total = data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const first = (page - 1) * PAGE_SIZE + 1;
+  const last = Math.min(page * PAGE_SIZE, total);
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Header */}
-      <div className="relative py-6 overflow-hidden md:py-10">
-        <div className="absolute inset-0 opacity-5">
-          <div
-            className="absolute inset-0 bg-grid-primary/[0.1]"
-            style={{ backgroundSize: "30px 30px" }}
-          ></div>
-        </div>
-        <div className="container relative z-10 px-4 mx-auto md:px-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl lg:text-4xl">
-                Documents
-              </h1>
-              <p className="mt-1 text-sm md:text-base text-muted-foreground">
-                Manage and organize your uploaded documents
-              </p>
-            </div>
-            <Button
-              onClick={() => setIsDialogOpen(true)}
-              size="default"
-              className="gap-2 mt-4 font-medium transition-all shadow-sm hover:shadow-md md:mt-0"
-            >
-              <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">Upload Document</span>
-              <span className="sm:hidden">Upload</span>
-            </Button>
-          </div>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Documents"
+        description={
+          library ? `${plural(library.documents, "document")} · ${plural(library.pages, "page")} indexed` : undefined
+        }
+        actions={
+          <Button onClick={() => setUploadOpen(true)}>
+            <Upload />
+            Upload
+          </Button>
+        }
+      />
 
-      <div className="container px-4 py-4 mx-auto md:py-8 md:px-6">
-        {/* Filters and View Mode */}
-        <div className="flex flex-col gap-4 p-4 mb-6 border rounded-lg shadow-sm md:mb-8 bg-card md:flex-row md:items-start md:justify-between">
-          <div className="flex flex-col w-full gap-4 md:flex-row md:items-start">
-            <div className="grid gap-1.5">
-              <label
-                htmlFor="status-filter"
-                className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Status
-              </label>
-              <Select
-                value={filters.status}
-                onValueChange={handleStatusFilterChange}
-              >
-                <SelectTrigger id="status-filter" className="h-9">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  {Object.values(DocumentStatus).map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status.charAt(0).toUpperCase() +
-                        status.slice(1).replace(/_/g, " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+      <DocumentFilterBar state={state} />
 
-          {/* Applied filters display */}
-          <div className="flex items-center self-end gap-2 p-1 border rounded-full md:self-auto bg-muted/30">
-            <Button
-              variant={viewMode === "card" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("card")}
-              className={cn(
-                "gap-2 rounded-full",
-                viewMode === "card" ? "shadow-sm" : "hover:bg-background"
-              )}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span className="hidden text-xs sm:inline">Grid</span>
-            </Button>
-            <Button
-              variant={viewMode === "table" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("table")}
-              className={cn(
-                "gap-2 rounded-full",
-                viewMode === "table" ? "shadow-sm" : "hover:bg-background"
-              )}
-            >
-              <List className="w-4 h-4" />
-              <span className="hidden text-xs sm:inline">List</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Active filters display */}
-        {activeFilterCount > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {filters.status !== "all" && (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                Status:{" "}
-                {filters.status.charAt(0).toUpperCase() +
-                  filters.status.slice(1).replace(/_/g, " ")}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleStatusFilterChange("all")}
-                  className="w-auto h-auto p-0 ml-1"
-                >
-                  <X className="w-3 h-3" />
-                  <span className="sr-only">Remove status filter</span>
-                </Button>
-              </Badge>
-            )}
-
-            {filters.year &&
-              filters.year.length > 0 &&
-              filters.year.map((year) => (
-                <Badge
-                  key={`year-${year}`}
-                  variant="secondary"
-                  className="flex items-center gap-1"
-                >
-                  Year: {year}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      handleYearFilterChange(
-                        filters.year?.filter((y) => y !== year) || []
-                      )
-                    }
-                    className="w-auto h-auto p-0 ml-1"
-                  >
-                    <X className="w-3 h-3" />
-                    <span className="sr-only">Remove year filter</span>
-                  </Button>
-                </Badge>
-              ))}
-
-            {filters.tags &&
-              filters.tags.map((tag) => (
-                <Badge
-                  key={tag}
-                  variant="secondary"
-                  className="flex items-center gap-1"
-                >
-                  {tag}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      handleTagsFilterChange(
-                        filters.tags?.filter((t) => t !== tag) || []
-                      )
-                    }
-                    className="w-auto h-auto p-0 ml-1"
-                  >
-                    <X className="w-3 h-3" />
-                    <span className="sr-only">Remove tag filter</span>
-                  </Button>
-                </Badge>
-              ))}
-
-            {activeFilterCount > 1 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="text-xs h-7"
-              >
-                Clear all
+      <section ref={listRef} aria-label="Documents" aria-busy={documents.isFetching} className="flex scroll-mt-4 flex-col gap-3">
+        {isPending || pageGone ? (
+          <ul className="divide-y overflow-hidden rounded-lg border bg-card" aria-label="Loading documents">
+            {Array.from({ length: 6 }, (_, i) => (
+              <DocumentRowSkeleton key={i} />
+            ))}
+          </ul>
+        ) : isError ? (
+          <EmptyState
+            icon={AlertCircle}
+            title="Couldn't load documents"
+            description={errorMessage(error)}
+            action={
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                Try again
               </Button>
-            )}
-          </div>
-        )}
-
-        {isDocumentsLoading ? (
-          viewMode === "card" ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {Array(6)
-                .fill(0)
-                .map((_, index) => (
-                  <DocumentCardSkeleton key={index} />
-                ))}
-            </div>
+            }
+          />
+        ) : total === 0 ? (
+          activeCount > 0 ? (
+            <EmptyState
+              icon={SearchX}
+              title="No documents match"
+              description="Try a different search, or remove some of the filters."
+              action={
+                <Button variant="outline" size="sm" onClick={clear}>
+                  Clear filters
+                </Button>
+              }
+            />
           ) : (
-            <div className="overflow-hidden border rounded-lg shadow-sm">
-              <div className="w-full overflow-x-auto">
-                <DocumentTableSkeleton rows={5} />
-              </div>
-            </div>
+            <EmptyState
+              icon={FileText}
+              title="No documents yet"
+              description="Upload scanned PDFs and they'll be read, catalogued and made searchable."
+              action={
+                <Button size="sm" onClick={() => setUploadOpen(true)}>
+                  <Upload />
+                  Upload documents
+                </Button>
+              }
+            />
           )
         ) : (
           <>
-            {viewMode === "card" ? (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
-                {paginatedDocuments?.results.map((doc) => (
-                  <DocumentCard key={doc.id} doc={doc} />
-                ))}
-              </div>
-            ) : (
-              <div className="overflow-hidden border rounded-lg shadow-sm">
-                <div className="w-full overflow-x-auto">
-                  <DocumentTable
-                    documents={paginatedDocuments?.results || []}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Pagination */}
-            {paginatedDocuments && paginatedDocuments.count > PAGE_SIZE && (
-              <div className="flex flex-col items-center mt-6 md:mt-10">
-                <p className="mb-2 text-xs md:mb-4 md:text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * PAGE_SIZE + 1} to{" "}
-                  {Math.min(currentPage * PAGE_SIZE, paginatedDocuments.count)}{" "}
-                  of {paginatedDocuments.count} documents
-                </p>
-                <Pagination>
-                  <PaginationContent className="flex flex-wrap justify-center gap-1">
-                    <PaginationItem>
-                      <PaginationPrevious
-                        onClick={() =>
-                          handlePageChange(Math.max(1, currentPage - 1))
-                        }
-                        className={cn(
-                          "transition-all rounded-full",
-                          currentPage === 1
-                            ? "pointer-events-none opacity-50"
-                            : "cursor-pointer hover:bg-muted"
-                        )}
-                      />
-                    </PaginationItem>
-
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .filter((page) => {
-                        // On mobile, show fewer page numbers
-                        const isMobile = window.innerWidth < 640;
-                        if (isMobile) {
-                          return (
-                            page === 1 ||
-                            page === totalPages ||
-                            (page >= currentPage - 1 && page <= currentPage + 1)
-                          );
-                        }
-                        return true;
-                      })
-                      .map((page, index, array) => {
-                        // Add ellipsis if there are gaps in page numbers
-                        const showEllipsisBefore =
-                          index > 0 && array[index - 1] !== page - 1;
-                        const showEllipsisAfter =
-                          index < array.length - 1 &&
-                          array[index + 1] !== page + 1;
-
-                        return (
-                          <>
-                            {showEllipsisBefore && (
-                              <PaginationItem
-                                key={`ellipsis-before-${page}`}
-                                className="hidden sm:block"
-                              >
-                                <span className="px-3 py-2">...</span>
-                              </PaginationItem>
-                            )}
-                            <PaginationItem key={page}>
-                              <PaginationLink
-                                isActive={page === currentPage}
-                                onClick={() => handlePageChange(page)}
-                                className={cn(
-                                  "rounded-full font-medium transition-all",
-                                  page === currentPage && "shadow-sm"
-                                )}
-                              >
-                                {page}
-                              </PaginationLink>
-                            </PaginationItem>
-                            {showEllipsisAfter && (
-                              <PaginationItem
-                                key={`ellipsis-after-${page}`}
-                                className="hidden sm:block"
-                              >
-                                <span className="px-3 py-2">...</span>
-                              </PaginationItem>
-                            )}
-                          </>
-                        );
-                      })}
-
-                    <PaginationItem>
-                      <PaginationNext
-                        onClick={() =>
-                          handlePageChange(
-                            Math.min(totalPages, currentPage + 1)
-                          )
-                        }
-                        className={cn(
-                          "transition-all rounded-full",
-                          currentPage === totalPages
-                            ? "pointer-events-none opacity-50"
-                            : "cursor-pointer hover:bg-muted"
-                        )}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              </div>
-            )}
-
-            {paginatedDocuments?.results.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-8 text-center border rounded-lg shadow-inner md:py-16 bg-card/50">
-                <div className="w-16 h-16 p-4 mb-4 rounded-full md:w-24 md:h-24 md:mb-6 bg-muted/50">
-                  <FileText className="w-full h-full text-muted-foreground" />
-                </div>
-                <h3 className="mb-2 text-lg font-semibold md:text-xl">
-                  No documents found
-                </h3>
-                <p className="max-w-md mb-4 text-sm md:mb-6 md:text-base text-muted-foreground">
-                  {filters.status !== "all"
-                    ? "Try adjusting your filters to see more results."
-                    : "Upload documents to make them available for search and chat."}
-                </p>
-                {filters.status === "all" && (
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              {first}-{last} of {total.toLocaleString()}
+            </p>
+            <ul
+              className={cn(
+                "divide-y overflow-hidden rounded-lg border bg-card transition-opacity",
+                isPlaceholderData && "opacity-60"
+              )}
+            >
+              {data.results.map((doc) => (
+                <DocumentRow key={doc.id} doc={doc} />
+              ))}
+            </ul>
+            {totalPages > 1 && (
+              <nav aria-label="Pagination" className="flex items-center justify-between gap-3">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+                <div className="flex items-center gap-2">
                   <Button
-                    onClick={() => setIsDialogOpen(true)}
-                    size="lg"
-                    className="gap-2 transition-all shadow-sm hover:shadow-md"
+                    variant="outline"
+                    size="sm"
+                    disabled={!data.previous || isPlaceholderData}
+                    onClick={() => update({ page: page - 1 > 1 ? String(page - 1) : undefined })}
                   >
-                    <Upload className="w-4 h-4" />
-                    Upload Your First Document
+                    <ChevronLeft />
+                    Previous
                   </Button>
-                )}
-              </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!data.next || isPlaceholderData}
+                    onClick={() => update({ page: String(page + 1) })}
+                  >
+                    Next
+                    <ChevronRight />
+                  </Button>
+                </div>
+              </nav>
             )}
           </>
         )}
-      </div>
+      </section>
 
-      <UploadDocumentsModal
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-      />
-    </div>
+      <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />
+    </PageContainer>
   );
 }

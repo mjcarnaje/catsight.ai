@@ -7,6 +7,9 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 
 const require = createRequire(import.meta.url);
 
+// Absolute site URL for the Open Graph tags in index.html (%VITE_PUBLIC_URL%)
+process.env.VITE_PUBLIC_URL ??= "https://catsight.mjcarnaje.com";
+
 const pdfjsDistPath = path.dirname(require.resolve("pdfjs-dist/package.json"));
 const cMapsDir = normalizePath(path.join(pdfjsDistPath, "cmaps"));
 
@@ -31,15 +34,10 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
     host: "0.0.0.0",
+    // In Docker the API is reachable as backend:8000; outside it, set API_URL=http://localhost:8000
     proxy: {
-      "/api": {
-        target: "http://backend:8000",
-        changeOrigin: true,
-      },
-      "/media": {
-        target: "http://backend:8000",
-        changeOrigin: true,
-      },
+      "/api": { target: process.env.API_URL ?? "http://backend:8000", changeOrigin: true },
+      "/media": { target: process.env.API_URL ?? "http://backend:8000", changeOrigin: true },
     },
     watch: {
       usePolling: true,

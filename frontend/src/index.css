@@ -39,6 +39,7 @@
     --ring: 350 75% 45%;
 
     /* Mascot colors */
+    --success: 152 55% 36%;
     --gold: 43 96% 56%; /* #F9B91F */
     --gold-foreground: 30 45% 12%;
     --tabby: 22 62% 45%; /* #BA5C2C */
@@ -92,6 +93,7 @@
     --input: 30 5% 17%;
     --ring: 30 5% 40%;
 
+    --success: 152 45% 52%;
     --gold: 43 96% 60%;
     --gold-foreground: 30 45% 10%;
     --tabby: 22 70% 55%;

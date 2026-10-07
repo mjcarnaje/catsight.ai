@@ -1,376 +1,199 @@
-import {
+import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
+
+import type {
+  AppConfig,
+  AuthResponse,
   Chat,
+  ChatHistory,
+  Chunk,
+  Dashboard,
   Document,
-  LLMModel,
-  PaginatedResponse,
-  Source,
-  StatisticsResponse,
+  DocumentDetail,
+  DocumentFilters,
+  DocumentStatus,
+  DocumentUpdate,
+  Extractor,
+  Paginated,
+  SearchAnswer,
+  SearchResponse,
+  Tag,
+  UploadResult,
+  User,
 } from "@/types";
-import { SearchParams, SearchResults } from "@/types/search";
-import { Tag } from "@/types/tags";
-import axios from "axios";
 
-const API_PREFIX = "/api";
+// --- Tokens ----------------------------------------------------------------------------
+const ACCESS = "access_token";
+const REFRESH = "refresh_token";
 
-export const getDocumentPreviewUrl = (
-  previewPath: string | undefined
-): string => {
-  return `/media/${previewPath}`;
-};
-
-export const getDocumentUrl = (documentId: number): string => {
-  return `/documents/${documentId}`;
-};
-
-export const api = axios.create({
-  baseURL: API_PREFIX,
-  headers: {
-    "Content-Type": "application/json",
+export const tokens = {
+  access: () => localStorage.getItem(ACCESS),
+  refresh: () => localStorage.getItem(REFRESH),
+  set(access: string, refresh?: string) {
+    localStorage.setItem(ACCESS, access);
+    if (refresh) localStorage.setItem(REFRESH, refresh);
   },
-  timeout: 30000,
-});
+  clear() {
+    localStorage.removeItem(ACCESS);
+    localStorage.removeItem(REFRESH);
+  },
+};
+
+/** Fired when the session can't be refreshed; the session context signs out. */
+export const SESSION_EXPIRED = "catsight:session-expired";
+
+export const api = axios.create({ baseURL: "/api", timeout: 60_000 });
 
 api.interceptors.request.use((config) => {
-  // Add trailing slash to the URL if it's missing
-
-  if (!config.url?.endsWith("/")) {
-    config.url = config.url + "/";
-  }
-
-  const token = localStorage.getItem("access_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  // Django routes end with a slash; add it so every call matches
+  if (config.url && !config.url.endsWith("/") && !config.url.includes("?")) config.url += "/";
+  const access = tokens.access();
+  if (access) config.headers.Authorization = `Bearer ${access}`;
   return config;
 });
 
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+let refreshing: Promise<string | null> | null = null;
 
-    if (
-      error.response?.status === 401 &&
-      !originalRequest._retry &&
-      !originalRequest.url?.includes("/auth/token/refresh")
-    ) {
-      console.log("Token appears to be expired, attempting to refresh...");
-      originalRequest._retry = true;
+/** Exchange the refresh token for a new access token (one request at a time). */
+export function refreshAccessToken(): Promise<string | null> {
+  const refresh = tokens.refresh();
+  if (!refresh) return Promise.resolve(null);
+  refreshing ??= axios
+    .post<{ access: string; refresh?: string }>("/api/auth/token/refresh/", { refresh })
+    .then(({ data }) => {
+      tokens.set(data.access, data.refresh);
+      return data.access;
+    })
+    .catch(() => {
+      tokens.clear();
+      window.dispatchEvent(new Event(SESSION_EXPIRED));
+      return null;
+    })
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
 
-      try {
-        const refreshToken = localStorage.getItem("refresh_token");
-        if (!refreshToken) {
-          console.error("No refresh token available");
-          throw new Error("No refresh token available");
-        }
-
-        const tokenResponse = await axios.post(
-          `${API_PREFIX}/auth/token/refresh`,
-          {
-            refresh: refreshToken,
-          }
-        );
-
-        if (tokenResponse.data.access) {
-          console.log("Token refreshed successfully");
-          localStorage.setItem("access_token", tokenResponse.data.access);
-
-          originalRequest.headers.Authorization = `Bearer ${tokenResponse.data.access}`;
-          return axios(originalRequest);
-        } else {
-          console.error("Invalid token response format", tokenResponse.data);
-          throw new Error("Invalid token response format");
-        }
-      } catch (error) {
-        console.error("Token refresh failed:", error);
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        window.dispatchEvent(new Event("storage"));
-        return Promise.reject(error);
-      }
+api.interceptors.response.use(undefined, async (error: AxiosError) => {
+  const original = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
+  if (error.response?.status === 401 && original && !original._retried && tokens.refresh()) {
+    original._retried = true;
+    const access = await refreshAccessToken();
+    if (access) {
+      original.headers.Authorization = `Bearer ${access}`;
+      return api(original);
     }
-
-    if (error.response?.data) {
-      if (typeof error.response.data === "object") {
-        const errorMessage = Object.entries(error.response.data)
-          .map(([key, value]) => {
-            if (Array.isArray(value)) {
-              return `${key}: ${value.join(", ")}`;
-            }
-            return `${key}: ${value}`;
-          })
-          .join("; ");
-        error.message = errorMessage;
-      } else if (typeof error.response.data === "string") {
-        error.message = error.response.data;
-      }
-    }
-
-    return Promise.reject(error);
   }
-);
+  return Promise.reject(error);
+});
 
-export interface ChatResponse {
-  answer: string;
-  sources: {
-    document_id: number;
-    document_title: string;
-    total_similarity: number;
-    chunks: {
-      chunk_index: number;
-      content: string;
-      similarity: number;
-    }[];
-  }[];
-  grade?: {
-    relevance: string;
-    accuracy: string;
-    score: number;
+/** A readable message from an API error (DRF `detail` or field errors). */
+export function errorMessage(error: unknown, fallback = "Something went wrong. Try again."): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as Record<string, unknown> | string | undefined;
+    if (typeof data === "string" && data.length < 200) return data;
+    if (data && typeof data === "object") {
+      if (typeof data.detail === "string") return data.detail;
+      const first = Object.values(data).flat()[0];
+      if (typeof first === "string") return first;
+    }
+    if (error.code === "ECONNABORTED") return "The server took too long to answer.";
+    if (!error.response) return "Can't reach the server. Check your connection.";
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
+/** Turns filters into the query string the documents endpoint expects. */
+function documentParams(filters: DocumentFilters) {
+  return {
+    q: filters.q || undefined,
+    status: filters.status,
+    year: filters.year?.length ? filters.year.join(",") : undefined,
+    tags: filters.tags?.length ? filters.tags.join(",") : undefined,
+    mine: filters.mine ? "1" : undefined,
+    sort: filters.sort,
+    page: filters.page,
+    page_size: filters.page_size,
   };
 }
 
-export interface SearchApiResponse {
-  summary: string;
-  sources: Source[];
-}
+// --- Endpoints ---------------------------------------------------------------------------
+export const authApi = {
+  login: (email: string, password: string) =>
+    api.post<AuthResponse>("/auth/login/", { email, password }).then((r) => r.data),
+  register: (data: { email: string; password: string; first_name: string; last_name: string }) =>
+    api.post<AuthResponse>("/auth/register/", data).then((r) => r.data),
+  guest: () => api.post<AuthResponse>("/auth/guest/").then((r) => r.data),
+  google: (code: string) => api.post<AuthResponse>("/auth/google/", { code }).then((r) => r.data),
+  me: () => api.get<User>("/auth/me/").then((r) => r.data),
+  updateMe: (data: FormData | Partial<Pick<User, "first_name" | "last_name">>) =>
+    api.patch<User>("/auth/me/", data).then((r) => r.data),
+};
 
-export const chatsApi = {
-  getCount: () => {
-    return api
-      .get<{ count: number }>("/chats/count")
-      .then((response) => {
-        return response.data.count;
-      })
-      .catch((error) => {
-        console.error("Error fetching chat count:", error);
-        throw error;
-      });
-  },
+export const configApi = {
+  get: () => api.get<AppConfig>("/config/").then((r) => r.data),
+};
 
-  getOne: (id: number) => {
-    console.log(`Fetching chat with ID: ${id}`);
-    return api
-      .get<Chat>(`/chats/${id}`)
-      .then((response) => {
-        console.log(`Retrieved chat ${id} successfully`);
-        return response;
-      })
-      .catch((error) => {
-        console.error(`Error fetching chat ${id}:`, error);
-        throw error;
-      });
-  },
-
-  getHistory: (chatId: number) => {
-    console.log(`Fetching chat history from LangGraph for chat ID: ${chatId}`);
-    return api
-      .get(`/chats/${chatId}/history`)
-      .then((response) => response)
-      .catch((error) => {
-        console.error(`Error fetching chat history for ${chatId}:`, error);
-        throw error;
-      });
-  },
-
-  getMessages: (chatId: number) => api.get(`/chats/${chatId}/messages`),
-
-  create: (data: { title: string; document_id?: number }) =>
-    api.post<Chat>("/chats/create", data),
-
-  update: (id: number, data: { title: string }) =>
-    api.patch<Chat>(`/chats/${id}/update`, data),
-
-  delete: (id: number) => api.delete(`/chats/${id}/delete`),
-
-  getRecent: (pageSize: number = 10, page: number = 1) =>
-    api.get<PaginatedResponse<Chat>>("/chats/recent/", {
-      params: {
-        page_size: pageSize.toString(),
-        page: page.toString(),
-      },
-    }),
+export const dashboardApi = {
+  get: () => api.get<Dashboard>("/dashboard/").then((r) => r.data),
 };
 
 export const documentsApi = {
-  getAll: (
-    page: number = 1,
-    pageSize: number = 9,
-    additionalParams: Record<string, string | number> = {}
-  ) => {
-    const params = {
-      page,
-      page_size: pageSize,
-      ...additionalParams,
-    };
-    return api.get<PaginatedResponse<Document>>("/documents", { params });
-  },
-  getByIds: (docIds: number[]) => {
-    return api.post<{ documents: Document[] }>("/documents/by-ids/", {
-      doc_ids: docIds,
-    });
-  },
-  getOne: (id: number) => api.get<Document>(`/documents/${id}`),
-  getRaw: (id: number) => api.get<Document>(`/documents/${id}/raw`),
-  getMarkdown: (id: number) => api.get<Document>(`/documents/${id}/markdown`),
-  getGraph: () =>
-    api.get<{ mermaid: string; format: string; message: string }>(
-      "/documents/graph"
-    ),
-  getGraphImageUrl: () => `${API_PREFIX}/documents/graph/image`,
-  retry: (id: number) => api.post(`/documents/${id}/retry/`),
-  regeneratePreview: (id: number) =>
-    api.post<{
-      status: string;
-      message: string;
-      preview_image: string;
-      blurhash: string | null;
-    }>(`/documents/${id}/regenerate-preview`),
-  regenerateSummary: (id: number, summarization_model?: string) =>
-    api.post<{
-      status: string;
-      message: string;
-    }>(
-      `/documents/${id}/regenerate-summary`,
-      summarization_model ? { summarization_model } : undefined
-    ),
-  reextract: (id: number, markdown_converter: string) =>
-    api.post<{
-      status: string;
-      message: string;
-    }>(`/documents/${id}/reextract`, { markdown_converter }),
+  list: (filters: DocumentFilters = {}) =>
+    api.get<Paginated<Document>>("/documents/", { params: documentParams(filters) }).then((r) => r.data),
+  get: (id: number) => api.get<DocumentDetail>(`/documents/${id}/`).then((r) => r.data),
+  update: (id: number, data: DocumentUpdate) =>
+    api.patch<DocumentDetail>(`/documents/${id}/`, data).then((r) => r.data),
+  remove: (id: number) => api.delete(`/documents/${id}/`),
   upload: (
     files: File[],
-    markdown_converter?: string,
-    summarization_model?: string,
-    onProgress?: (progress: number) => void
+    options: { extractor?: Extractor; private?: boolean } = {},
+    onProgress?: (percent: number) => void
   ) => {
-    const formData = new FormData();
-    files.forEach((file) => formData.append("files", file));
-
-    if (markdown_converter) {
-      formData.append("markdown_converter", markdown_converter);
-    }
-
-    if (summarization_model) {
-      formData.append("summarization_model", summarization_model);
-    }
-
-    return api.post<
-      {
-        status: "success" | "error";
-        id: number;
-        filename: string;
-      }[]
-    >("/documents/upload", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-      onUploadProgress: (progressEvent) => {
-        if (progressEvent.total && onProgress) {
-          const percentCompleted = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          onProgress(percentCompleted);
-        }
-      },
-    });
-  },
-  delete: (id: string) => api.delete(`/documents/${id}/delete`),
-  chat: (query: string) => api.post<ChatResponse>("/documents/chat", { query }),
-  getRecentChats: (limit: number = 5) => chatsApi.getRecent(limit),
-  search: (params: SearchParams) =>
-    api
-      .get<SearchResults>(
-        params.accurate ? "/documents/search" : "/documents/standard-search",
-        { params }
-      )
-      .then((res) => res.data),
-  getCount: () => {
+    const form = new FormData();
+    files.forEach((file) => form.append("files", file));
+    if (options.extractor) form.append("extractor", options.extractor);
+    if (options.private) form.append("private", "true");
     return api
-      .get<{ count: number }>("/documents/count")
-      .then((response) => {
-        return response.data.count;
+      .post<{ results: UploadResult[] }>("/documents/", form, {
+        timeout: 300_000,
+        onUploadProgress: (e) => e.total && onProgress?.(Math.round((e.loaded / e.total) * 100)),
       })
-      .catch((error) => {
-        console.error("Error fetching document count:", error);
-        throw error;
-      });
+      .then((r) => r.data.results);
   },
-  getChunks: (id: number) => {
-    return api.get(`/documents/${id}/chunks`);
-  },
-  updateMarkdown: (id: number, markdown: string) => {
-    return api.put(`/documents/${id}/update`, { markdown });
-  },
-  getAllTags: () => {
-    return api.get<string[]>("/documents/get_all_tags").then((res) => res.data);
-  },
-  getAllYears: () => {
-    return api
-      .get<string[]>("/documents/get_all_years")
-      .then((res) => res.data);
-  },
-  getStatistics: () => {
-    return api
-      .get<{
-        documents_count: number;
-        chats_count: number;
-        users_count: number;
-        documents_by_status: Record<string, number>;
-      }>("/statistics")
-      .then((response) => response.data)
-      .catch((error) => {
-        console.error("Error fetching statistics:", error);
-        throw error;
-      });
-  },
-  standardSearch: (query: string, years?: string[], tags?: string[]) => {
-    const params = new URLSearchParams();
-    params.append("query", query);
-
-    if (years && years.length > 0) {
-      params.append("year", years.join(","));
-    }
-
-    if (tags && tags.length > 0) {
-      params.append("tags", tags.join(","));
-    }
-
-    return api.get(`/documents/standard-search`, { params });
-  },
-  checkIfHasSimilarFilename: (fileNames: string[]) => {
-    return api.get(`/documents/check-if-has-similar-filename`, {
-      params: { file_names: fileNames.join(",") },
-    });
-  },
+  text: (id: number) => api.get<{ markdown: string }>(`/documents/${id}/text/`).then((r) => r.data.markdown),
+  saveText: (id: number, markdown: string) => api.put(`/documents/${id}/text/`, { markdown }),
+  chunks: (id: number) => api.get<Chunk[]>(`/documents/${id}/chunks/`).then((r) => r.data),
+  reprocess: (id: number, options: { from?: Exclude<DocumentStatus, "queued" | "ready">; extractor?: Extractor } = {}) =>
+    api.post<{ status: string; from: DocumentStatus }>(`/documents/${id}/reprocess/`, options).then((r) => r.data),
 };
 
-export const llmApi = {
-  getAll: (instruct: boolean = false) =>
+export const searchApi = {
+  search: (q: string, filters: { year?: number[]; tags?: number[] } = {}) =>
     api
-      .get<LLMModel[]>("/llm-models", {
-        params: { instruct: instruct.toString() },
+      .get<SearchResponse>("/search/", {
+        params: { q, year: filters.year?.join(",") || undefined, tags: filters.tags?.join(",") || undefined },
       })
-      .then((res) => res.data),
-  getOne: (id: number) =>
-    api.get<LLMModel>(`/llm-models/${id}`).then((res) => res.data),
+      .then((r) => r.data),
+  answer: (q: string, filters: { year?: number[]; tags?: number[] } = {}) =>
+    api
+      .post<SearchAnswer>("/search/answer/", { q, year: filters.year?.join(","), tags: filters.tags?.join(",") })
+      .then((r) => r.data),
+};
+
+export const chatsApi = {
+  list: (params: { q?: string; page?: number; page_size?: number } = {}) =>
+    api.get<Paginated<Chat>>("/chats/", { params }).then((r) => r.data),
+  messages: (id: number) => api.get<ChatHistory>(`/chats/${id}/messages/`).then((r) => r.data),
+  rename: (id: number, title: string) => api.patch<Chat>(`/chats/${id}/`, { title }).then((r) => r.data),
+  remove: (id: number) => api.delete(`/chats/${id}/`),
 };
 
 export const tagsApi = {
-  getAll: () => api.get<Tag[]>("/tags").then((res) => res.data),
-
-  getOne: (id: number) => api.get<Tag>(`/tags/${id}`).then((res) => res.data),
-
-  create: (data: { name: string; description?: string }) =>
-    api.post<Tag>("/tags/create", data),
-
+  list: () => api.get<Tag[]>("/tags/").then((r) => r.data),
+  create: (data: { name: string; description?: string }) => api.post<Tag>("/tags/", data).then((r) => r.data),
   update: (id: number, data: { name?: string; description?: string }) =>
-    api.patch<Tag>(`/tags/${id}/update`, data),
-
-  delete: (id: number) => api.delete(`/tags/${id}/delete`),
-};
-
-export const statisticsApi = {
-  getStatistics: () =>
-    api.get<StatisticsResponse>("/statistics").then((res) => res.data),
+    api.patch<Tag>(`/tags/${id}/`, data).then((r) => r.data),
+  remove: (id: number) => api.delete(`/tags/${id}/`),
 };
