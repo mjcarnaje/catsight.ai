@@ -1,147 +1,97 @@
+# Local development: Django runserver + Vite with live reload.
+#
+#   cp .env.example .env            # add OPENROUTER_API_KEY
+#   docker compose up --build       # http://localhost:3000
+#
+# Fully local models instead of OpenRouter (slow on CPU, ~5 GB of models):
+#   LLM_PROVIDER=ollama LOCAL_OCR=1 docker compose --profile ollama up --build && ./pull-llms.sh
+# NVIDIA GPU: add -f docker-compose.gpu.yml
+name: catsightai
+
+x-backend: &backend
+  image: catsight-backend:dev
+  build:
+    context: ./backend
+    args:
+      DEV: "1"
+      LOCAL_OCR: ${LOCAL_OCR:-0}
+      TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DJANGO_DEBUG: "1"
+    POSTGRES_HOST: db
+    CELERY_BROKER: redis://redis:6379/0
+    CELERY_BACKEND: redis://redis:6379/0
+    CACHE_URL: redis://redis:6379/1
+    OLLAMA_BASE_URL: http://ollama:11434
+  volumes:
+    - ./backend:/usr/src/app
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
 services:
   db:
-    image: ankane/pgvector:latest
-    ports:
-      - "5432:5432"
+    # pg15 matches the data directory of earlier versions of this setup
+    image: pgvector/pgvector:pg15
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=app_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_db
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app_db"]
+      interval: 5s
+      retries: 20
 
   redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-    networks:
-      - app-network
+    image: redis:7-alpine
 
-  ollama:
-    volumes:
-      - ./ollama/ollama:/root/.ollama
-    container_name: ollama
-    pull_policy: always
-    tty: true
-    restart: unless-stopped
-    image: docker.io/ollama/ollama:latest
-    ports:
-      - 7869:11434
-    environment:
-      - OLLAMA_KEEP_ALIVE=24h
-      # Chat model + one more (embeddings or the title model). A third resident
-      # model doesn't fit next to the app in Docker Desktop's default ~8 GB.
-      - OLLAMA_MAX_LOADED_MODELS=2
-      - OLLAMA_DEBUG=1
-    networks:
-      - app-network
   backend:
-    build: ./backend
+    <<: *backend
+    command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
     ports:
-      - "8000:8000"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=app_db
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-      - CELERY_BROKER=redis://redis:6379/0
-      - CELERY_BACKEND=redis://redis:6379/0
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - GOOGLE_OAUTH_CLIENT_ID=***REMOVED-GOOGLE-CLIENT-ID***
-      - GOOGLE_OAUTH_CLIENT_SECRET=***REMOVED-GOOGLE-CLIENT-SECRET***
-      - GOOGLE_REDIRECT_URI=https://catsightai.ngrok.app/login
-      - TORCH_DEVICE=cpu
-    depends_on:
-      - db
-      - redis
-      - ollama
-    volumes:
-      - ./backend:/usr/src/app
-    networks:
-      - app-network
-    command: >
-      bash -c "mkdir -p /usr/src/app/logs &&
-               python manage.py makemigrations &&
-               python manage.py migrate &&
-               python manage.py runserver 0.0.0.0:8000"
+      - "127.0.0.1:8000:8000"
 
-  celery_worker:
-    build: ./backend
-    command: >
-      bash -c "mkdir -p /usr/src/app/logs &&
-               celery -A inteldocs worker --loglevel=info --concurrency=1"
-    environment:
-      - CELERY_BROKER=redis://redis:6379/0
-      - CELERY_BACKEND=redis://redis:6379/0
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - TORCH_DEVICE=cpu
-
-    depends_on:
-      - backend
-    volumes:
-      - ./backend:/usr/src/app
-    networks:
-      - app-network
-    extra_hosts:
-      - host.docker.internal:host-gateway
+  worker:
+    <<: *backend
+    # Threads: OCR, summaries and embeddings are network-bound calls to the provider
+    command: celery -A inteldocs worker --loglevel=info --pool=threads --concurrency=4
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      target: dev
+    command: npm run dev
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
     depends_on:
       - backend
-    networks:
-      - app-network
-    command: npm run dev
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    environment:
-      - HOST=0.0.0.0
-      - CHOKIDAR_USEPOLLING=true
-      - WDS_SOCKET_HOST=localhost
 
-  jupyter:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+  ollama:
+    profiles: [ollama]
+    image: ollama/ollama:latest
     ports:
-      - "8888:8888"
+      - "127.0.0.1:7869:11434"
     volumes:
-      - ./backend:/usr/src/app
-      - ./notebooks:/usr/src/app/notebooks
-    networks:
-      - app-network
+      - ./ollama/ollama:/root/.ollama
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=app_db
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - db
-      - redis
-      - ollama
-      - backend
-    command: >
-      bash -c "pip install jupyter ipywidgets matplotlib pandas
-      && mkdir -p /usr/src/app/notebooks
-      && jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''"
-    extra_hosts:
-      - host.docker.internal:host-gateway
-
-networks:
-  app-network:
-    driver: bridge
+      OLLAMA_KEEP_ALIVE: 24h
+      # Chat model + one more (embeddings or the title model); a third doesn't
+      # fit next to the app in Docker Desktop's default ~8 GB.
+      OLLAMA_MAX_LOADED_MODELS: "2"
 
 volumes:
   postgres_data:
-  notebooks:

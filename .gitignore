@@ -1,8 +1,15 @@
-ollama
-backend/.venv
-backend/logs
+# Secrets and local configuration
+.env
+.env.prod
+.env.*.local
+
+# Local model weights and runtime data
+ollama/
 backend/media/
-.cursor
+backend/.venv/
+
+# OS / editors
 .DS_Store
-backend/.DS_Store
-.claude
+.cursor/
+.claude/
+**/__pycache__/
