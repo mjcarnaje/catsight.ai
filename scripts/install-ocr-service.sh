@@ -54,8 +54,14 @@ cat > "$plist" <<PLIST
 </plist>
 PLIST
 
+# bootout returns before the old server has exited; bootstrap fails until it has
 launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
-launchctl bootstrap "gui/$(id -u)" "$plist"
+for _ in $(seq 1 20); do launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1 || break; sleep 1; done
+for attempt in 1 2 3; do
+  launchctl bootstrap "gui/$(id -u)" "$plist" && break
+  [ "$attempt" = 3 ] && { echo "launchctl bootstrap failed" >&2; exit 1; }
+  sleep 3
+done
 
 echo "Starting; the first run downloads the model (~1.5 GB) into ~/Library/Caches/llama.cpp"
 for _ in $(seq 1 180); do
