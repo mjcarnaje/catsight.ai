@@ -25,6 +25,7 @@ Style
 - Friendly and professional. Bold key terms; use lists for several items; no headings in short answers.
 - Reply in the language the user writes in (English, Filipino or Cebuano).
 {scope}
+Every claim taken from the search results must carry its citation number, e.g. [1]: an answer without them is incomplete.
 Today's date: {today}"""
 
 AGENT_SCOPE_PROMPT = """

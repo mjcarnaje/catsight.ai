@@ -112,7 +112,9 @@ def _format_for_model(sources: list[dict[str, Any]]) -> str:
             where = ", ".join(filter(None, [passage["section"], f"p. {passage['page']}" if passage["page"] else None]))
             lines.append(f"— {where}:\n{passage['text']}" if where else f"— {passage['text']}")
         blocks.append("\n".join(lines))
-    return "\n\n".join(blocks)
+    # Last thing the model reads before answering: without it, Qwen3-VL often left the numbers out
+    numbers = ", ".join(f"[{s['n']}]" for s in sources)
+    return "\n\n".join(blocks) + f"\n\nCite these results as {numbers} right after each claim they support."
 
 
 # --- Tool ---------------------------------------------------------------------------------
