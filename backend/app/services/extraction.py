@@ -121,11 +121,7 @@ def _clean_ocr(text: str) -> str:
 def _extract_vision(pdf_path: Path, on_progress: Optional[ProgressCallback]) -> list[Page]:
     if not llm.is_openrouter():
         raise ExtractorUnavailable("The vision extractor needs LLM_PROVIDER=openrouter.")
-    import pypdfium2 as pdfium
-
-    pdf = pdfium.PdfDocument(str(pdf_path))
-    total = len(pdf)
-    pdf.close()
+    total = storage.page_count(pdf_path)
 
     def transcribe(index: int) -> Page:
         image = storage.render_page(pdf_path, index, dpi=OCR_DPI)

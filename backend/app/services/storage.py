@@ -9,6 +9,7 @@ import hashlib
 import io
 import logging
 import shutil
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,12 @@ from PIL import Image
 logger = logging.getLogger(__name__)
 
 PREVIEW_WIDTH = 640
+
+# PDFium isn't thread-safe: two threads calling it at once, even on different
+# documents, can segfault the whole process (the Celery worker and gunicorn both
+# run threads). Every pypdfium2 call goes through this lock. Rendering takes
+# milliseconds; the OCR requests that follow it run in parallel outside the lock.
+_PDFIUM_LOCK = threading.RLock()
 
 
 class UploadRejected(ValueError):
@@ -51,9 +58,10 @@ def inspect_upload(upload: UploadedFile, max_mb: int, max_pages: int) -> UploadI
 
     upload.seek(0)
     try:
-        pdf = pdfium.PdfDocument(upload.read())
-        page_count = len(pdf)
-        pdf.close()
+        with _PDFIUM_LOCK:
+            pdf = pdfium.PdfDocument(upload.read())
+            page_count = len(pdf)
+            pdf.close()
     except pdfium.PdfiumError as e:
         raise UploadRejected("This PDF couldn't be opened; it may be damaged or password-protected.") from e
     finally:
@@ -90,16 +98,26 @@ MAX_RENDER_SIDE = 2400  # px; a page declaring huge dimensions can't exhaust mem
 
 def render_page(pdf_path: Path, index: int, dpi: int = 150) -> Image.Image:
     """Render one page (0-based) to a PIL image, at most MAX_RENDER_SIDE px on its long side."""
-    pdf = pdfium.PdfDocument(str(pdf_path))
-    try:
-        page = pdf[index]
-        width, height = page.get_size()  # points (1/72 inch)
-        scale = min(dpi / 72, MAX_RENDER_SIDE / max(width, height, 1))
-        image = page.render(scale=scale).to_pil()
-        page.close()
-        return image.convert("RGB")
-    finally:
-        pdf.close()
+    with _PDFIUM_LOCK:
+        pdf = pdfium.PdfDocument(str(pdf_path))
+        try:
+            page = pdf[index]
+            width, height = page.get_size()  # points (1/72 inch)
+            scale = min(dpi / 72, MAX_RENDER_SIDE / max(width, height, 1))
+            image = page.render(scale=scale).to_pil().convert("RGB")
+            page.close()
+            return image
+        finally:
+            pdf.close()
+
+
+def page_count(pdf_path: Path) -> int:
+    with _PDFIUM_LOCK:
+        pdf = pdfium.PdfDocument(str(pdf_path))
+        try:
+            return len(pdf)
+        finally:
+            pdf.close()
 
 
 def image_bytes(image: Image.Image, fmt: str = "JPEG", quality: int = 85) -> bytes:

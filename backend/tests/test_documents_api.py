@@ -193,3 +193,16 @@ def test_uploads_can_be_turned_off_for_everyone_but_admins(api, admin, guest, me
         assert api(user).get("/api/config/").json()["uploads_enabled"] is False
     assert upload(api(admin), pdf("y.pdf", seed="admin")).status_code == 201
     assert api(admin).get("/api/config/").json()["uploads_enabled"] is True
+
+
+def test_pages_render_safely_from_many_threads(tmp_path):
+    """PDFium segfaults on concurrent calls; storage serialises them."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.services import storage
+
+    path = tmp_path / "doc.pdf"
+    path.write_bytes(pdf_bytes(pages=6))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        sizes = list(pool.map(lambda i: storage.render_page(path, i % 6, dpi=150).size, range(48)))
+    assert len(sizes) == 48 and storage.page_count(path) == 6

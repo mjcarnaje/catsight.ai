@@ -263,6 +263,9 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 # A worker crash mid-document puts the task back on the queue instead of losing it
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+# How long Redis waits before redelivering a task a dead worker had taken. Must be
+# longer than the slowest document (a 100-page PDF takes a few minutes).
+CELERY_BROKER_TRANSPORT_OPTIONS = {"visibility_timeout": 30 * 60}
 
 # --- Logging ------------------------------------------------------------------
 LOGGING = {
