@@ -93,3 +93,13 @@ def test_expired_guests_are_removed_with_their_documents_and_chats(guest, member
     assert not User.objects.filter(pk=guest.pk).exists()
     assert list(Document.objects.all()) == [kept]
     assert not Chat.objects.exists()
+
+
+@pytest.mark.django_db
+def test_registration_rejects_weak_passwords_and_reserved_addresses(api):
+    weak = api().post("/api/auth/register/", {"email": "a@x.com", "first_name": "A", "last_name": "B", "password": "password123"})
+    assert weak.status_code == 400 and "password" in weak.json()
+    reserved = api().post("/api/auth/register/", {
+        "email": "guest-abc@guest.catsight.local", "first_name": "A", "last_name": "B", "password": "a-long-password",
+    })
+    assert reserved.status_code == 400

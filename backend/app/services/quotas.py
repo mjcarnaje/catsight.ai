@@ -108,7 +108,7 @@ def check_upload(user, pages: int) -> None:
     since = timezone.now() - WINDOW
     if lim.uploads_per_day and _used(UsageKind.UPLOAD, user, since) >= lim.uploads_per_day:
         raise QuotaExceeded(
-            f"The demo allows {lim.uploads_per_day} uploads per day. Try again tomorrow, or ask about the library's documents.",
+            f"The demo allows {lim.uploads_per_day} uploads or re-runs per day. Try again tomorrow, or ask about the library's documents.",
             "upload_limit",
         )
     if lim.library_pages and _used(UsageKind.UPLOAD) + pages > lim.library_pages:

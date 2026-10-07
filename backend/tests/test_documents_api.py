@@ -124,3 +124,37 @@ def test_signed_file_urls_expire_and_cannot_be_forged(api, admin, settings, tmp_
     data["d"] += 1
     forged_payload = base64.urlsafe_b64encode(json.dumps(data, separators=(",", ":")).encode()).decode().rstrip("=")
     assert api().get(f"/api/files/{forged_payload}:{signature}/").status_code == 404
+
+
+@pytest.mark.django_db
+def test_visitors_cannot_rerun_paid_stages_beyond_their_limit(api, guest, settings):
+    settings.DEMO_MODE = True
+    settings.DEMO_DAILY_UPLOADS = 1
+    client = api(guest)
+    ready = Document.objects.create(uploaded_by=guest, is_private=True, status="ready", file="x.pdf")
+    assert client.post(f"/api/documents/{ready.id}/reprocess/", {"from": "summarizing"}).status_code == 403
+
+    failed = Document.objects.create(uploaded_by=guest, is_private=True, status="summarizing", is_failed=True, file="y.pdf")
+    assert client.post(f"/api/documents/{failed.id}/reprocess/").status_code == 200
+    # It fails again; the first retry used today's allowance, so no more retries or edits
+    Document.objects.filter(pk=failed.pk).update(is_failed=True)
+    assert client.post(f"/api/documents/{failed.id}/reprocess/").status_code == 429
+    assert client.put(f"/api/documents/{failed.id}/text/", {"markdown": "edited"}, format="json").status_code == 429
+
+
+@pytest.mark.django_db
+def test_avatars_are_reencoded_and_svg_is_refused(api, member, settings, tmp_path):
+    import io
+
+    from PIL import Image
+
+    settings.MEDIA_ROOT = tmp_path
+    client = api(member)
+    svg = SimpleUploadedFile("x.svg", b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', content_type="image/svg+xml")
+    assert client.patch("/api/auth/me/", {"avatar": svg}, format="multipart").status_code == 400
+
+    png = io.BytesIO()
+    Image.new("RGB", (400, 300), "red").save(png, format="PNG")
+    disguised = SimpleUploadedFile("evil.html", png.getvalue(), content_type="text/html")
+    avatar = client.patch("/api/auth/me/", {"avatar": disguised}, format="multipart").json()["avatar"]
+    assert avatar.startswith("/media/avatars/") and avatar.endswith(".webp")

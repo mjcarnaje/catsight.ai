@@ -1,11 +1,13 @@
+import io
 import logging
 import uuid
-from pathlib import Path
 
 import requests
 from django.conf import settings
 from django.contrib.auth import authenticate
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from PIL import Image
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from rest_framework import status
@@ -35,18 +37,28 @@ def session_for(user: User, status_code=status.HTTP_200_OK) -> Response:
     )
 
 
-class GuestThrottle(AnonRateThrottle):
-    """Guest accounts per visitor IP; Cloudflare puts the real client IP in CF-Connecting-IP."""
-
-    scope = "guest"
-    rate = "6/hour"
+class ClientIPThrottle(AnonRateThrottle):
+    """Per visitor IP; Cloudflare puts the real client IP in CF-Connecting-IP."""
 
     def get_ident(self, request):
         return request.META.get("HTTP_CF_CONNECTING_IP") or super().get_ident(request)
 
 
+class GuestThrottle(ClientIPThrottle):
+    scope = "guest"
+    rate = "6/hour"
+
+
+class SignInThrottle(ClientIPThrottle):
+    """Slows password guessing and mass account creation."""
+
+    scope = "sign_in"
+    rate = "20/hour"
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([SignInThrottle])
 def register(request):
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -55,6 +67,7 @@ def register(request):
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([SignInThrottle])
 def login(request):
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -114,19 +127,20 @@ def google(request):
             {"detail": f"Sign in with an address at {', '.join('@' + d for d in domains)}."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    user, created = User.objects.get_or_create(email=email, defaults={
-        "username": email,
-        "first_name": info.get("given_name", ""),
-        "last_name": info.get("family_name", ""),
-        "avatar": info.get("picture", ""),
-        "google_id": info["sub"],
-    })
-    if created:
-        user.set_unusable_password()
-        user.save(update_fields=["password"])
-    elif not user.google_id:
-        user.google_id = info["sub"]
-        user.save(update_fields=["google_id"])
+    user = User.objects.filter(email=email).first()
+    if user is None:
+        user = User.objects.create_user(
+            email=email, username=email, password=None, google_id=info["sub"],
+            first_name=info.get("given_name", ""), last_name=info.get("family_name", ""),
+            avatar=info.get("picture", ""),
+        )
+    elif user.google_id != info["sub"]:
+        # Registration doesn't verify email ownership, so an existing password account
+        # with this address may belong to someone else: never merge into it silently.
+        return Response(
+            {"detail": "An account with this email already exists. Sign in with its password instead."},
+            status=status.HTTP_409_CONFLICT,
+        )
     return session_for(user)
 
 
@@ -144,9 +158,34 @@ class MeView(APIView):
         serializer.save()
 
         if avatar := request.FILES.get("avatar"):
-            if avatar.size > MAX_AVATAR_BYTES or not (avatar.content_type or "").startswith("image/"):
-                return Response({"detail": "Avatars must be images up to 2 MB."}, status=status.HTTP_400_BAD_REQUEST)
-            name = f"avatars/{uuid.uuid4().hex}{Path(avatar.name).suffix.lower()[:5]}"
-            user.avatar = default_storage.save(name, avatar)
+            try:
+                image = _decode_avatar(avatar)
+            except ValueError as e:
+                return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            # Re-encoded and saved under our own name and extension: the uploaded bytes,
+            # filename and content type are never served, so an SVG/HTML file can't
+            # smuggle script onto the app's origin.
+            buffer = io.BytesIO()
+            image.save(buffer, format="WEBP", quality=85)
+            user.avatar = default_storage.save(f"avatars/{uuid.uuid4().hex}.webp", ContentFile(buffer.getvalue()))
             user.save(update_fields=["avatar"])
         return Response(UserSerializer(user).data)
+
+
+def _decode_avatar(upload) -> Image.Image:
+    """A real raster image, square-cropped to at most 256 px; raises ValueError otherwise."""
+    if upload.size > MAX_AVATAR_BYTES:
+        raise ValueError("Avatars can be up to 2 MB.")
+    try:
+        image = Image.open(upload)
+        image.verify()  # checks the structure without decoding pixels
+        upload.seek(0)
+        image = Image.open(upload)
+        if image.format not in {"PNG", "JPEG", "WEBP", "GIF"}:
+            raise ValueError
+        image = image.convert("RGB")
+    except Exception:
+        raise ValueError("Avatars must be PNG, JPEG, WebP or GIF images.")
+    side = min(image.size)
+    left, top = (image.width - side) // 2, (image.height - side) // 2
+    return image.crop((left, top, left + side, top + side)).resize((256, 256))

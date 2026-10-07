@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from .models import Chat, Document, DocumentStatusHistory, Tag, User
@@ -41,9 +43,20 @@ class RegisterSerializer(serializers.Serializer):
         domains = settings.ALLOWED_EMAIL_DOMAINS
         if domains and email.rsplit("@", 1)[-1] not in domains:
             raise serializers.ValidationError(f"Use an email address at {', '.join('@' + d for d in domains)}.")
+        if email.endswith("@guest.catsight.local"):
+            raise serializers.ValidationError("This address is reserved.")
         if User.objects.filter(email=email).exists():
             raise serializers.ValidationError("An account with this email already exists.")
         return email
+
+    def validate(self, data):
+        # Django's validators (length, common passwords, too similar to the name/email)
+        candidate = User(email=data["email"], first_name=data["first_name"], last_name=data["last_name"])
+        try:
+            validate_password(data["password"], user=candidate)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({"password": list(e.messages)})
+        return data
 
     def create(self, data):
         return User.objects.create_user(

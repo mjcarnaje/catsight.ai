@@ -11,7 +11,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from ..constant import DocumentStatus
+from ..constant import DocumentStatus, UsageKind
 from ..models import Document, DocumentChunk, DocumentFullText
 from ..serializers import DocumentDetailSerializer, DocumentSerializer, DocumentUpdateSerializer
 from ..services import extraction, library, quotas, storage
@@ -21,6 +21,20 @@ from ..tasks.tasks import reprocess
 from ..utils.permissions import AllowAny, IsAuthenticated, can_modify
 
 logger = logging.getLogger(__name__)
+
+
+MAX_TEXT_CHARS = 300_000  # an edited text is re-summarized and re-embedded: bound the cost
+
+
+def _charge_processing_run(user) -> Response | None:
+    """Re-running paid model calls counts as one of a visitor's daily uploads."""
+    try:
+        quotas.check_upload(user, pages=0)
+    except quotas.QuotaExceeded as e:
+        return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+    if quotas.applies_to(user):
+        quotas.record(user, UsageKind.UPLOAD, amount=0)
+    return None
 
 
 class DocumentPagination(PageNumberPagination):
@@ -154,6 +168,10 @@ def document_text(request, document_id: int):
     markdown = request.data.get("markdown")
     if not isinstance(markdown, str) or not markdown.strip():
         return Response({"detail": "The text can't be empty."}, status=status.HTTP_400_BAD_REQUEST)
+    if len(markdown) > MAX_TEXT_CHARS:
+        return Response({"detail": f"The text can be up to {MAX_TEXT_CHARS:,} characters."}, status=status.HTTP_400_BAD_REQUEST)
+    if denied := _charge_processing_run(request.user):
+        return denied
     DocumentFullText.objects.update_or_create(document=document, defaults={"text": markdown})
     reprocess(document, DocumentStatus.SUMMARIZING)
     return Response({"status": "queued"})
@@ -189,8 +207,13 @@ def document_reprocess(request, document_id: int):
         document.extractor = extractor
         document.save(update_fields=["extractor"])
         stage = DocumentStatus.EXTRACTING
-    if stage is DocumentStatus.EXTRACTING and quotas.applies_to(request.user):
-        return Response({"detail": "Re-reading a document isn't available in the demo."}, status=status.HTTP_403_FORBIDDEN)
+    if quotas.applies_to(request.user):
+        # Visitors may retry a failed document; re-running finished stages is admin-only
+        if not document.is_failed or stage.value != document.status:
+            return Response({"detail": "In the demo you can retry a failed document, not re-run it."},
+                            status=status.HTTP_403_FORBIDDEN)
+        if denied := _charge_processing_run(request.user):
+            return denied
 
     reprocess(document, stage)
     return Response({"status": "queued", "from": stage.value})
