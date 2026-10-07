@@ -158,7 +158,11 @@ export const SearchDocumentCard: React.FC<SearchDocumentCardProps> = ({ source }
                   <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/30 shadow-sm backdrop-blur-sm w-fit">
                       <Layers className="w-3 h-3 text-primary/60" />
-                      <span>Chunk #{content.chunk_index}</span>
+                      <span>
+                        {[content.section, content.page ? `p. ${content.page}` : null]
+                          .filter(Boolean)
+                          .join(" · ") || `Chunk #${content.chunk_index}`}
+                      </span>
                     </div>
                   </div>
                   <blockquote className="pl-3 italic border-l-2 border-primary/40">

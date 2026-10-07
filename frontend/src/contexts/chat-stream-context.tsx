@@ -15,17 +15,42 @@ import { useNavigate } from "react-router-dom";
 
 type ChatAction =
   | { type: "ADD_MESSAGE"; payload: Message }
+  | { type: "UPSERT_MESSAGE"; payload: Message }
+  | { type: "APPEND_TOKEN"; payload: { id: string; content: string } }
   | { type: "SET_MESSAGES"; payload: Message[] }
   | { type: "SET_ERROR"; error: string };
 
 const chatReducer = (state: Message[], action: ChatAction): Message[] => {
-  console.log(`=== CALLING ${action.type} ===`);
-  // @ts-expect-error - This is a workaround to avoid TypeScript errors
-  console.log(`=== PAYLOAD ===`, action?.payload || "NO PAYLOAD");
-
   switch (action.type) {
     case "ADD_MESSAGE":
       return [...state, action.payload];
+    case "UPSERT_MESSAGE": {
+      // The finished message replaces the draft built from its streamed tokens
+      const index = state.findIndex((m) => m.id === action.payload.id);
+      if (index === -1) return [...state, action.payload];
+      const next = [...state];
+      next[index] = action.payload;
+      return next;
+    }
+    case "APPEND_TOKEN": {
+      const { id, content } = action.payload;
+      const index = state.findIndex((m) => m.id === id);
+      if (index === -1) {
+        return [
+          ...state,
+          {
+            id,
+            role: "assistant",
+            content,
+            timestamp: new Date().toISOString(),
+            message_type: "message",
+          },
+        ];
+      }
+      const next = [...state];
+      next[index] = { ...next[index], content: next[index].content + content };
+      return next;
+    }
     case "SET_MESSAGES":
       return action.payload;
     case "SET_ERROR":
@@ -173,9 +198,10 @@ export function ChatStreamProvider({ children }: { children: ReactNode }) {
                   } catch (e) {
                     console.error("Error parsing title event data:", e);
                   }
+                } else if (eventType === "token") {
+                  dispatch({ type: "APPEND_TOKEN", payload: data });
                 } else if (eventType === "message") {
-                  const messageData = JSON.parse(dataLine);
-                  dispatch({ type: "ADD_MESSAGE", payload: messageData });
+                  dispatch({ type: "UPSERT_MESSAGE", payload: data });
                 } else if (eventType === "error") {
                   setError(data.error || "Unknown error");
                 }

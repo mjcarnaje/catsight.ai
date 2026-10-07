@@ -1,18 +1,25 @@
+import asyncio
 import logging
 import os
-import asyncio
-from celery import shared_task
-from django.utils import timezone
-from langchain_core.documents import Document as Doc
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from functools import lru_cache
 
-from ..constant import DocumentStatus, MarkdownConverter
-from ..models import Document, DocumentStatusHistory, DocumentFullText
-from ..services.vectorstore import vector_store
+from celery import shared_task
+from django.conf import settings
+from django.utils import timezone
+from langchain_core.documents import Document as Doc
+
+from ..constant import STATUS_ORDER, DocumentStatus, MarkdownConverter
+from ..models import Document, DocumentFullText, DocumentStatusHistory
 from ..services.summarization_agent import summarization_agent, summarization_splitter
-    
+from ..services.vectorstore import delete_document_chunks, vector_store
+from ..utils.chunking import split_markdown
+
 logger = logging.getLogger(__name__)
+
+# Parallel chunk summaries sent to Ollama at once. Higher doesn't help on CPU and
+# a long document would otherwise fire hundreds of requests simultaneously.
+SUMMARY_MAX_CONCURRENCY = 2
+
 
 def update_document_status(document, status, update_fields=None, failed=False):
     """
@@ -21,7 +28,7 @@ def update_document_status(document, status, update_fields=None, failed=False):
     new_status = status.value if hasattr(status, 'value') else status
 
     if update_fields is None:
-        update_fields = ["status"]  
+        update_fields = ["status"]
     else:
         update_fields.append("status")
 
@@ -29,7 +36,7 @@ def update_document_status(document, status, update_fields=None, failed=False):
         document.is_failed = True
         if 'is_failed' not in update_fields:
             update_fields.append('is_failed')
-    
+
     # remove duplicates
     update_fields = list(set(update_fields))
 
@@ -53,33 +60,40 @@ def update_document_status(document, status, update_fields=None, failed=False):
         f"Document status updated from '{old_status}' to '{new_status}' for Document ID: {document.id}"
     )
 
+
 def save_document_chunks(document, docs):
-    try:
-        vector_store.add_documents(docs)
-        logger.info(f"Added {len(docs)} chunks for document {document.id}")
-    except Exception as e:
-        logger.error(f"Error adding chunks: {e}")
-    
+    """Replace a document's chunks in the vector store.
+
+    Old chunks are deleted first and every chunk gets a stable id, so
+    re-processing never leaves duplicates or stale chunks behind.
+    """
+    removed = delete_document_chunks(document.id)
+    if removed:
+        logger.info(f"Removed {removed} old chunks for document {document.id}")
+    vector_store.add_documents(docs, ids=[doc.metadata["id"] for doc in docs])
+    logger.info(f"Added {len(docs)} chunks for document {document.id}")
     return len(docs)
 
+
+# --- PDF -> Markdown converters ----------------------------------------------
 @lru_cache(maxsize=1)
 def get_marker_converter():
     from marker.config.parser import ConfigParser
     from marker.converters.pdf import PdfConverter
     from marker.models import create_model_dict
-    
+
     marker_config = {
         "output_format": "markdown",
         "disable_multiprocessing": False,
         "disable_image_extraction": True,
-        "ollama_base_url": os.getenv("OLLAMA_URL"),
+        "ollama_base_url": settings.OLLAMA_BASE_URL,
         "llm_service": "marker.services.ollama.OllamaService",
-        "ollama_model": "qwen2.5:7b-instruct-q4_K_M",
+        "ollama_model": settings.CHAT_MODEL,
         "force_ocr": True,
         "strip_existing_ocr": True,
         "use_llm": False,
         "debug": False,
-        "paginate_output": True,
+        "paginate_output": True,  # page markers become chunk page numbers (utils/chunking.py)
         "format_lines": True
     }
     marker_parser = ConfigParser(marker_config)
@@ -91,93 +105,81 @@ def get_marker_converter():
         llm_service=marker_parser.get_llm_service()
     )
 
+
 def convert_pdf_with_marker(file_path: str) -> str:
     from marker.output import text_from_rendered
-    
+
     marker_pdf_converter = get_marker_converter()
     rendered = marker_pdf_converter(file_path)
     text, _, _ = text_from_rendered(rendered)
     return text
+
 
 @lru_cache(maxsize=1)
 def get_markitdown_converter():
     from markitdown import MarkItDown
     return MarkItDown()
 
+
 def convert_pdf_with_markitdown(file_path: str) -> str:
     markitdown_converter = get_markitdown_converter()
     return markitdown_converter.convert(file_path).text_content
+
 
 @lru_cache(maxsize=1)
 def get_docling_converter():
     from docling.document_converter import DocumentConverter
     return DocumentConverter()
 
+
 def convert_pdf_with_docling(file_path: str) -> str:
     docling_converter = get_docling_converter()
     result = docling_converter.convert(file_path)
     return result.document.export_to_markdown()
 
+
+CONVERTERS = {
+    MarkdownConverter.MARKER.value: convert_pdf_with_marker,
+    MarkdownConverter.MARKITDOWN.value: convert_pdf_with_markitdown,
+    MarkdownConverter.DOCLING.value: convert_pdf_with_docling,
+}
+
+
+# --- Pipeline steps -----------------------------------------------------------
 @shared_task(bind=True)
 def extract_text_task(self, document_id):
     """
     Extracts markdown text from the uploaded file and saves it.
+
+    A converter failure (or a result with no text, e.g. markitdown on a scanned
+    PDF) fails the document instead of storing placeholder text, so nothing
+    downstream summarizes or embeds an error message.
     """
     logger.info(f"Starting extract_text_task for document_id: {document_id}")
     try:
         document = Document.objects.get(id=document_id)
-        logger.info(f"Found document: {document.id}, title: {document.title}")
-        
-        from django.conf import settings
         full_file_path = os.path.join(settings.MEDIA_ROOT, document.file)
-        logger.info(f"File path: {document.file}, full path: {full_file_path}")
-        
+
         if not document.file or not os.path.exists(full_file_path):
-            logger.error(f"File not found: {document.file} (Full path: {full_file_path})")
-            update_document_status(document, DocumentStatus.PENDING, failed=True)
-            return document_id
+            raise FileNotFoundError(f"File not found: {document.file} (full path: {full_file_path})")
 
         update_document_status(document, DocumentStatus.TEXT_EXTRACTING)
 
-        try:
-            if document.markdown_converter == MarkdownConverter.MARKER.value:
-                try:
-                    text = convert_pdf_with_marker(full_file_path)
-                except Exception as e:
-                    logger.exception(f"Error converting PDF with Marker: {str(e)}")
-                    text = f"# {document.title}\n\nError extracting text from document using Marker. The file may be corrupted or unsupported."
-            elif document.markdown_converter == MarkdownConverter.MARKITDOWN.value:
-                try:
-                    text = convert_pdf_with_markitdown(full_file_path)
-                except Exception as e:
-                    logger.exception(f"Error converting PDF with MarkItDown: {str(e)}")
-                    text = f"# {document.title}\n\nError extracting text from document using MarkItDown. The file may be corrupted or unsupported."
-            elif document.markdown_converter == MarkdownConverter.DOCLING.value:
-                try:
-                    text = convert_pdf_with_docling(full_file_path)
-                except Exception as e:
-                    logger.exception(f"Error converting PDF with DocLing: {str(e)}")
-                    text = f"# {document.title}\n\nError extracting text from document using DocLing. The file may be corrupted or unsupported."
-            else:
-                raise ValueError(f"Invalid converter: {document.markdown_converter}")
-            
-            logger.info(f"Text extraction successful, text length: {len(text) if text else 0}")
-        except Exception as e:
-            logger.exception(f"Error converting PDF: {str(e)}")
-            text = f"# {document.title}\n\nError extracting text from document. The file may be corrupted or unsupported."
+        converter_name = document.markdown_converter or MarkdownConverter.MARKER.value
+        converter = CONVERTERS.get(converter_name)
+        if converter is None:
+            raise ValueError(f"Invalid converter: {converter_name}")
 
-        try:
-            DocumentFullText.objects.update_or_create(
-                document=document,
-                defaults={"text": text}
+        text = converter(full_file_path)
+        if not text or not text.strip():
+            raise ValueError(
+                f"{converter_name} extracted no text from {document.file}; "
+                "for scanned PDFs use marker or docling (they run OCR)"
             )
-        except Exception as e:
-            logger.exception(f"Error saving DocumentFullText: {str(e)}")
-            raise
+        logger.info(f"Extracted {len(text)} characters with {converter_name}")
 
+        DocumentFullText.objects.update_or_create(document=document, defaults={"text": text})
         update_document_status(document, DocumentStatus.TEXT_EXTRACTION_DONE)
-        
-        logger.info(f"extract_text_task completed successfully for document_id: {document_id}")
         return document_id
 
     except Exception as e:
@@ -190,93 +192,44 @@ def extract_text_task(self, document_id):
 @shared_task(bind=True)
 def chunk_and_embed_text_task(self, document_id):
     """
-    Splits markdown text into chunks and embeds them in the vector store.
+    Splits markdown into section-aware chunks and embeds them in the vector store.
     """
     logger.info(f"Starting chunk_and_embed_text_task for document_id: {document_id}")
     try:
-        try:
-            document = Document.objects.get(id=document_id)
-            logger.info(f"Found document: {document.id}, title: {document.title}")
-        except Document.DoesNotExist:
-            logger.error(f"Document with id {document_id} does not exist")
-            raise
-
+        document = Document.objects.get(id=document_id)
         update_document_status(document, DocumentStatus.EMBEDDING_TEXT)
 
-        try:
-            fulltext_obj = DocumentFullText.objects.get(document=document)
-            logger.info(f"Found DocumentFullText for document {document.id}")
-            fulltext = fulltext_obj.text
-        except DocumentFullText.DoesNotExist:
-            logger.warning(f"DocumentFullText not found for document {document_id}, creating placeholder")
-            fulltext = f"# {document.title}\n\nPlaceholder for document {document_id}"
-            fulltext_obj = DocumentFullText.objects.create(
-                document=document,
-                text=fulltext
+        fulltext = DocumentFullText.objects.get(document=document).text
+        chunks = split_markdown(fulltext)
+        if not chunks:
+            raise ValueError(f"Document {document_id} has no text to embed")
+        logger.info(f"Split text into {len(chunks)} chunks")
+
+        tag_ids = list(document.tags.values_list("id", flat=True))
+        docs = [
+            Doc(
+                page_content=chunk.text,
+                metadata={
+                    "doc_id": document.id,
+                    "id": f"doc_{document.id}_chunk_{i}",
+                    "index": i,
+                    "page": chunk.page,
+                    "section": chunk.section,
+                    "year": document.year,
+                    "tags": tag_ids,
+                },
             )
-            logger.info(f"Created placeholder DocumentFullText for document {document.id}")
+            for i, chunk in enumerate(chunks)
+        ]
 
-        logger.info(f"Text length for document {document.id}: {len(fulltext) if fulltext else 0}")
-
-        chunk_size = 1000
-        chunk_overlap = 100
-        
-        # markdown_splitter = MarkdownHeaderTextSplitter(
-        #     headers_to_split_on=[("#", "Header 1"), ("##", "Header 2"), ("###", "Header 3")],
-        #     strip_headers=False,
-        # )
-        
-        # md_header_splits = markdown_splitter.split_text(fulltext)
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size, 
-            chunk_overlap=chunk_overlap, 
-            separators=[
-                "\n\n",
-                "\n",
-                " ",
-                ".",
-                ",",
-                "\u200b",  # Zero-width space
-                "\uff0c",  # Fullwidth comma
-                "\u3001",  # Ideographic comma
-                "\uff0e",  # Fullwidth full stop
-                "\u3002",  # Ideographic full stop
-                "",
-            ],
-        )
-        splits = text_splitter.split_text(fulltext)
-        logger.info(f"Split text into {len(splits)} chunks")
-
-        docs = []
-
-        for i, chunk in enumerate(splits):
-            metadata = {
-                "doc_id": document.id,
-                "id": f"doc_{document.id}_chunk_{i}",
-                "index": i,
-                "year": document.year,
-                "tags": list(document.tags.values_list("id", flat=True))
-            }
-            docs.append(Doc(page_content=chunk, metadata=metadata))
-
-        try:
-            count = save_document_chunks(document, docs)
-            logger.info(f"Saved {count} chunks to vector store")
-        except Exception as e:
-            logger.exception(f"Error saving chunks to vector store: {str(e)}")
-            count = 0
-        
-        document.no_of_chunks = count
-        document.save(update_fields=["no_of_chunks"])
-
+        document.no_of_chunks = save_document_chunks(document, docs)
         update_document_status(
             document,
             DocumentStatus.TEXT_EMBEDDING_DONE,
             update_fields=["status", "no_of_chunks"]
         )
-        
         update_document_status(document, DocumentStatus.COMPLETED)
-        
+
         logger.info(f"chunk_and_embed_text_task completed successfully for document_id: {document_id}")
         return document_id
 
@@ -290,7 +243,7 @@ def chunk_and_embed_text_task(self, document_id):
 @shared_task(bind=True)
 def generate_document_summary_task(self, document_id):
     """
-    Generates a title, summary, year and tags from the first chunk.
+    Generates the summary, title, year and tags with the map-reduce summarizer.
     """
     try:
         document = Document.objects.get(id=document_id)
@@ -298,42 +251,26 @@ def generate_document_summary_task(self, document_id):
         update_document_status(document, DocumentStatus.GENERATING_SUMMARY)
 
         chunks = summarization_splitter.split_text(fulltext)
+        model_name = document.summarization_model or settings.CHAT_MODEL
+        logger.info(f"Summarizing document {document_id} ({len(chunks)} chunks) with {model_name}")
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        model_name = document.summarization_model
-        logger.info(f"Using model {model_name} for summarization of document {document_id}")
-        
-        async def process_summarization():
-            final_state = None
-            async for state in summarization_agent.astream(
-                input={"contents": chunks, "model_name": model_name},
-                stream_mode="values"
-            ):
-                final_state = state
-            return final_state
-        
-        final_state = loop.run_until_complete(process_summarization())
+        final_state = asyncio.run(summarization_agent.ainvoke(
+            {"contents": chunks, "model_name": model_name},
+            config={"max_concurrency": SUMMARY_MAX_CONCURRENCY},
+        ))
 
         logger.info(f"[TITLE] {final_state['title']}")
         logger.info(f"[SUMMARY] {final_state['final_summary']}")
         logger.info(f"[YEAR] {final_state['year']}")
         logger.info(f"[TAGS] {final_state['tags']}")
-        
+
         document.title = final_state["title"]
         document.summary = final_state["final_summary"]
         document.year = final_state["year"]
         document.tags.set(final_state["tags"])
-        
-        document.save(update_fields=["title", "summary", "year"])
-        
-        update_document_status(document, DocumentStatus.SUMMARY_GENERATION_DONE,
-                            update_fields=["status", "title", "summary", "year"])
 
+        update_document_status(document, DocumentStatus.SUMMARY_GENERATION_DONE,
+                               update_fields=["status", "title", "summary", "year"])
         return document_id
 
     except Exception as e:
@@ -342,47 +279,47 @@ def generate_document_summary_task(self, document_id):
             update_document_status(document, DocumentStatus.GENERATING_SUMMARY, failed=True)
         raise
 
+
 @shared_task(bind=True)
 def process_document_task(self, document_id):
     """
-    Process a document completely: extract text, chunk and embed, generate summary.
-    This combines the three separate tasks into a single workflow.
-    
-    The function is smart enough to check the document's current status and skip steps
-    that have already been completed.
+    Process a document completely: extract text, generate the summary, then chunk and embed.
+
+    Resumes from the document's saved status, so a retry after a failure only
+    re-runs the steps that haven't finished. (Summary runs before embedding
+    because chunk metadata carries the extracted year and tags.)
     """
     logger.info(f"Starting complete document processing for document_id: {document_id}")
 
     try:
         document = Document.objects.get(id=document_id)
-        update_document_status(document, DocumentStatus.PROCESSING)
-        
-        current_status = document.status
-        logger.info(f"Document {document_id} current status: {current_status}")
-        
-        # Step 1: Extract text if needed
-        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value]:
-            document_id = extract_text_task(document_id)
-        
-        # Step 2: Generate document summary
-        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value, 
-                             DocumentStatus.TEXT_EXTRACTION_DONE.value, DocumentStatus.GENERATING_SUMMARY.value]:
-            document_id = generate_document_summary_task(document_id)
-        
-        # Step 3: Chunk and embed text
-        if current_status in [DocumentStatus.PENDING.value, DocumentStatus.PROCESSING.value, DocumentStatus.TEXT_EXTRACTING.value,
-                             DocumentStatus.TEXT_EXTRACTION_DONE.value, DocumentStatus.SUMMARY_GENERATION_DONE.value, 
-                             DocumentStatus.EMBEDDING_TEXT.value]:
-            document_id = chunk_and_embed_text_task(document_id)
-        
+        # Read progress BEFORE marking the document as processing
+        try:
+            progress = STATUS_ORDER[DocumentStatus(document.status)]
+        except ValueError:
+            progress = 0
+        if progress >= STATUS_ORDER[DocumentStatus.COMPLETED]:
+            # Nothing left to run; don't leave it parked at PROCESSING
+            logger.info(f"Document {document_id} is already completed; nothing to do")
+            return document_id
+        logger.info(f"Document {document_id} resuming from status: {document.status}")
+
+        document.is_failed = False
+        update_document_status(document, DocumentStatus.PROCESSING, update_fields=["is_failed"])
+
+        if progress < STATUS_ORDER[DocumentStatus.TEXT_EXTRACTION_DONE]:
+            extract_text_task(document_id)
+
+        if progress < STATUS_ORDER[DocumentStatus.SUMMARY_GENERATION_DONE]:
+            generate_document_summary_task(document_id)
+
+        if progress < STATUS_ORDER[DocumentStatus.COMPLETED]:
+            chunk_and_embed_text_task(document_id)
+
         logger.info(f"Complete document processing finished successfully for document_id: {document_id}")
         return document_id
-        
+
     except Exception as e:
+        # The failing step already marked the document failed at its own status
         logger.exception(f"process_document_task failed for {document_id}: {str(e)}")
-        try:
-            document = Document.objects.get(id=document_id)
-            update_document_status(document, document.status, failed=True)
-        except Exception as inner_e:
-            logger.exception(f"Error updating document status: {str(inner_e)}")
         raise

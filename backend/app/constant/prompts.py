@@ -65,8 +65,10 @@ Your thinking should be **thorough and step-by-step**.
 ## Retrieval Guidance
 
 - Focus your query on the *substance* (e.g., "grading appeal procedure," "tuition refund deadlines").  
-- **Do NOT** include the term "MSU-IIT" in the search string itself.  
+- **Do NOT** include the term "MSU-IIT" in the search string itself.
 - Skip boilerplate or irrelevant sections unless they contextualize the answer.
+- Search results are numbered documents (`[1] Title (Year)`), each followed by excerpts labelled with their section and page. Cite the document title and page for each claim, e.g. (*Scholarship Guidelines*, p. 3).
+- If the results don't answer the question, search again with different wording before saying you don't have enough information.
 
 ---
 
@@ -187,25 +189,22 @@ Use this format:
 - [List of synthesized, distinct key actions or directives from the grouped summaries]
 """
 
-SUMMARIZATION_TITLE_PROMPT = """You are an expert at extracting or generating a concise title from a document summary. Follow these guidelines:
+SUMMARIZATION_METADATA_PROMPT = """You catalogue educational administrative documents. From the document summary, extract:
+
+**title**
 - If the summary includes an explicit title or subject line, use it verbatim.
-- Otherwise, create a concise title in Title Case, max 10 words.
+- Otherwise, write a concise title in Title Case, max 10 words.
 - Exclude institutional identifiers (e.g., "Office of the...", "Republic of the Philippines", "Mindanao State University", "MSU", "MSU-IIT", "IIT", "Iligan Institute of Technology").
-Return only the title text without extra commentary."""
 
-SUMMARIZATION_YEAR_PROMPT = """You are an assistant that extracts the primary publication year from a document summary:
-- Identify the four-digit year representing publication or issuance.
-- If multiple years appear, select the one most relevant.
-"""
+**year**
+- The four-digit year the document was issued or published. If several years appear, pick the issuance year.
+- Use null when no year is stated. Never guess.
 
-SUMMARIZATION_TAGS_PROMPT = """You are tasked with classifying educational administrative documents by selecting relevant tags from the list below:
+**tags**
+- Choose only from this list, copying names exactly:
 - {formatted_tags}
-- Other
-
-Guidelines:
-- Select tags that are explicitly or implicitly supported by the content.
-- If no tags are applicable, choose "Other".
-- Provide the tags as a JSON object with the key "tags" and an array of strings, without additional commentary."""
+- Pick the 1-3 tags the content supports most clearly, explicitly or implicitly (e.g. a memorandum about student refunds fits both a document-type tag and a topic tag).
+- Use "Other" only if nothing else fits."""
 
 TITLE_GENERATION_PROMPT = """
 You are **CATSight.TitleGen**, an extraction module that distills a conversation into one ultra-concise, descriptive title.

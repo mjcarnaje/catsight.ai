@@ -1,30 +1,37 @@
-from datetime import datetime
-import json
-from typing import Annotated, Optional, Any
-from typing_extensions import TypedDict
-from pydantic import BaseModel
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import AnyMessage, add_messages
-from langgraph.prebuilt import tools_condition, ToolNode
-from langgraph.checkpoint.postgres import PostgresSaver
-from psycopg_pool import ConnectionPool
-from langgraph.prebuilt import InjectedState, ToolNode
-from langchain_core.runnables import RunnableConfig, RunnableLambda
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import HumanMessage, ToolMessage
-from langchain_core.tools import tool
-from ..services.ollama import base_url
-from langchain_ollama import ChatOllama
-from ..services.vectorstore import vector_store, DB_URI
-from langchain_core.runnables import RunnableConfig
+"""CATSight chat agent (LangGraph, persisted in Postgres).
+
+    START ─► assistant ─┬─► tools ─► assistant      search the document repository
+                        ├─► generate_title ─► END  once, after a new chat's first answer
+                        └─► END
+
+The assistant node is the only one whose tokens are streamed to the user
+(see chat_with_docs in views/documents.py).
+"""
 import logging
 import time
-from typing import Any, Dict
-from ..models import Document
-from ..services.postgres import get_psycopg_connection_string
-from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
-from langchain_classic.retrievers.document_compressors import LLMListwiseRerank
+from datetime import date
+from typing import Annotated, Any, Literal, Optional
+
+import httpx
+from django.conf import settings
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
+from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import InjectedState, ToolNode
+from langgraph.types import RetryPolicy
+from psycopg_pool import ConnectionPool
+from pydantic import BaseModel
+from typing_extensions import TypedDict
+
 from ..constant.prompts import CATSIGHT_PROMPT, TITLE_GENERATION_PROMPT
+from ..services.postgres import get_psycopg_connection_string
+from ..services.vectorstore import DB_URI, search_chunks
+from .sources import format_sources_for_llm, sources_from_chunks
+from .ollama import FAST_NUM_CTX, get_chat_model
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +47,14 @@ _connection_pool = None
 # Arbitrary app-wide key for pg_advisory_lock around checkpointer.setup()
 CHECKPOINTER_SETUP_LOCK_ID = 7_412_001
 
+ASSISTANT_TEMPERATURE = 0.3  # grounded answers; higher invents details
+MAX_EMPTY_RETRIES = 2  # small models occasionally return an empty message
+RETRIEVE_K = 6  # passages handed to the model per search
+
+# Retry only when Ollama is unreachable or slow, not on errors like "model not found"
+OLLAMA_RETRY = RetryPolicy(max_attempts=3, initial_interval=1.0, retry_on=(httpx.TransportError, ConnectionError))
+
+
 def get_connection_pool():
     """Get or initialize the connection pool"""
     global _connection_pool
@@ -49,207 +64,106 @@ def get_connection_pool():
             conninfo=PSYCOPG_DB_URI,
             max_size=20,
             kwargs=CONNECTION_KWARGS,
+            open=True,
         )
         logger.info(f"Created PostgreSQL connection pool for LangGraph using: {PSYCOPG_DB_URI}")
     return _connection_pool
 
-# --- Tool Error Handler -------------------------------------------------------
-def handle_tool_error(state) -> dict:
-    error = state.get("error")
-    tool_calls = state["messages"][-1].tool_calls
-    return {
-        "messages": [
-            ToolMessage(
-                content=f"Error: {repr(error)}\nPlease fix your mistakes.",
-                tool_call_id=tc["id"],
-            )
-            for tc in tool_calls
-        ]
-    }
 
-def create_tool_node_with_fallback(tools: list) -> dict:
-    return ToolNode(tools).with_fallbacks(
-        [RunnableLambda(handle_tool_error)], exception_key="error"
-    )
-
-# --- State Definition -------------------------------------------------------
+# --- State -------------------------------------------------------------------
 class State(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     title: Optional[str]
-    should_generate_title: bool = True  
-    file_ids: Optional[list[int]] = None
+    should_generate_title: bool
+    file_ids: Optional[list[int]]
 
-# --- Helper Classes -------------------------------------------------------
+
 class Title(BaseModel):
     title: str
 
-class IsRelevant(BaseModel):
-    is_relevant: bool
 
-# --- Assistant Class -------------------------------------------------------
-class Assistant:
-    def __init__(self, prompt: ChatPromptTemplate, tools: list):
-        self.prompt = prompt
-        self.tools = tools
-
-
-    def __call__(self, state: State, config: RunnableConfig):
-        configuration = config.get("configurable", {})
-        model_key = configuration.get("model")
-        self.runnable = self.prompt | ChatOllama(model=model_key, base_url=base_url, temperature=1).bind_tools(self.tools)
-
-        while True:
-            result = self.runnable.invoke(state)
-            # If the LLM happens to return an empty response, we will re-prompt it
-            # for an actual response.
-            if not result.tool_calls and (
-                not result.content
-                or isinstance(result.content, list)
-                and not result.content[0].get("text")
-            ):
-                messages = state["messages"] + [("user", "Respond with a real output.")]
-                state = {**state, "messages": messages}
-            else:
-                break
-        return {"messages": result}
-
-# --- Prompt Constants -------------------------------------------------------
-# Create the ChatPromptTemplate for the assistant
-primary_assistant_prompt = ChatPromptTemplate.from_messages([
-    (
-        "system",
-        CATSIGHT_PROMPT
-    ),
-    ("placeholder", "{messages}"),
-]).partial(today_date=datetime.now().strftime("%Y-%m-%d"))
-
-@tool(parse_docstring=True)
-def retrieve(query: str, config: RunnableConfig, state: Annotated[dict, InjectedState]) -> str:
-    """
-    This tool will retrieve documents from the vector store and filter them based on relevance to the query.
+# --- Retrieval tool ------------------------------------------------------------
+@tool(parse_docstring=True, response_format="content_and_artifact")
+def retrieve(query: str, state: Annotated[dict, InjectedState]) -> tuple[str, list[dict[str, Any]]]:
+    """Search MSU-IIT's document repository for passages relevant to a question.
 
     Args:
-        query (str): The query to retrieve documents on.
+        query: The substance of what to look for, e.g. "tuition refund deadline".
     """
-    file_ids = state.get("file_ids", [])
-    has_file_ids = len(file_ids) > 0
-
-    search_kwargs = {
-        "score_threshold": 0.3,
-    }
-
-    if has_file_ids:
-        search_kwargs["filter"] = {"doc_id": {"$in": file_ids}}
-
-    retriever = vector_store.as_retriever(
-        search_type="similarity_score_threshold",
-        search_kwargs=search_kwargs,
+    file_ids = state.get("file_ids") or []
+    chunks = search_chunks(
+        query,
+        k=RETRIEVE_K,
+        filter={"doc_id": {"$in": file_ids}} if file_ids else None,
     )
-    
-    model_id = config["configurable"].get("model")
-    llm = ChatOllama(model=model_id, base_url=base_url, temperature=0)
-    compressor = LLMListwiseRerank.from_llm(llm, top_n=10)
-    compression_retriever = ContextualCompressionRetriever(
-        base_compressor=compressor, base_retriever=retriever
-    )
+    sources = sources_from_chunks(chunks)
+    if not sources:
+        return "No relevant passages were found in the document repository.", []
+    # The text goes to the model; the full source list is attached for the UI
+    return format_sources_for_llm(sources), sources
 
-    docs = compression_retriever.invoke(query)
-           
-    sources_map: Dict[Any, Dict[str, Any]] = {}
-    
-    for doc in docs:
-        doc_id = doc.metadata.get("doc_id")
-        chunk_index = doc.metadata.get("index")
-        snippet = doc.page_content
 
-        if doc_id is None:
-            logger.info(f"DOC ID IS NONE: {doc}")
-            continue
+# --- Nodes -------------------------------------------------------------------
+assistant_prompt = ChatPromptTemplate.from_messages([
+    ("system", CATSIGHT_PROMPT),
+    ("placeholder", "{messages}"),
+])
 
-        if doc_id not in sources_map:
-            try:
-                d = Document.objects.get(id=doc_id)
-            except Document.DoesNotExist:
-                logger.info(f"DOCUMENT DOES NOT EXIST: {doc_id}")
-                continue
+title_prompt = ChatPromptTemplate.from_messages([
+    ("system", TITLE_GENERATION_PROMPT),
+    ("human", "{text}"),
+])
 
-            sources_map[doc_id] = {
-                "id":            d.id,
-                "title":         d.title,
-                "summary":       d.summary,
-                "year":          d.year,
-                "tags":          list(d.tags.values('name', 'description')),
-                "file_name":     d.file_name,
-                "blurhash":      d.blurhash,
-                "preview_image": d.preview_image,
-                "file_type":     d.file_type,
-                "created_at":    d.created_at.isoformat(),
-                "updated_at":    d.updated_at.isoformat(),
-                "contents":      [],
-            }
 
-        sources_map[doc_id]["contents"].append({
-            "snippet":     snippet,
-            "chunk_index": chunk_index,
-        })
+def _has_text(message: AIMessage) -> bool:
+    content = message.content
+    if isinstance(content, list):
+        return any(isinstance(part, dict) and part.get("text") for part in content)
+    return bool(content and content.strip())
 
-    return json.dumps(list(sources_map.values()))
 
-# --- Helper Functions ------------------------------------------------------
-def generate_title(state: State) -> dict:
-    """
-    Generate a concise and descriptive 3-6 word title for a conversation between a user and MSU-IIT's AI assistant.
-    """
+def assistant(state: State, config: RunnableConfig) -> dict:
+    model = config.get("configurable", {}).get("model") or settings.CHAT_MODEL
+    chain = assistant_prompt | get_chat_model(model, temperature=ASSISTANT_TEMPERATURE).bind_tools([retrieve])
 
-    # System prompt with title requirements - now using the constant from prompts.py
-    system_prompt = TITLE_GENERATION_PROMPT
-
-    # Combine conversation messages into a single string
-    conversation_text = "\n".join([m.content for m in state["messages"] if isinstance(m, HumanMessage)])
-
-    # Create the prompt template
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", "{text}")
-    ])
-
-    # Bind the prompt with the chat model and structured output
-    runnable = prompt | ChatOllama(model="llama3.2:1b", base_url=base_url, temperature=0).with_structured_output(schema=Title)
-
-    # Invoke the model with the conversation text
-    ai_msg = runnable.invoke({"text": conversation_text})
-
-    # Extract the title from the structured response
-    title = ai_msg.title.strip()
-
-    # Log the generated title
-    logger.info(f"Generated title: {title}")
-
-    return {
-        "title": title,
-        "should_generate_title": False
-    }
-
-def generate_title_condition(state: State):
-    """Determine if the assistant should generate a title."""
     messages = state["messages"]
-    should_generate_title = state.get("should_generate_title", True)
-    
-    if len(messages) > 3 and should_generate_title:
+    for _ in range(MAX_EMPTY_RETRIES + 1):
+        result = chain.invoke({"messages": messages, "today_date": date.today().isoformat()})
+        if result.tool_calls or _has_text(result):
+            return {"messages": [result]}
+        # Nudge locally only; the nudge is never saved to the conversation
+        messages = messages + [HumanMessage("Respond with a real answer.")]
+
+    logger.warning(f"{model} returned empty responses {MAX_EMPTY_RETRIES + 1} times")
+    return {"messages": [AIMessage("Sorry, I couldn't put an answer together just now. Please try asking again.")]}
+
+
+def generate_title(state: State) -> dict:
+    """Name the chat from the user's questions; falls back to the first question."""
+    questions = [m.content for m in state["messages"] if isinstance(m, HumanMessage)]
+    title = ""
+    try:
+        chain = title_prompt | get_chat_model(settings.FAST_MODEL, num_ctx=FAST_NUM_CTX).with_structured_output(Title)
+        title = chain.invoke({"text": "\n".join(questions)}).title.strip().strip('"')
+    except Exception:
+        logger.exception("Chat title generation failed; using the first question instead")
+    if not title and questions:
+        title = questions[0].strip()[:60]
+    logger.info(f"Generated title: {title}")
+    return {"title": title[:100] or "New Chat", "should_generate_title": False}
+
+
+def route_after_assistant(state: State) -> Literal["tools", "generate_title", "__end__"]:
+    """One router, so title generation never runs in parallel with a tool call."""
+    if state["messages"][-1].tool_calls:
+        return "tools"
+    if not state.get("title") and state.get("should_generate_title", True):
         return "generate_title"
-    
     return END
 
-# --- Agent Implementation -------------------------------------------
-def create_catsight_agent():
-    """
-    Create a LangGraph agent for the MSU-IIT chatbot with persistence.
-    
-    Returns:
-        Compiled LangGraph agent with persistence
-    """
-    # Initialize the pool and checkpointer
-    pool = get_connection_pool()
+
+# --- Graph -------------------------------------------------------------------
+def _setup_checkpointer(pool: ConnectionPool) -> PostgresSaver:
     checkpointer = PostgresSaver(pool)
     # backend, celery_worker, jupyter and manage.py all import this module at startup;
     # on a fresh DB their concurrent setup() calls race to create the same tables.
@@ -267,43 +181,23 @@ def create_catsight_agent():
         finally:
             lock_conn.execute("SELECT pg_advisory_unlock(%s)", (CHECKPOINTER_SETUP_LOCK_ID,))
     logger.info("PostgreSQL checkpointer setup completed")
+    return checkpointer
 
-    # Define the tools
-    tools = [retrieve]
 
-    # Build the graph
+def create_catsight_agent():
+    """Compile the chat graph with Postgres persistence."""
     builder = StateGraph(State)
-    
-    # Define nodes
-    builder.add_node("assistant", Assistant(primary_assistant_prompt, tools))
-    builder.add_node("tools", create_tool_node_with_fallback(tools))
+    builder.add_node("assistant", assistant, retry_policy=OLLAMA_RETRY)
+    # Tool errors come back to the model as a ToolMessage so it can recover
+    builder.add_node("tools", ToolNode([retrieve], handle_tool_errors=True))
     builder.add_node("generate_title", generate_title)
-    
-    # Define edges
-    builder.add_edge(START, "assistant")
-    
-    builder.add_conditional_edges(
-        "assistant",
-        tools_condition,
-    )
-    builder.add_edge("tools", "assistant")
-    
-    # Add conditional edge for title generation
-    builder.add_conditional_edges(
-        "assistant",
-        generate_title_condition,
-        {
-            "generate_title": "generate_title",
-            END: END
-        }
-    )
-    
-    builder.add_edge("generate_title", END)
-    
-    # Compile with checkpointer and return the graph
-    graph = builder.compile(checkpointer=checkpointer)
-    
-    return graph
 
-# Create the agent instance
+    builder.add_edge(START, "assistant")
+    builder.add_conditional_edges("assistant", route_after_assistant, ["tools", "generate_title", END])
+    builder.add_edge("tools", "assistant")
+    builder.add_edge("generate_title", END)
+
+    return builder.compile(checkpointer=_setup_checkpointer(get_connection_pool()))
+
+
 catsight_agent = create_catsight_agent()

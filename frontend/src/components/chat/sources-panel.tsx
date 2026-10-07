@@ -105,6 +105,13 @@ function SourceItem({ source }: SourceItemProps) {
                       key={idx}
                       className="pl-2 italic border-l-2 border-primary/50"
                     >
+                      {(content.section || content.page) && (
+                        <div className="mb-1 text-xs not-italic text-muted-foreground">
+                          {[content.section, content.page ? `p. ${content.page}` : null]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      )}
                       <Markdown
                         content={content.snippet}
                         className="!my-0 !p-0 !bg-transparent !border-none"

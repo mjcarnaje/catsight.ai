@@ -17,6 +17,8 @@ export interface Source {
   contents: {
     snippet: string;
     chunk_index: number;
+    page?: number | null;
+    section?: string | null;
   }[];
 }
 

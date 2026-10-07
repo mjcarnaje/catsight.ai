@@ -22,16 +22,65 @@ from ..tasks.tasks import (generate_document_summary_task,
                           process_document_task)
 from ..utils.upload import UploadUtils
 from ..utils.permissions import IsAuthenticated, IsSuperAdmin, IsOwnerOrAdmin, AllowAny
-from ..services.vectorstore import vector_store
+from ..services.vectorstore import delete_document_chunks, get_document_chunks
 from ..services.catsight_agent import catsight_agent
 from ..models import DocumentStatus
 import json
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from ..services.rag_agent import rag_agent
 from ..services.summarization_agent import summarization_agent
 from ..utils.langgraph import _print_event
 
 logger = logging.getLogger(__name__)
+
+
+def _sse(event: str, data) -> str:
+    """One Server-Sent Event; data is always JSON-encoded so quotes can't break it."""
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+def _format_chat_message(msg, fallback_id=None) -> dict:
+    """Shape a LangGraph message for the chat UI (used by live streaming and history)."""
+    if isinstance(msg, HumanMessage):
+        role = "user"
+    elif isinstance(msg, AIMessage):
+        role = "assistant"
+    elif isinstance(msg, ToolMessage):
+        role = "tool"
+    else:
+        role = "unknown"
+
+    message = {
+        "id": msg.id or fallback_id,
+        "role": role,
+        "content": msg.content,
+        "timestamp": msg.additional_kwargs.get("timestamp", ""),
+        "message_type": "message",
+        "tool_call": None,
+        "tool_result": None,
+    }
+
+    tool_calls = getattr(msg, "tool_calls", None) or []
+    if role == "assistant" and tool_calls:
+        message["message_type"] = "tool_call"
+        message["tool_call"] = {
+            "name": tool_calls[0].get("name", ""),
+            "query": tool_calls[0].get("args", {}).get("query", ""),
+        }
+    elif role == "tool":
+        # Current tool messages carry sources as an artifact (their content is the
+        # text the model read); chats saved before that stored the JSON as content.
+        sources = msg.artifact
+        if sources is None and isinstance(msg.content, str) and msg.content.startswith(("[", "{")):
+            try:
+                sources = json.loads(msg.content)
+            except json.JSONDecodeError:
+                sources = None
+        if sources is not None:
+            message["content"] = ""
+            message["tool_result"] = {"sources": sources}
+
+    return message
 
 def revoke_task(task_id):
     """Helper function to revoke a Celery task"""
@@ -45,12 +94,8 @@ def revoke_task(task_id):
 def _delete_chunks(doc_id):
     """Helper function to delete chunks for a document"""
     try:
-        retriever = vector_store.as_retriever(
-            search_kwargs={"k": 100, "filter": {"doc_id": doc_id}},
-        )
-        chunks = retriever.get_relevant_documents("")
-        ids = [chunk.id for chunk in chunks]
-        vector_store.delete(ids=ids)
+        removed = delete_document_chunks(doc_id)
+        logger.info(f"Deleted {removed} vector store chunks for document {doc_id}")
     except Exception as e:
         logger.error(f"Error deleting vector store chunks: {str(e)}")
 
@@ -216,18 +261,9 @@ def get_doc_markdown(request, doc_id):
     """
     try:
         document = Document.objects.get(id=doc_id)
-        
-        chunks = vector_store.similarity_search(
-            "", 
-            k=document.no_of_chunks,
-            filter={"doc_id": document.id}
-        )
-        
-        chunks.sort(key=lambda x: x.metadata.get('index', 0))
-        chunks = [chunk.page_content for chunk in chunks]
-        
-        logger.info(f"Chunks: {chunks}")
-        
+
+        chunks = [chunk["content"] for chunk in get_document_chunks(document.id)]
+
         markdown_text = DocumentFullText.objects.get(document=document).text
            
         return Response({"content": markdown_text, "chunks": chunks}, status=status.HTTP_200_OK)
@@ -252,13 +288,8 @@ def delete_doc(request, doc_id):
         # Revoke any running tasks
         revoke_task(document.task_id)
         
-        try:
-            logger.info(f"Deleting vector store chunks for document: {doc_id}")
-            ids = [f"doc_{doc_id}_chunk_{i}" for i in range(document.no_of_chunks)]
-            vector_store.delete(ids=ids)
-        except Exception as e:
-            logger.error(f"Error deleting vector store chunks: {str(e)}")
-        
+        _delete_chunks(doc_id)
+
         UploadUtils.delete_document(doc_id)
         document.delete()
         
@@ -311,23 +342,18 @@ def get_doc_chunks(request, doc_id):
     except Document.DoesNotExist:
         return Response({"status": "error", "message": "Document not found."}, status=status.HTTP_404_NOT_FOUND)
     
-    # Get chunks from vector store
-    chunks = vector_store.similarity_search(
-        "", 
-        k=document.no_of_chunks, 
-        filter={"doc_id": document.id}
-    )
-    
-    # Format chunks for response
-    chunk_data = []
-    for chunk in chunks:
-        chunk_data.append({
-            "id": chunk.metadata.get("id"),
-            "index": chunk.metadata.get("index"),
-            "content": chunk.page_content,
-            "document_id": document.id
-        })
-    
+    chunk_data = [
+        {
+            "id": chunk["metadata"].get("id"),
+            "index": chunk["metadata"].get("index"),
+            "page": chunk["metadata"].get("page"),
+            "section": chunk["metadata"].get("section"),
+            "content": chunk["content"],
+            "document_id": document.id,
+        }
+        for chunk in get_document_chunks(document.id)
+    ]
+
     return Response(chunk_data)
 
 @api_view(['PUT'])
@@ -340,7 +366,7 @@ def update_doc_markdown(request, doc_id):
         )
 
     # 1) Delete old vectors
-    vector_store.delete(filter={"doc_id": doc_id})
+    _delete_chunks(doc_id)
 
     # 2) Update the full‐text
     fulltext, _ = DocumentFullText.objects.get_or_create(document_id=doc_id)
@@ -486,12 +512,12 @@ def chat_with_docs(request):
     if not query or not isinstance(query, str) or not query.strip():
         return Response({"error": "Valid query parameter is required"}, status=400)
     
-    model_id = body.get("model_id", "llama3.1:8b")
+    model_id = body.get("model_id") or settings.CHAT_MODEL
     chat_id = body.get("chat_id")
     file_ids = body.get("file_ids", [])
-        
+
     def event_stream():
-        nonlocal chat_id, query
+        nonlocal chat_id
         # Initialize or retrieve chat record
         if not chat_id:
             chat = Chat.objects.create(user=request.user, title="Untitled")
@@ -499,101 +525,60 @@ def chat_with_docs(request):
         else:
             chat = Chat.objects.filter(id=chat_id, user=request.user).first()
             if not chat:
-                yield f"event: error\ndata: {{\"error\": \"Chat not found: {chat_id}\"}}\n\n"
+                yield _sse("error", {"error": f"Chat not found: {chat_id}"})
                 return
 
-        yield f"event: start\ndata: {{\"chat_id\": \"{chat_id}\"}}\n\n"
+        yield _sse("start", {"chat_id": str(chat_id)})
 
-        thread_id = f"thread_{chat_id}"
-        config = {"configurable": {"model": model_id, "thread_id": thread_id}}
-
-        # Build initial input messages list
-        human_msg = HumanMessage(content=query)
-        input_messages = [human_msg]
-        input_state = {"current_query": query, "messages": input_messages, "file_ids": file_ids}
+        config = {"configurable": {"model": model_id, "thread_id": f"thread_{chat_id}"}}
+        input_state = {"messages": [HumanMessage(content=query)], "file_ids": file_ids}
 
         try:
             _printed = set()
             streamed = set()
-            
-            for state in catsight_agent.stream(
+            title_sent = False
+
+            # "messages" yields LLM tokens as they're generated; "values" yields the
+            # full state after each step (finished messages, tool results, title).
+            for mode, payload in catsight_agent.stream(
                 input=input_state,
                 config=config,
-                stream_mode="values"
+                stream_mode=["messages", "values"],
             ):
+                if mode == "messages":
+                    chunk, metadata = payload
+                    # Only the assistant's reply is shown live; the title node's JSON isn't
+                    if (
+                        metadata.get("langgraph_node") == "assistant"
+                        and isinstance(chunk, AIMessageChunk)
+                        and isinstance(chunk.content, str)
+                        and chunk.content
+                    ):
+                        yield _sse("token", {"id": chunk.id, "content": chunk.content})
+                    continue
+
+                state = payload
                 _print_event(state, _printed)
-                
-                if "title" in state and state.get("should_generate_title") is False and state["title"]:
-                    chat.title = state["title"]
-                    chat.save()
-                    
-                    yield f"event: title\ndata: {{\"title\": \"{state['title']}\"}}\n\n"
 
-                
-                messages = state.get("messages")
-                
-                if messages:
-                    if isinstance(messages, list):
-                        new_message = messages[-1]
-                    
-                    if new_message.id not in streamed:
-                        role = "unknown"
-                        if isinstance(new_message, HumanMessage):
-                            role = "user"
-                        elif isinstance(new_message, AIMessage):
-                            role = "assistant"
-                        elif isinstance(new_message, ToolMessage):
-                            role = "tool"
-                        
-                        tool_calls = getattr(new_message, "tool_calls", [])
-                        is_tool_calls = len(tool_calls) > 0
-                        
-                        message = {
-                            "id": getattr(new_message, "id"),
-                            "role": role,
-                            "content": getattr(new_message, "content", ""),
-                            "timestamp": getattr(new_message, "additional_kwargs", {}).get("timestamp", ""),
-                            "message_type": "message",
-                            "tool_call": None,
-                            "tool_result": None
-                        }
+                if not title_sent and state.get("title") and state.get("should_generate_title") is False:
+                    if chat.title != state["title"]:
+                        chat.title = state["title"]
+                        chat.save(update_fields=["title"])
+                        yield _sse("title", {"title": state["title"]})
+                    title_sent = True
 
-                        if role == "assistant" and is_tool_calls:
-                            message["message_type"] = "tool_call"
-                            
-                            tool_name = tool_calls[0].get("name", "")
-                            args = tool_calls[0].get("args", {})
-                            query = args.get("query", "")
+                messages = state.get("messages") or []
+                if messages and messages[-1].id not in streamed:
+                    streamed.add(messages[-1].id)
+                    # Replaces the token-streamed draft with the same id on the client
+                    yield _sse("message", _format_chat_message(messages[-1]))
 
-                            message["tool_call"] = {
-                                "name": tool_name,
-                                "query": query,
-                            }
-                            yield f"event: message\ndata: {json.dumps(message)}\n\n"
-                            continue
-
-                        if role == "tool":
-                            if message["content"].startswith("{") or message["content"].startswith("["):
-                                sources = json.loads(message["content"])
-                                message["content"] = ""
-                                message["tool_result"] = {
-                                    "sources": sources,
-                                }
-                                yield f"event: message\ndata: {json.dumps(message)}\n\n"
-                                continue
-
-                        yield f"event: message\ndata: {json.dumps(message)}\n\n"
-                        
-                        streamed.add(new_message.id)
-                    
-                   
-                
         except Exception as e:
             logger.error(f"Error streaming response: {str(e)}", exc_info=True)
-            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-        
+            yield _sse("error", {"error": str(e)})
+
         # End of stream
-        yield "event: done\ndata: {}\n\n"
+        yield _sse("done", {})
     
     # Return streaming response
     return StreamingHttpResponse(
@@ -619,61 +604,12 @@ def get_chat_history(request, chat_id):
             messages = saved_state.values["messages"]
             
             # Get the model ID from the config if available
-            model_id = config.get("configurable", {}).get("model", "llama3.2:1b")
-                        
-            # Filter out tool messages and format for frontend
-            formatted_messages = []
-            sources = []
-            
-            for msg in messages:
-                msg.pretty_print()
-                role = "unknown"
+            model_id = config.get("configurable", {}).get("model", settings.CHAT_MODEL)
 
-                if isinstance(msg, HumanMessage):
-                    role = "user"
-                elif isinstance(msg, AIMessage):
-                    role = "assistant"
-                elif isinstance(msg, ToolMessage):
-                    role = "tool"
-
-                tool_calls = getattr(msg, "tool_calls", [])
-                is_tool_calls = len(tool_calls) > 0
-
-                message = {
-                    "id": getattr(msg, "id", f"{role}-{len(formatted_messages)}"),
-                    "role": role,
-                    "content": getattr(msg, "content", ""),
-                    "timestamp": getattr(msg, "additional_kwargs", {}).get("timestamp", ""),
-                    "message_type": "message",
-                    "tool_call": None,
-                    "tool_result": None
-                }
-
-                if role == "assistant" and is_tool_calls:
-                    message["message_type"] = "tool_call"
-                    
-                    tool_name = tool_calls[0].get("name", "")
-                    args = tool_calls[0].get("args", {})
-                    query = args.get("query", "")
-
-                    message["tool_call"] = {
-                        "name": tool_name,
-                        "query": query,
-                    }
-                    formatted_messages.append(message)
-                    continue
-                
-                if role == "tool":
-                    if message["content"].startswith("{") or message["content"].startswith("["):
-                        sources = json.loads(message["content"])
-                        message["content"] = ""
-                        message["tool_result"] = {
-                            "sources": sources,
-                        }
-                        formatted_messages.append(message)
-                        continue
-
-                formatted_messages.append(message)
+            formatted_messages = [
+                _format_chat_message(msg, fallback_id=f"msg-{i}")
+                for i, msg in enumerate(messages)
+            ]
 
             return Response({
                 "messages": formatted_messages,
@@ -881,7 +817,7 @@ def reextract_doc(request, doc_id):
             logger.info(f"Updated summarization model to {summarization_model} for document {doc_id}")
 
         # 1) Delete old vectors
-        vector_store.delete(filter={"doc_id": doc_id})
+        _delete_chunks(doc_id)
 
         # 2) Delete existing full text if it exists
         DocumentFullText.objects.filter(document=document).delete()
