@@ -66,7 +66,8 @@ def get_connection_pool():
             kwargs=CONNECTION_KWARGS,
             open=True,
         )
-        logger.info(f"Created PostgreSQL connection pool for LangGraph using: {PSYCOPG_DB_URI}")
+        # Log the host/database only; the URI contains the password
+        logger.info(f"Created PostgreSQL connection pool for LangGraph on {PSYCOPG_DB_URI.rsplit('@', 1)[-1]}")
     return _connection_pool
 
 

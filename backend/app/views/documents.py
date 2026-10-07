@@ -593,6 +593,10 @@ def get_chat_history(request, chat_id):
     """
     Retrieve chat history for a specific chat_id using LangGraph's state.
     """
+    # Same ownership rule as chat_with_docs: only the chat's owner may read it
+    if not Chat.objects.filter(id=chat_id, user=request.user).exists():
+        return Response({"error": "Chat not found"}, status=status.HTTP_404_NOT_FOUND)
+
     try:
         # Configure thread_id based on chat_id
         thread_id = f"thread_{chat_id}"
