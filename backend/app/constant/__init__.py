@@ -2,34 +2,32 @@ from enum import Enum
 
 
 class DocumentStatus(Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    TEXT_EXTRACTING = "text_extracting" 
-    TEXT_EXTRACTION_DONE = "text_extraction_done"
-    GENERATING_SUMMARY = "generating_summary"
-    SUMMARY_GENERATION_DONE = "summary_generation_done"
-    EMBEDDING_TEXT = "embedding_text"
-    TEXT_EMBEDDING_DONE = "text_embedding_done"
-    COMPLETED = "completed"
+    """Pipeline stage a document is in. A failure keeps the stage it failed at
+    (with Document.is_failed set), so a retry resumes from that stage."""
 
-STATUS_ORDER = {
-    DocumentStatus.PENDING: 0,
-    DocumentStatus.PROCESSING: 1,
-    DocumentStatus.TEXT_EXTRACTING: 2,
-    DocumentStatus.TEXT_EXTRACTION_DONE: 3,
-    DocumentStatus.GENERATING_SUMMARY: 4,
-    DocumentStatus.SUMMARY_GENERATION_DONE: 5,
-    DocumentStatus.EMBEDDING_TEXT: 6,
-    DocumentStatus.TEXT_EMBEDDING_DONE: 7,
-    DocumentStatus.COMPLETED: 8,
-}
+    QUEUED = "queued"
+    EXTRACTING = "extracting"
+    SUMMARIZING = "summarizing"
+    INDEXING = "indexing"
+    READY = "ready"
 
-class MarkdownConverter(Enum):
-    MARKER = "marker"
-    MARKITDOWN = "markitdown"
-    DOCLING = "docling"
+    @classmethod
+    def choices(cls):
+        return [(status.value, status.name.title()) for status in cls]
+
+
+STATUS_ORDER = {status: i for i, status in enumerate(DocumentStatus)}
+
+
+class TextExtractor(Enum):
+    VISION = "vision"  # page images -> OCR_MODEL (OpenRouter)
+    MARKER = "marker"  # local, needs the local-ocr image
+    DOCLING = "docling"  # local, needs the local-ocr image
+    MARKITDOWN = "markitdown"  # local, text layer only (no OCR)
+
 
 class UserRole(Enum):
+    GUEST = "guest"
     USER = "user"
     ADMIN = "admin"
     SUPER_ADMIN = "super_admin"
@@ -37,3 +35,8 @@ class UserRole(Enum):
     @classmethod
     def choices(cls):
         return [(role.value, role.name) for role in cls]
+
+
+class UsageKind(Enum):
+    UPLOAD = "upload"  # amount = pages
+    MESSAGE = "message"  # amount = 1 per question

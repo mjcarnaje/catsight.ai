@@ -1,11 +1,3 @@
-from .tasks import (
-    extract_text_task,
-    chunk_and_embed_text_task,
-    generate_document_summary_task
-)
+from .tasks import delete_expired_guests, process_document
 
-__all__ = [
-    "extract_text_task",
-    "chunk_and_embed_text_task",
-    "generate_document_summary_task"
-]
+__all__ = ["delete_expired_guests", "process_document"]

@@ -1,44 +1,35 @@
-# torch/torchvision/torchaudio are installed by the Dockerfile first (CPU or CUDA wheel),
-# so marker-pdf and docling reuse that build instead of pulling their own.
+# Core runtime: everything the hosted (OpenRouter) image needs.
+# Local OCR (torch, marker, docling, markitdown) lives in requirements-local-ocr.txt
+# and is only installed when the image is built with LOCAL_OCR=1.
 
 # --- Web / API ---
-Django==5.1.2
-djangorestframework
-django-cors-headers
-django-extensions
-djangorestframework-simplejwt
-google-auth
-google-auth-oauthlib
-pyyaml==6.0.1
-ipython
+Django>=5.1,<5.2
+djangorestframework>=3.15,<4
+djangorestframework-simplejwt>=5.3,<6
+django-cors-headers>=4.4,<5
+google-auth>=2.30,<3
+requests>=2.32,<3
+gunicorn>=23,<24
+whitenoise>=6.7,<7
 
-# --- Background jobs ---
+# --- Background jobs / cache ---
 celery[redis]>=5.5,<6
-redis
+redis>=5,<7
 
 # --- Database ---
-psycopg-binary
+psycopg[binary,pool]>=3.2,<4
+pgvector>=0.3,<0.5
 
-# --- LangChain / LangGraph (semver 1.x LTS: allow minor updates) ---
-langchain>=1.0,<2.0
-langchain-core>=1.0,<2.0
-langchain-text-splitters>=1.0,<2.0
-langchain-ollama>=1.0,<2.0
-langchain-postgres>=0.0.15,<0.1
-langgraph>=1.0,<2.0
-langgraph-checkpoint-postgres>=3.0,<4.0
-ollama>=0.6,<1.0
+# --- LLMs (LangChain / LangGraph 1.x) ---
+langchain-core>=1.5,<2
+langchain-text-splitters>=1.0,<2
+langchain-openai>=1.0,<2      # OpenRouter (OpenAI-compatible) chat + embeddings
+langchain-ollama>=1.0,<2      # local mode (LLM_PROVIDER=ollama)
+langgraph>=1.0,<2
+langgraph-checkpoint-postgres>=3.0,<4
+httpx>=0.27,<1
 
-# --- PDF -> Markdown converters ---
-# Never add the PyPI package "marker": it's an unrelated tool that installs into the
-# same `marker/` package as marker-pdf and breaks `from marker.converters...`.
-marker-pdf[full]>=2.0,<3.0
-docling>=2.0,<3.0
-markitdown[pdf]>=0.1,<0.2
-
-# --- PDF utilities (upload previews) ---
-pypdf>=5.0
-pdf2image==1.17.0
-Pillow>=10.4.0
-numpy
-blurhash-python>=1.2.2
+# --- PDFs ---
+pypdfium2>=4.30,<6           # page count, rendering for OCR and previews (no poppler needed)
+Pillow>=10.4,<12
+blurhash-python>=1.2.2,<2

@@ -1,4 +1,9 @@
 __pycache__
-/docs/*
-/migrations/*
-/db.sqlite3
+/media/
+/static/
+/logs/
+/.cache/
+/.env
+/celerybeat-schedule
+/.pytest_cache/
+/.pytest_media/

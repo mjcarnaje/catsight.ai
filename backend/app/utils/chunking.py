@@ -1,8 +1,8 @@
 """Markdown-aware chunking that remembers where each chunk came from.
 
-Every chunk carries the page it starts on (from marker's paginated output) and
-the heading path above it, so answers can cite "Eligibility > Requirements, p. 3"
-and the page separators never end up inside search results.
+Every chunk carries the page it starts on (from the `<!-- page:N -->` markers
+the extractors write) and the heading path above it, so answers can cite
+"Eligibility > Requirements, p. 3" and the markers never end up inside search results.
 """
 import bisect
 import re
@@ -14,8 +14,8 @@ from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 150
 
-# marker (paginate_output=True) puts "\n\n{<0-based page>}" + 48 dashes before every page
-_PAGE_MARKER = re.compile(r"\n*\{(\d+)\}-{48}\n*")
+# Written by services/extraction.join_pages (page numbers are 1-based)
+_PAGE_MARKER = re.compile(r"\s*<!-- page:(\d+) -->\s*")
 _HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$", re.MULTILINE)
 
 # Markdown-aware separators: prefers splitting at headings, then paragraphs, then lines
@@ -45,7 +45,7 @@ def _strip_page_markers(text: str) -> tuple[str, list[int], list[int]]:
         parts.append(before)
         clean_len += len(before)
         page_starts.append(clean_len)
-        page_numbers.append(int(m.group(1)) + 1)
+        page_numbers.append(int(m.group(1)))
         last = m.end()
     parts.append(text[last:])
     return "".join(parts), page_starts, page_numbers

@@ -1,75 +1,39 @@
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
 
-from ..models import Tag
+from ..models import Document, Tag
 from ..serializers import TagSerializer
+from ..utils.permissions import IsAdminOrReadOnly
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_tags(request):
-    """Get all tags"""
-    tags = Tag.objects.all()
-    serializer = TagSerializer(tags, many=True)
-    return Response(serializer.data)
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_tag(request, tag_id):
-    """Get single tag by ID"""
-    tag = get_object_or_404(Tag, id=tag_id)
-    serializer = TagSerializer(tag)
-    return Response(serializer.data)
+def _with_counts(request):
+    visible = Document.objects.visible_to(request.user)
+    return Tag.objects.annotate(document_count=Count("documents", filter=Q(documents__in=visible), distinct=True))
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def create_tag(request):
-    """Create a new tag"""
-    serializer = TagSerializer(data=request.data)
-    
-    if serializer.is_valid():
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAdminOrReadOnly])
+def tags(request):
+    if request.method == "POST":
+        serializer = TagSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         serializer.save(author=request.user)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(TagSerializer(_with_counts(request), many=True).data)
 
-@api_view(['PUT', 'PATCH'])
-@permission_classes([IsAuthenticated])
-def update_tag(request, tag_id):
-    """Update an existing tag"""
-    tag = get_object_or_404(Tag, id=tag_id)
-    
-    # Check if user is the author of the tag
-    if tag.author != request.user:
-        return Response(
-            {"detail": "You do not have permission to edit this tag."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-        
-    # Use PATCH method behavior if PATCH request
-    partial = request.method == 'PATCH'
-    
-    serializer = TagSerializer(tag, data=request.data, partial=partial)
-    if serializer.is_valid():
+
+@api_view(["GET", "PATCH", "DELETE"])
+@permission_classes([IsAdminOrReadOnly])
+def tag_detail(request, tag_id: int):
+    tag = get_object_or_404(_with_counts(request), pk=tag_id)
+    if request.method == "DELETE":
+        tag.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    if request.method == "PATCH":
+        serializer = TagSerializer(tag, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data)
-    
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def delete_tag(request, tag_id):
-    """Delete a tag"""
-    tag = get_object_or_404(Tag, id=tag_id)
-    
-    # Check if user is the author of the tag
-    if tag.author != request.user:
-        return Response(
-            {"detail": "You do not have permission to delete this tag."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-        
-    tag.delete()
-    return Response(status=status.HTTP_204_NO_CONTENT) 
+    return Response(TagSerializer(tag).data)

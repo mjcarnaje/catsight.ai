@@ -1,1028 +1,211 @@
 import logging
-import os
-from django.conf import settings
 
 from celery.result import AsyncResult
-from django.http import FileResponse, StreamingHttpResponse, HttpResponse
+from django.conf import settings
+from django.core import signing
+from django.db.models import Q
+from django.http import FileResponse, Http404
 from rest_framework import status
-from rest_framework.decorators import api_view, parser_classes, permission_classes
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.decorators import api_view, authentication_classes, parser_classes, permission_classes
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.db.models import Count, Avg
-from django.db.models.functions import TruncMonth
-from django.db import models
-from django.utils import timezone
-from datetime import timedelta
 
-from ..models import Document, DocumentFullText, Chat, Tag, User
-from ..serializers import DocumentSerializer
-from ..tasks.tasks import (generate_document_summary_task,
-                          update_document_status,
-                          process_document_task)
-from ..utils.upload import UploadUtils
-from ..utils.permissions import IsAuthenticated, IsSuperAdmin, AllowAny, can_modify
-from ..services.vectorstore import delete_document_chunks, get_document_chunks
-from ..services.catsight_agent import catsight_agent
-from ..models import DocumentStatus
-import json
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
-from ..services.rag_agent import rag_agent
-from ..services.summarization_agent import summarization_agent
-from ..utils.langgraph import _print_event
+from ..constant import DocumentStatus
+from ..models import Document, DocumentChunk, DocumentFullText
+from ..serializers import DocumentDetailSerializer, DocumentSerializer, DocumentUpdateSerializer
+from ..services import extraction, library, quotas, storage
+from ..services.indexing import chunk_context
+from ..services.search import update_search_vectors
+from ..tasks.tasks import reprocess
+from ..utils.permissions import AllowAny, IsAuthenticated, can_modify
 
 logger = logging.getLogger(__name__)
 
 
-def _modify_denied(request, document):
-    """403 response unless the user may change this document (uploader or admin), else None."""
-    if can_modify(request.user, document):
-        return None
+class DocumentPagination(PageNumberPagination):
+    page_size = 12
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+def _csv_ints(value: str) -> list[int]:
+    try:
+        return [int(part) for part in value.split(",") if part.strip()]
+    except ValueError:
+        return []
+
+
+def _get_visible(request, document_id: int) -> Document:
+    document = Document.objects.visible_to(request.user).filter(pk=document_id).first()
+    if document is None:
+        raise Http404("Document not found")
+    return document
+
+
+def _forbidden() -> Response:
     return Response(
-        {"status": "error", "message": "Only the uploader or an admin can change this document."},
+        {"detail": "Only the uploader or an admin can change this document."},
         status=status.HTTP_403_FORBIDDEN,
     )
 
 
-def _csv_ints(value: str) -> list[int]:
-    """Parse "2024, 2025" into [2024, 2025]; raises ValueError on non-numbers."""
-    return [int(part) for part in value.split(",") if part.strip()]
-
-
-def _sse(event: str, data) -> str:
-    """One Server-Sent Event; data is always JSON-encoded so quotes can't break it."""
-    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
-
-
-def _format_chat_message(msg, fallback_id=None) -> dict:
-    """Shape a LangGraph message for the chat UI (used by live streaming and history)."""
-    if isinstance(msg, HumanMessage):
-        role = "user"
-    elif isinstance(msg, AIMessage):
-        role = "assistant"
-    elif isinstance(msg, ToolMessage):
-        role = "tool"
-    else:
-        role = "unknown"
-
-    message = {
-        "id": msg.id or fallback_id,
-        "role": role,
-        "content": msg.content,
-        "timestamp": msg.additional_kwargs.get("timestamp", ""),
-        "message_type": "message",
-        "tool_call": None,
-        "tool_result": None,
-    }
-
-    tool_calls = getattr(msg, "tool_calls", None) or []
-    if role == "assistant" and tool_calls:
-        message["message_type"] = "tool_call"
-        message["tool_call"] = {
-            "name": tool_calls[0].get("name", ""),
-            "query": tool_calls[0].get("args", {}).get("query", ""),
-        }
-    elif role == "tool":
-        # Current tool messages carry sources as an artifact (their content is the
-        # text the model read); chats saved before that stored the JSON as content.
-        sources = msg.artifact
-        if sources is None and isinstance(msg.content, str) and msg.content.startswith(("[", "{")):
-            try:
-                sources = json.loads(msg.content)
-            except json.JSONDecodeError:
-                sources = None
-        if sources is not None:
-            message["content"] = ""
-            message["tool_result"] = {"sources": sources}
-
-    return message
-
-def revoke_task(task_id):
-    """Helper function to revoke a Celery task"""
-    if task_id:
-        try:
-            AsyncResult(task_id).revoke(terminate=True)
-            logger.info(f"Task {task_id} revoked successfully")
-        except Exception as e:
-            logger.error(f"Error revoking task {task_id}: {str(e)}")
-
-def _delete_chunks(doc_id):
-    """Helper function to delete chunks for a document"""
-    try:
-        removed = delete_document_chunks(doc_id)
-        logger.info(f"Deleted {removed} vector store chunks for document {doc_id}")
-    except Exception as e:
-        logger.error(f"Error deleting vector store chunks: {str(e)}")
-
-@api_view(['GET'])
+@api_view(["GET", "POST"])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 @permission_classes([IsAuthenticated])
-def get_docs(request):
-    """
-    Retrieve a list of all documents sorted by creation date with pagination.
-    """
-    documents = Document.objects.all().order_by('-created_at')
-    
-    status_filter = request.GET.get('status')
-    
-    if status_filter and status_filter != 'all':
-        documents = documents.filter(status=status_filter)
-    
-    years = request.GET.get('year')
-    if years:
-        year_list = years.split(',')
-        documents = documents.filter(year__in=year_list)
-    
-    tags = request.GET.get('tags')
-    if tags:
-        tag_list = tags.split(',')
-        documents = documents.filter(tags__id__in=tag_list)
-    
-    page_size = int(request.GET.get('page_size', 9))
-    page_number = int(request.GET.get('page', 1))
-    
-    paginator = Paginator(documents, page_size)
-    
-    try:
-        page = paginator.page(page_number)
-    except PageNotAnInteger:
-        page = paginator.page(1)
-    except EmptyPage:
-        page = paginator.page(paginator.num_pages)
-    
-    serializer = DocumentSerializer(page.object_list, many=True)
-    
-    return Response({
-        'results': serializer.data,
-        'count': paginator.count,
-        'num_pages': paginator.num_pages,
-        'page': page.number,
-        'next': page.next_page_number() if page.has_next() else None,
-        'previous': page.previous_page_number() if page.has_previous() else None,
-    }, status=status.HTTP_200_OK)
+def documents(request):
+    if request.method == "POST":
+        return _upload(request)
 
-@api_view(['POST'])
-@parser_classes([MultiPartParser, FormParser])
-@permission_classes([IsAuthenticated])
-def upload_doc(request):
-    """
-    Handle multiple document uploads and initiate OCR and summary generation using Celery tasks.
-    """
-    uploaded_files = request.FILES.getlist('files')
-    markdown_converter = request.data.get('markdown_converter') or request.user.default_markdown_converter
-    summarization_model = request.data.get('summarization_model') or request.user.default_summarization_model
-
-    if not uploaded_files:
-        return Response({"status": "error", "message": "No files provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-    response_data = []
-
-    for file in uploaded_files:
-        try:
-            serializer = DocumentSerializer(data={'title': file.name})
-            
-            if serializer.is_valid():
-                document = serializer.save(file=None, uploaded_by=request.user)
-
-                try:
-                    file_path, preview_path, blurhash_string, page_count = UploadUtils.upload_document(file, str(document.id))
-                    logger.info(f"Document {document.id} upload results: file_path={file_path}, preview_path={preview_path}, blurhash={blurhash_string is not None}, page_count={page_count}")
-                    
-                    document.file = file_path
-                    document.preview_image = preview_path
-                    document.blurhash = blurhash_string
-                    document.markdown_converter = markdown_converter
-                    document.page_count = page_count
-                    if summarization_model:
-                        document.summarization_model = summarization_model
-                    document.file_name = file.name
-                    document.file_type = file.content_type
-                    document.save()
-                    
-                    result = process_document_task.delay(document.id)
-                    document.task_id = result.id
-                    document.save()
-
-                    response_data.append({"status": "success", "id": document.id, "filename": file.name})
-                except Exception as e:
-                    logger.error(f"Error in document upload process for {file.name}: {str(e)}", exc_info=True)
-                    document.delete() 
-                    response_data.append({"status": "error", "filename": file.name, "errors": str(e)})
-            else:
-                logger.error(f"Document upload failed for {file.name}: {serializer.errors}")
-                response_data.append({"status": "error", "filename": file.name, "errors": serializer.errors})
-        except Exception as e:
-            logger.error(f"Unexpected error during upload of {file.name}: {str(e)}", exc_info=True)
-            response_data.append({"status": "error", "filename": file.name, "errors": str(e)})
-
-    if all(item["status"] == "success" for item in response_data):
-        return Response(response_data, status=status.HTTP_201_CREATED)
-    elif all(item["status"] == "error" for item in response_data):
-        return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
-    else:
-        return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
-    
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def check_if_has_similar_filename(request):
-    file_names = request.GET.get('file_names')
-    """
-    Check if a document has a similar filename to another document and return the similar filenames.
-    """
-    file_names = file_names.split(',')
-    similar_files = []
-    
-    for file_name in file_names:
-        similar_documents = Document.objects.filter(file_name__icontains=file_name)
-        if similar_documents.exists():
-            similar_files.extend([doc.file_name for doc in similar_documents])
-    
-    return Response({
-        "has_similar_filename": len(similar_files) > 0,
-        "similar_files": list(set(similar_files)) 
-    }, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_doc(request, doc_id):
-    """
-    Retrieve a single document by its ID.
-    """
-    try:
-        document= Document.objects.get(id=doc_id)
-        serializer = DocumentSerializer(document)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    except Document.DoesNotExist:
-        logger.warning(f"Documentnot found: {doc_id}")
-        return Response({"status": "error", "message": "Documentnot found"}, status=status.HTTP_404_NOT_FOUND)
-    
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_doc_raw(request, doc_id):
-    """
-    Retrieve the raw content of a document by its ID.
-    """
-    document = Document.objects.get(id=doc_id)
-    file_path = UploadUtils.get_document_file(doc_id, 'original')
-    return FileResponse(open(file_path, 'rb'))
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_doc_markdown(request, doc_id):
-    """
-    Retrieve the markdown content of a document by its ID.
-    Prioritizes using the saved DocumentFullText, falling back to
-    reconstructing from chunks if necessary.
-    """
-    try:
-        document = Document.objects.get(id=doc_id)
-
-        chunks = [chunk["content"] for chunk in get_document_chunks(document.id)]
-
-        markdown_text = DocumentFullText.objects.get(document=document).text
-           
-        return Response({"content": markdown_text, "chunks": chunks}, status=status.HTTP_200_OK)
-    except Document.DoesNotExist:
-        logger.warning(f"Document not found: {doc_id}")
-        return Response(
-            {"status": "error", "message": "Document not found"}, 
-            status=status.HTTP_404_NOT_FOUND
+    docs = Document.objects.visible_to(request.user).select_related("uploaded_by").prefetch_related("tags")
+    params = request.query_params
+    if q := params.get("q", "").strip():
+        docs = docs.filter(
+            Q(title__icontains=q) | Q(file_name__icontains=q) | Q(reference_number__icontains=q) | Q(summary__icontains=q)
         )
+    match params.get("status"):
+        case "ready":
+            docs = docs.filter(status=DocumentStatus.READY.value, is_failed=False)
+        case "processing":
+            docs = docs.exclude(status=DocumentStatus.READY.value).filter(is_failed=False)
+        case "failed":
+            docs = docs.filter(is_failed=True)
+    if years := _csv_ints(params.get("year", "")):
+        docs = docs.filter(year__in=years)
+    if tags := _csv_ints(params.get("tags", "")):
+        docs = docs.filter(tags__id__in=tags).distinct()
+    if params.get("mine") == "1":
+        docs = docs.filter(uploaded_by=request.user)
+    ordering = {"newest": "-created_at", "oldest": "created_at", "issued": "-issued_on", "title": "title"}
+    docs = docs.order_by(ordering.get(params.get("sort", ""), "-created_at"), "-id")
+
+    paginator = DocumentPagination()
+    page = paginator.paginate_queryset(docs, request)
+    serializer = DocumentSerializer(page, many=True, context={"request": request})
+    return paginator.get_paginated_response(serializer.data)
 
 
-@api_view(['DELETE'])
+def _upload(request):
+    """Accept PDFs, skip duplicates, enforce limits and queue each for processing."""
+    files = request.FILES.getlist("files")
+    if not files:
+        return Response({"detail": "Choose at least one PDF."}, status=status.HTTP_400_BAD_REQUEST)
+
+    available = extraction.available_extractors()
+    extractor = request.data.get("extractor") or settings.DEFAULT_TEXT_EXTRACTOR
+    if extractor not in available:
+        return Response(
+            {"detail": f"The {extractor} extractor isn't available here. Options: {', '.join(available) or 'none'}."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    user = request.user
+    # Public-demo uploads by visitors stay private so the shared library can't be changed
+    private = quotas.applies_to(user) or str(request.data.get("private", "")).lower() in {"1", "true"}
+
+    results = [library.add_document(user, upload, upload.name, extractor, private) for upload in files]
+    accepted = any(r["status"] == "queued" for r in results)
+    return Response({"results": results}, status=status.HTTP_201_CREATED if accepted else status.HTTP_200_OK)
+
+
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
-def delete_doc(request, doc_id):
-    """
-    Delete a document by its ID, cancel any running tasks, and remove associated files.
-    Only the uploader or an admin can delete a document.
-    """
+def document_detail(request, document_id: int):
+    document = _get_visible(request, document_id)
+
+    if request.method == "GET":
+        document = Document.objects.prefetch_related("tags", "status_history").select_related("uploaded_by").get(pk=document.pk)
+        return Response(DocumentDetailSerializer(document, context={"request": request}).data)
+
+    if not can_modify(request.user, document):
+        return _forbidden()
+
+    if request.method == "DELETE":
+        if document.task_id:
+            AsyncResult(document.task_id).revoke(terminate=True)
+        storage.delete_document_files(document.id)
+        document.delete()  # chunks, text and history cascade
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    serializer = DocumentUpdateSerializer(document, data=request.data, partial=True)
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    if {"title", "reference_number", "year"} & set(request.data):
+        # Keep each chunk's header in step with the corrected catalogue (no re-embedding)
+        context = chunk_context(document)
+        chunks = list(document.chunks.all())
+        DocumentChunk.objects.filter(document=document).update(context=context)
+        for chunk in chunks:
+            chunk.context = context
+        update_search_vectors(chunks)
+    return Response(DocumentDetailSerializer(document, context={"request": request}).data)
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def document_text(request, document_id: int):
+    """The extracted Markdown; saving an edit re-summarizes and re-indexes."""
+    document = _get_visible(request, document_id)
+    if request.method == "GET":
+        fulltext = DocumentFullText.objects.filter(document=document).first()
+        return Response({"markdown": fulltext.text if fulltext else ""})
+
+    if not can_modify(request.user, document):
+        return _forbidden()
+    markdown = request.data.get("markdown")
+    if not isinstance(markdown, str) or not markdown.strip():
+        return Response({"detail": "The text can't be empty."}, status=status.HTTP_400_BAD_REQUEST)
+    DocumentFullText.objects.update_or_create(document=document, defaults={"text": markdown})
+    reprocess(document, DocumentStatus.SUMMARIZING)
+    return Response({"status": "queued"})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def document_chunks(request, document_id: int):
+    document = _get_visible(request, document_id)
+    chunks = document.chunks.values("id", "index", "page", "section", "text")
+    return Response(list(chunks))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def document_reprocess(request, document_id: int):
+    """Retry a failed document, or redo a stage: {"from": "extracting"|"summarizing"|"indexing"}."""
+    document = _get_visible(request, document_id)
+    if not can_modify(request.user, document):
+        return _forbidden()
+
+    stage_name = request.data.get("from") or (document.status if document.is_failed else "extracting")
     try:
-        document = Document.objects.get(id=doc_id)
-        denied = _modify_denied(request, document)
-        if denied is not None:
-            return denied
-        
-        # Revoke any running tasks
-        revoke_task(document.task_id)
-        
-        _delete_chunks(doc_id)
-
-        UploadUtils.delete_document(doc_id)
-        document.delete()
-        
-        logger.info(f"Document deleted successfully: {doc_id}")
-        return Response(
-            {"status": "success", "message": "Document deleted successfully"}, 
-            status=status.HTTP_200_OK
-        )
-    except Document.DoesNotExist:
-        logger.warning(f"Document not found: {doc_id}")
-        return Response(
-            {"status": "error", "message": "Document not found"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except Exception as e:
-        logger.error(f"Error deleting document: {str(e)}")
-        return Response(
-            {"status": "error", "message": f"Error deleting document: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-    
-
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def delete_chunks(request, doc_id):
-    """
-    Delete the chunks for a document by its ID.
-    """
-    try:
-        try:
-            document = Document.objects.get(id=doc_id)
-        except Document.DoesNotExist:
-            return Response({"status": "error", "message": "Document not found"}, status=status.HTTP_404_NOT_FOUND)
-        denied = _modify_denied(request, document)
-        if denied is not None:
-            return denied
-
-        _delete_chunks(doc_id)
-        return Response({"status": "success", "message": "Chunks deleted successfully"}, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error deleting chunks: {str(e)}")
-        return Response({"status": "error", "message": f"Error deleting chunks: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_doc_chunks(request, doc_id):
-    """
-    Retrieve the chunks for a document by its ID.
-    """
-    try:
-        document = Document.objects.get(id=doc_id)
-    except Document.DoesNotExist:
-        return Response({"status": "error", "message": "Document not found."}, status=status.HTTP_404_NOT_FOUND)
-    
-    chunk_data = [
-        {
-            "id": chunk["metadata"].get("id"),
-            "index": chunk["metadata"].get("index"),
-            "page": chunk["metadata"].get("page"),
-            "section": chunk["metadata"].get("section"),
-            "content": chunk["content"],
-            "document_id": document.id,
-        }
-        for chunk in get_document_chunks(document.id)
-    ]
-
-    return Response(chunk_data)
-
-@api_view(['PUT'])
-@permission_classes([IsAuthenticated])
-def update_doc_markdown(request, doc_id):
-    document = Document.objects.filter(pk=doc_id).first()
-    if document is None:
-        return Response({"detail": "Document not found"}, status=404)
-    denied = _modify_denied(request, document)
-    if denied is not None:
-        return denied
-
-    new_md = request.data.get("markdown")
-    if new_md is None:
-        return Response(
-            {"detail": "No markdown provided"}, status=400
-        )
-
-    # 1) Delete old vectors
-    _delete_chunks(doc_id)
-
-    # 2) Update the full‐text
-    fulltext, _ = DocumentFullText.objects.get_or_create(document_id=doc_id)
-    fulltext.text = new_md
-    fulltext.save()
-
-    # 3) Reset document status to "extracted" so chunk task can proceed
-    update_document_status(document, DocumentStatus.TEXT_EXTRACTION_DONE)
-
-    # 4) Kick off re‐chunk & re‐summary using the process_document_task
-    # This will detect the document's current status and continue from there
-    result = process_document_task.delay(doc_id)
-    document.task_id = result.id
-    document.save(update_fields=["task_id"])
-
-    return Response(status=200)
-
-    
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def search_docs(request):
-    query = request.GET.get("query", "").strip()
-    is_accurate = request.GET.get("accurate", "false") == "true"
-
-    if not query:
-        return Response(
-            {"error": "The 'query' parameter is required."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    # The search page sends comma-separated values: year=2024,2025&tags=3,8 (tag ids)
-    try:
-        years = _csv_ints(request.GET.get("year", ""))
-        tags = _csv_ints(request.GET.get("tags", ""))
+        stage = DocumentStatus(stage_name)
     except ValueError:
-        return Response(
-            {"error": "'year' and 'tags' must be comma-separated numbers."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"detail": f"Unknown stage {stage_name!r}."}, status=status.HTTP_400_BAD_REQUEST)
+    if stage in (DocumentStatus.QUEUED, DocumentStatus.READY):
+        stage = DocumentStatus.EXTRACTING
 
-    logger.info(f"Search query: {query}, years: {years}, tags: {tags}")
+    if extractor := request.data.get("extractor"):
+        if extractor not in extraction.available_extractors():
+            return Response({"detail": f"The {extractor} extractor isn't available here."}, status=status.HTTP_400_BAD_REQUEST)
+        document.extractor = extractor
+        document.save(update_fields=["extractor"])
+        stage = DocumentStatus.EXTRACTING
+    if stage is DocumentStatus.EXTRACTING and quotas.applies_to(request.user):
+        return Response({"detail": "Re-reading a document isn't available in the demo."}, status=status.HTTP_403_FORBIDDEN)
 
-    try:
-        import time
-        start_time = time.time()
-        
-        result = rag_agent.invoke({"query": query, "is_accurate": is_accurate, "years": years, "tags": tags})
-        
-        query_time = time.time() - start_time
-        
-        return Response({
-            'summary': result.get("summary", ""),
-            'sources': result.get("sources", []),
-            'query_time': query_time
-        }, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        logger.exception("Search failed")
-        return Response(
-            {"error": f"Search failed: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def standard_search_docs(request):
-    """
-    Search documents by title and summary with optional year and tags filters.
-    """
-    query = request.GET.get("query", "").strip().lower()
-    years = request.GET.get("year")
-    tags = request.GET.get("tags")
-    
-    if not query:
-        return Response(
-            {"error": "The 'query' parameter is required."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    try:
-        import time
-        start_time = time.time()
-        
-        # Base query with title and summary search
-        documents = Document.objects.filter(
-            models.Q(title__icontains=query) |
-            models.Q(summary__icontains=query)
-        )
-
-        # Apply year filter if provided
-        if years:
-            year_list = years.split(',')
-            documents = documents.filter(year__in=year_list)
-        
-        # Apply tags filter if provided
-        if tags:
-            tag_list = tags.split(',')
-            documents = documents.filter(tags__id__in=tag_list)
-
-        # Order by creation date
-        documents = documents.order_by('-created_at')
-
-        # Format response similar to RAG search for frontend compatibility
-        sources = []
-        for doc in documents:
-            source = {
-                "id": doc.id,
-                "title": doc.title,
-                "summary": doc.summary,
-                "year": doc.year,
-                "tags": list(doc.tags.values('name', 'description')),
-                "file_name": doc.file_name,
-                "blurhash": doc.blurhash,
-                "preview_image": doc.preview_image,
-                "file_type": doc.file_type,
-                "created_at": doc.created_at.isoformat(),
-                "updated_at": doc.updated_at.isoformat(),
-                "contents": []  # Empty contents since this is not a RAG search
-            }
-            sources.append(source)
-            
-        query_time = time.time() - start_time
-
-        return Response({
-            'summary': "",  # No AI summary for standard search
-            'sources': sources,
-            'query_time': query_time
-        }, status=status.HTTP_200_OK)
-        
-    except Exception as e:
-        logger.exception("Standard search failed")
-        return Response(
-            {"error": f"Search failed: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def chat_with_docs(request):
-    """
-    Chat with documents endpoint that uses LangGraph with PostgreSQL persistence.
-    Streams AI responses using Server-Sent Events (SSE) protocol.
-    """
-    body = request.data
-    if not body:
-        return Response({"error": "No body provided"}, status=400)
-    
-    query = body.get("query")
-    if not query or not isinstance(query, str) or not query.strip():
-        return Response({"error": "Valid query parameter is required"}, status=400)
-    
-    model_id = body.get("model_id") or settings.CHAT_MODEL
-    chat_id = body.get("chat_id")
-    file_ids = body.get("file_ids", [])
-
-    def event_stream():
-        nonlocal chat_id
-        # Initialize or retrieve chat record
-        if not chat_id:
-            chat = Chat.objects.create(user=request.user, title="Untitled")
-            chat_id = str(chat.id)
-        else:
-            chat = Chat.objects.filter(id=chat_id, user=request.user).first()
-            if not chat:
-                yield _sse("error", {"error": f"Chat not found: {chat_id}"})
-                return
-
-        yield _sse("start", {"chat_id": str(chat_id)})
-
-        config = {"configurable": {"model": model_id, "thread_id": f"thread_{chat_id}"}}
-        input_state = {"messages": [HumanMessage(content=query)], "file_ids": file_ids}
-
-        try:
-            _printed = set()
-            streamed = set()
-            title_sent = False
-
-            # "messages" yields LLM tokens as they're generated; "values" yields the
-            # full state after each step (finished messages, tool results, title).
-            for mode, payload in catsight_agent.stream(
-                input=input_state,
-                config=config,
-                stream_mode=["messages", "values"],
-            ):
-                if mode == "messages":
-                    chunk, metadata = payload
-                    # Only the assistant's reply is shown live; the title node's JSON isn't
-                    if (
-                        metadata.get("langgraph_node") == "assistant"
-                        and isinstance(chunk, AIMessageChunk)
-                        and isinstance(chunk.content, str)
-                        and chunk.content
-                    ):
-                        yield _sse("token", {"id": chunk.id, "content": chunk.content})
-                    continue
-
-                state = payload
-                _print_event(state, _printed)
-
-                if not title_sent and state.get("title") and state.get("should_generate_title") is False:
-                    if chat.title != state["title"]:
-                        chat.title = state["title"]
-                        chat.save(update_fields=["title"])
-                        yield _sse("title", {"title": state["title"]})
-                    title_sent = True
-
-                messages = state.get("messages") or []
-                if messages and messages[-1].id not in streamed:
-                    streamed.add(messages[-1].id)
-                    # Replaces the token-streamed draft with the same id on the client
-                    yield _sse("message", _format_chat_message(messages[-1]))
-
-        except Exception as e:
-            logger.error(f"Error streaming response: {str(e)}", exc_info=True)
-            yield _sse("error", {"error": str(e)})
-
-        # End of stream
-        yield _sse("done", {})
-    
-    # Return streaming response
-    return StreamingHttpResponse(
-        event_stream(),
-        content_type="text/event-stream"
-    )
+    reprocess(document, stage)
+    return Response({"status": "queued", "from": stage.value})
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_chat_history(request, chat_id):
-    """
-    Retrieve chat history for a specific chat_id using LangGraph's state.
-    """
-    # Same ownership rule as chat_with_docs: only the chat's owner may read it
-    if not Chat.objects.filter(id=chat_id, user=request.user).exists():
-        return Response({"error": "Chat not found"}, status=status.HTTP_404_NOT_FOUND)
-
-    try:
-        # Configure thread_id based on chat_id
-        thread_id = f"thread_{chat_id}"
-        config = {"configurable": {"thread_id": thread_id}}
-        
-        # Get the state from LangGraph
-        try:
-            saved_state = catsight_agent.get_state(config)
-            messages = saved_state.values["messages"]
-            
-            # Get the model ID from the config if available
-            model_id = config.get("configurable", {}).get("model", settings.CHAT_MODEL)
-
-            formatted_messages = [
-                _format_chat_message(msg, fallback_id=f"msg-{i}")
-                for i, msg in enumerate(messages)
-            ]
-
-            return Response({
-                "messages": formatted_messages,
-                "model_id": model_id,
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"Error retrieving chat history: {str(e)}")
-            return Response(
-                {"error": f"Failed to retrieve chat history: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    except Exception as e:
-        logger.error(f"Error in get_chat_history: {str(e)}")
-        return Response(
-            {"error": f"Error: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-
-@api_view(['GET'])
+@api_view(["GET"])
+@authentication_classes([])  # <img>/<iframe> requests carry no token; the signature is the credential
 @permission_classes([AllowAny])
-def get_graph_image(request):
+def signed_file(request, token: str):
+    """A document's PDF or preview, behind a signed, expiring URL (see storage.signed_file_url)."""
     try:
-        agent = request.GET.get("agent")
-
-        if agent == "summary":
-            mermaid_text = summarization_agent.get_graph().draw_mermaid()
-        elif agent == "rag":
-            mermaid_text = rag_agent.get_graph().draw_mermaid()
-        else:
-            mermaid_text = catsight_agent.get_graph().draw_mermaid()
-        
-        html_content = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>LangGraph Visualization</title>
-            <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {{
-                    mermaid.initialize({{ startOnLoad: true, theme: 'default' }});
-                }});
-            </script>
-            <style>
-                body, html {{ margin: 0; padding: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }}
-                .mermaid {{ max-width: 100%; height: auto; }}
-            </style>
-        </head>
-        <body>
-            <div class="mermaid">
-                {mermaid_text}
-            </div>
-        </body>
-        </html>
-        """
-        
-        # Return the HTML content
-        return HttpResponse(
-            html_content,
-            content_type="text/html"
-        )
-    except Exception as e:
-        logger.error(f"Error getting graph image: {str(e)}")
-        return Response(
-            {"error": f"Failed to get graph image: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def regenerate_preview(request, doc_id):
-    """
-    Regenerate the preview image and blurhash for a document.
-    """
-    try:
-        document = Document.objects.get(id=doc_id)
-        denied = _modify_denied(request, document)
-        if denied is not None:
-            return denied
-        
-        # Get the original file path
-        file_path = os.path.join(settings.MEDIA_ROOT, document.file)
-        
-        if not os.path.exists(file_path):
-            return Response(
-                {"status": "error", "message": "Original document file not found"}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Generate preview image and blurhash
-        preview_path, blurhash_string = UploadUtils.generate_preview_and_blurhash(
-            doc_id, file_path
-        )
-        
-        if not preview_path:
-            return Response(
-                {"status": "error", "message": "Failed to generate preview image"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        
-        # Update document with new preview and blurhash
-        document.preview_image = preview_path
-        document.blurhash = blurhash_string
-        document.save()
-        
-        return Response({
-            "status": "success", 
-            "message": "Preview regenerated successfully",
-            "preview_image": preview_path,
-            "blurhash": blurhash_string
-        }, status=status.HTTP_200_OK)
-        
-    except Document.DoesNotExist:
-        return Response(
-            {"status": "error", "message": "Document not found"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except Exception as e:
-        logger.error(f"Error regenerating preview for document {doc_id}: {str(e)}", exc_info=True)
-        return Response(
-            {"status": "error", "message": f"Error regenerating preview: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_docs_count(request):
-    """
-    Return the total count of documents in the system.
-    """
-    try:
-        count = Document.objects.count()
-        return Response({"count": count}, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error getting document count: {str(e)}")
-        return Response(
-            {"status": "error", "message": f"Error getting document count: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def regenerate_summary(request, doc_id):
-    """
-    Regenerate the summary, title, tags, and year for a document.
-    Optionally update the summarization model to use.
-    """
-    try:
-        document = Document.objects.get(id=doc_id)
-        denied = _modify_denied(request, document)
-        if denied is not None:
-            return denied
-        
-        # Check if a new summarization model is provided
-        summarization_model = request.data.get('summarization_model')
-        if summarization_model:
-            document.summarization_model = summarization_model
-            document.save(update_fields=["summarization_model"])
-            logger.info(f"Updated summarization model to {summarization_model} for document {doc_id}")
-        
-        # Kick off the summary generation task
-        task = generate_document_summary_task.delay(doc_id)
-        
-        # Update task_id in document
-        document.task_id = task.id
-        document.save(update_fields=["task_id"])
-        
-        logger.info(f"Summary regeneration task started for document {doc_id}")
-        return Response(
-            {"status": "success", "message": "Document summary regeneration started"}, 
-            status=status.HTTP_200_OK
-        )
-    except Document.DoesNotExist:
-        logger.warning(f"Document not found: {doc_id}")
-        return Response(
-            {"status": "error", "message": "Document not found"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except Exception as e:
-        logger.error(f"Error regenerating summary for document {doc_id}: {str(e)}", exc_info=True)
-        return Response(
-            {"status": "error", "message": f"Error regenerating summary: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def reextract_doc(request, doc_id):
-    """
-    Re-extract the document text using a different markdown converter.
-    Deletes existing chunks and full text, then starts the extraction process again.
-    Optionally update the summarization model to use.
-    """
-    try:
-        # Get the document
-        document = Document.objects.get(id=doc_id)
-        denied = _modify_denied(request, document)
-        if denied is not None:
-            return denied
-
-        # Get the new markdown converter from request
-        markdown_converter = request.data.get("markdown_converter")
-        if not markdown_converter:
-            return Response(
-                {"detail": "No markdown converter provided"}, status=400
-            )
-
-        # Check if a new summarization model is provided
-        summarization_model = request.data.get('summarization_model')
-        if summarization_model:
-            document.summarization_model = summarization_model
-            logger.info(f"Updated summarization model to {summarization_model} for document {doc_id}")
-
-        # 1) Delete old vectors
-        _delete_chunks(doc_id)
-
-        # 2) Delete existing full text if it exists
-        DocumentFullText.objects.filter(document=document).delete()
-
-        # 3) Update document's markdown converter and reset status
-        document.markdown_converter = markdown_converter
-        update_fields = ["status", "markdown_converter"]
-        if summarization_model:
-            update_fields.append("summarization_model")
-        update_document_status(document, DocumentStatus.PENDING, update_fields=update_fields)
-
-        # 4) Kick off the process using the new task
-        result = process_document_task.delay(document.id)
-        
-        # Update task ID in document
-        document.task_id = result.id
-        document.save(update_fields=["task_id"])
-
-        return Response(
-            {"status": "success", "message": "Document re-extraction started"}, 
-            status=status.HTTP_200_OK
-        )
-    except Document.DoesNotExist:
-        logger.warning(f"Document not found: {doc_id}")
-        return Response(
-            {"status": "error", "message": "Document not found"}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except Exception as e:
-        logger.error(f"Error re-extracting document {doc_id}: {str(e)}", exc_info=True)
-        return Response(
-            {"status": "error", "message": f"Error re-extracting document: {str(e)}"}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-    
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_all_tags(request):
-    """
-    Get all unique tags from the Tag model.
-    """
-    try:
-        tags = Tag.objects.all().order_by('name')
-        tag_data = [{'id': tag.id, 'name': tag.name} for tag in tags]
-        return Response(tag_data, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error getting all tags: {str(e)}")
-        return Response(
-            {"status": "error", "message": f"Error getting all tags: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-    
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_all_years(request):
-    """
-    Get all unique years from all documents.
-    """
-    try:
-        # Get distinct years, exclude None values, and sort in descending order
-        years = Document.objects.exclude(year__isnull=True).values_list('year', flat=True).distinct().order_by('-year')
-        return Response(list(years), status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error getting all years: {str(e)}")
-        return Response(
-            {"status": "error", "message": f"Error getting all years: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_statistics(request):
-    """
-    Return various statistics about the system.
-    """
-    try:
-        # Initialize all possible statuses with count 0
-        status_counts = {status.value: 0 for status in DocumentStatus}
-        
-        # Get document count by status using proper aggregation
-        status_counts_by_status = {}
-        for status_value in status_counts.keys():
-            count = Document.objects.filter(status=status_value).count()
-            status_counts[status_value] = count
-            status_counts_by_status[status_value] = count
-        
-        logger.info(f"Status counts: {status_counts_by_status}")
-        
-        # Calculate average page count and chunks
-        avg_page_count = Document.objects.aggregate(avg_pages=Avg('page_count'))['avg_pages'] or 0
-        avg_chunks = Document.objects.aggregate(avg_chunks=Avg('no_of_chunks'))['avg_chunks'] or 0
-        
-        # Get document years distribution
-        years_distribution = Document.objects.exclude(year__isnull=True).values('year').annotate(
-            count=Count('id')
-        ).order_by('year')
-        
-        # Get documents created per month (last 6 months)
-        six_months_ago = timezone.now() - timedelta(days=180)
-        docs_per_month = Document.objects.filter(
-            created_at__gte=six_months_ago
-        ).annotate(
-            month=TruncMonth('created_at')
-        ).values('month').annotate(
-            count=Count('id')
-        ).order_by('month')
-        
-        documents_timeline = [{
-            "month": item['month'].strftime('%b %Y'),
-            "count": item['count']
-        } for item in docs_per_month]
-        
-        stats = {
-            "documents_count": Document.objects.count(),
-            "chats_count": Chat.objects.count(),
-            "users_count": User.objects.count(),
-            "documents_by_status": status_counts,
-            "avg_page_count": round(avg_page_count, 1),
-            "avg_chunks": round(avg_chunks, 1),
-            "years_distribution": [{
-                "year": item['year'],
-                "count": item['count']
-            } for item in years_distribution],
-            "documents_timeline": documents_timeline
-        }
-        
-        return Response(stats, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error getting statistics: {str(e)}")
-        return Response(
-            {"status": "error", "message": f"Error getting statistics: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def get_docs_by_ids(request):
-    """
-    Retrieve documents by a list of IDs.
-    Used to check progress of documents uploaded in chat.
-    """
-    doc_ids = request.data.get('doc_ids', [])
-    
-    if not doc_ids or not isinstance(doc_ids, list):
-        return Response(
-            {"error": "A list of document IDs is required"}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    try:
-        documents = Document.objects.filter(id__in=doc_ids).order_by('-created_at')
-        serializer = DocumentSerializer(documents, many=True)
-        
-        return Response({
-            'documents': serializer.data
-        }, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error retrieving documents by IDs: {str(e)}")
-        return Response(
-            {"error": f"Failed to retrieve documents: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        path = storage.resolve_signed_file(token)
+    except (signing.BadSignature, FileNotFoundError, KeyError, TypeError):
+        raise Http404("File not found")
+    content_type = "application/pdf" if path.suffix == ".pdf" else "image/webp"
+    response = FileResponse(open(path, "rb"), content_type=content_type)
+    response["Cache-Control"] = "private, max-age=21600"
+    return response

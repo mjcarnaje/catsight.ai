@@ -1,0 +1,8 @@
+# Local text extraction (LOCAL_OCR=1 builds). torch/torchvision are installed first by
+# the Dockerfile from TORCH_INDEX_URL (CPU or CUDA) so these reuse that build.
+#
+# Never add the PyPI package "marker": it's an unrelated tool that installs into the
+# same `marker/` package as marker-pdf and breaks `from marker.converters...`.
+marker-pdf[full]>=2.0,<3.0
+docling>=2.0,<3.0
+markitdown[pdf]>=0.1,<0.2

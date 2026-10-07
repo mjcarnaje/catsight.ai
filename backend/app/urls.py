@@ -1,103 +1,38 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views.auth import (
-    RegisterView,
-    LoginView, 
-    GoogleAuthView,
-    UserProfileView,
-)
-from .views.documents import (
-    get_docs,
-    upload_doc,
-    get_doc,
-    get_doc_raw,
-    get_doc_markdown,
-    get_doc_chunks,
-    delete_doc,
-    update_doc_markdown,
-    search_docs,
-    standard_search_docs,
-    chat_with_docs,
-    get_graph_image,
-    get_chat_history,
-    regenerate_preview,
-    get_docs_count,
-    regenerate_summary,
-    reextract_doc,
-    get_all_tags,
-    get_all_years,
-    get_statistics,
-    get_docs_by_ids,
-    delete_chunks,
-    check_if_has_similar_filename,
-)
-from .views.llm import (
-    get_llm_models,
-    get_llm_model,
-)
-from .views.chats import (
-    get_recent_chats,
-    get_chat,
-    create_chat,
-    delete_chat,
-    get_chats_count,
-)
-from .views.tags import (
-    get_tags,
-    get_tag,
-    create_tag,
-    update_tag,
-    delete_tag,
-)
+
+from .views import auth, chat, documents, overview, search, tags
 
 urlpatterns = [
-    # Authentication URLs
-    path('auth/register/', RegisterView.as_view(), name='register'),
-    path('auth/login/', LoginView.as_view(), name='login'),
-    path('auth/google/', GoogleAuthView.as_view(), name='google_auth'),
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('auth/profile/', UserProfileView.as_view(), name='profile'),
+    # App
+    path("config/", overview.app_config, name="config"),
+    path("dashboard/", overview.dashboard, name="dashboard"),
 
-    # LLM URLs
-    path('llm-models/', get_llm_models, name='get_llm_models'),
-    path('llm-models/<int:pk>/', get_llm_model, name='get_llm_model'),
-    
-    # Document URLs
-    path('statistics/', get_statistics, name='get_statistics'),
-    path('documents/', get_docs, name='get_docs'),
-    path('documents/check-if-has-similar-filename/', check_if_has_similar_filename, name='check_if_has_similar_filename'),
-    path('documents/count/', get_docs_count, name='get_docs_count'),
-    path('documents/by-ids/', get_docs_by_ids, name='get_docs_by_ids'),
-    path('documents/upload/', upload_doc, name='upload_doc'),
-    path('documents/<int:doc_id>/', get_doc, name='get_doc'),
-    path('documents/<int:doc_id>/raw/', get_doc_raw, name='get_doc_raw'),
-    path('documents/<int:doc_id>/markdown/', get_doc_markdown, name='get_doc_markdown'),
-    path('documents/<int:doc_id>/chunks/', get_doc_chunks, name='get_doc_chunks'),
-    path('documents/<int:doc_id>/delete/', delete_doc, name='delete_doc'),
-    path('documents/<int:doc_id>/delete-chunks/', delete_chunks, name='delete_chunks'),
-    path('documents/<int:doc_id>/update/', update_doc_markdown, name='update_doc_markdown'),
-    path('documents/<int:doc_id>/regenerate-preview/', regenerate_preview, name='regenerate_preview'),
-    path('documents/<int:doc_id>/regenerate-summary/', regenerate_summary, name='regenerate_summary'),
-    path('documents/<int:doc_id>/reextract/', reextract_doc, name='reextract_doc'),
-    path('documents/search/', search_docs, name='search_docs'),
-    path('documents/standard-search/', standard_search_docs, name='standard_search_docs'),
-    path('documents/chat/', chat_with_docs, name='chat_with_docs'),
-    path('documents/graph/', get_graph_image, name='get_graph_image'),
-    path('documents/get_all_tags/', get_all_tags, name='get_all_tags'),
-    path('documents/get_all_years/', get_all_years, name='get_all_years'),
-    
-    # Chat URLs
-    path('chats/count/', get_chats_count, name='get_chats_count'),
-    path('chats/recent/', get_recent_chats, name='get_recent_chats'),
-    path('chats/<int:chat_id>/', get_chat, name='get_chat'),
-    path('chats/create/', create_chat, name='create_chat'),
-    path('chats/<int:chat_id>/delete/', delete_chat, name='delete_chat'),
-    path('chats/<str:chat_id>/history/', get_chat_history, name='get_chat_history'),
-    
-    # Tag URLs
-    path('tags/', get_tags, name='get_tags'),
-    path('tags/<int:tag_id>/', get_tag, name='get_tag'),
-    path('tags/create/', create_tag, name='create_tag'),
-    path('tags/<int:tag_id>/update/', update_tag, name='update_tag'),
-    path('tags/<int:tag_id>/delete/', delete_tag, name='delete_tag'),
+    # Accounts
+    path("auth/register/", auth.register, name="register"),
+    path("auth/login/", auth.login, name="login"),
+    path("auth/guest/", auth.guest, name="guest"),
+    path("auth/google/", auth.google, name="google"),
+    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/me/", auth.MeView.as_view(), name="me"),
+
+    # Documents
+    path("documents/", documents.documents, name="documents"),
+    path("documents/<int:document_id>/", documents.document_detail, name="document"),
+    path("documents/<int:document_id>/text/", documents.document_text, name="document_text"),
+    path("documents/<int:document_id>/chunks/", documents.document_chunks, name="document_chunks"),
+    path("documents/<int:document_id>/reprocess/", documents.document_reprocess, name="document_reprocess"),
+    path("files/<str:token>/", documents.signed_file, name="signed_file"),
+
+    # Search and chat
+    path("search/", search.search_documents, name="search"),
+    path("search/answer/", search.search_answer, name="search_answer"),
+    path("chats/", chat.chats, name="chats"),
+    path("chats/stream/", chat.chat_stream, name="chat_stream"),
+    path("chats/<int:chat_id>/", chat.chat_detail, name="chat"),
+    path("chats/<int:chat_id>/messages/", chat.chat_messages, name="chat_messages"),
+
+    # Tags
+    path("tags/", tags.tags, name="tags"),
+    path("tags/<int:tag_id>/", tags.tag_detail, name="tag"),
 ]

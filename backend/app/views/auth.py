@@ -1,204 +1,152 @@
-from django.contrib.auth import authenticate
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-from google.oauth2 import id_token
-from google_auth_oauthlib.flow import Flow
-from google.auth.transport import requests as google_requests
-from django.conf import settings
-import requests
-import json
-import os
 import logging
 import uuid
-from rest_framework.parsers import MultiPartParser, FormParser
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
 from pathlib import Path
+
+import requests
+from django.conf import settings
+from django.contrib.auth import authenticate
+from django.core.files.storage import default_storage
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from ..constant import UserRole
+from ..models import User
+from ..serializers import LoginSerializer, ProfileUpdateSerializer, RegisterSerializer, UserSerializer
+from ..tasks.tasks import delete_expired_guests
+from ..utils.permissions import AllowAny, IsAuthenticated
 
 logger = logging.getLogger(__name__)
 
-
-from app.models import User
-from app.serializers import (
-    UserSerializer, 
-    RegisterSerializer, 
-    LoginSerializer, 
-    GoogleAuthSerializer
-)
-from app.utils.permissions import IsAuthenticated, AllowAny
+MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
 
-def get_tokens_for_user(user):
-    """
-    Generate JWT tokens for a user
-    """
+def session_for(user: User, status_code=status.HTTP_200_OK) -> Response:
     refresh = RefreshToken.for_user(user)
-    return {
-        'refresh': str(refresh),
-        'access': str(refresh.access_token),
-    }
+    return Response(
+        {"user": UserSerializer(user).data, "tokens": {"access": str(refresh.access_token), "refresh": str(refresh)}},
+        status=status_code,
+    )
 
 
-class RegisterView(APIView):
-    permission_classes = [AllowAny]
+class GuestThrottle(AnonRateThrottle):
+    """Guest accounts per visitor IP; Cloudflare puts the real client IP in CF-Connecting-IP."""
 
-    def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            tokens = get_tokens_for_user(user)
-            return Response({
-                'user': UserSerializer(user).data,
-                'tokens': tokens
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    scope = "guest"
+    rate = "6/hour"
+
+    def get_ident(self, request):
+        return request.META.get("HTTP_CF_CONNECTING_IP") or super().get_ident(request)
 
 
-class LoginView(APIView):
-    permission_classes = []
-
-    def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            email = serializer.validated_data.get('email')
-            password = serializer.validated_data.get('password')
-            user = authenticate(email=email, password=password)
-            
-            if user is not None:
-                tokens = get_tokens_for_user(user)
-                return Response({
-                    'user': UserSerializer(user).data,
-                    'tokens': tokens
-                }, status=status.HTTP_200_OK)
-            return Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register(request):
+    serializer = RegisterSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    return session_for(serializer.save(), status.HTTP_201_CREATED)
 
 
-class GoogleAuthView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        serializer = GoogleAuthSerializer(data=request.data)
-        if serializer.is_valid():
-            code = serializer.validated_data.get('token')
-            
-            try:
-                token_endpoint = "https://oauth2.googleapis.com/token"
-                redirect_uri = "https://catsightai.ngrok.app/login"
-                
-                token_data = {
-                    'code': code,
-                    'client_id': settings.GOOGLE_OAUTH_CLIENT_ID,
-                    'client_secret': settings.GOOGLE_OAUTH_CLIENT_SECRET,
-                    'redirect_uri': redirect_uri,
-                    'grant_type': 'authorization_code'
-                }
-                
-                # Make the token exchange request
-                token_response = requests.post(token_endpoint, data=token_data)
-                token_json = token_response.json()
-                
-                if 'error' in token_json:
-                    return Response({
-                        'detail': f"Google auth error: {token_json.get('error_description', token_json['error'])}"
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
-                # Get ID token from response
-                id_token_value = token_json['id_token']
-                
-                # Verify the ID token
-                idinfo = id_token.verify_oauth2_token(
-                    id_token_value,
-                    google_requests.Request(),
-                    settings.GOOGLE_OAUTH_CLIENT_ID
-                )
-                
-                # Check if the email domain is allowed
-                email = idinfo['email']
-                if not email.endswith('@g.msuiit.edu.ph'):
-                    return Response({
-                        'detail': 'Only users with @g.msuiit.edu.ph email addresses are allowed'
-                    }, status=status.HTTP_403_FORBIDDEN)
-                
-                # Check if the user exists
-                try:
-                    user = User.objects.get(email=email)
-                    # Update Google ID if it's not set
-                    if not user.google_id:
-                        user.google_id = idinfo['sub']
-                        user.save()
-                except User.DoesNotExist:
-                    # Create a new user
-                    username = email.split('@')[0]
-                    first_name = idinfo.get('given_name', '')
-                    last_name = idinfo.get('family_name', '')
-                    picture = idinfo.get('picture', '')
-                    
-                    user = User.objects.create_user(
-                        email=email,
-                        username=username,
-                        first_name=first_name,
-                        last_name=last_name,
-                        avatar=picture,
-                        google_id=idinfo['sub'],
-                        password="password"
-                    )
-                
-                # Generate tokens
-                tokens = get_tokens_for_user(user)
-                return Response({
-                    'user': UserSerializer(user).data,
-                    'tokens': tokens
-                }, status=status.HTTP_200_OK)
-                
-            except ValueError as e:
-                return Response({'detail': f'Invalid token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                return Response({'detail': f'Authentication error: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def login(request):
+    serializer = LoginSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    user = authenticate(email=serializer.validated_data["email"].lower(), password=serializer.validated_data["password"])
+    if user is None:
+        return Response({"detail": "That email and password don't match."}, status=status.HTTP_401_UNAUTHORIZED)
+    return session_for(user)
 
 
-class UserProfileView(APIView):
+@api_view(["POST"])
+@permission_classes([AllowAny])
+@throttle_classes([GuestThrottle])
+def guest(request):
+    """One-click demo access: a temporary account with the demo's limits."""
+    if not settings.GUEST_ACCESS:
+        return Response({"detail": "Guest access is turned off."}, status=status.HTTP_403_FORBIDDEN)
+    handle = uuid.uuid4().hex[:10]
+    user = User.objects.create_user(
+        email=f"guest-{handle}@guest.catsight.local",
+        username=f"guest-{handle}",
+        password=None,  # unusable: guests only ever hold the tokens issued here
+        first_name="Guest",
+        role=UserRole.GUEST.value,
+    )
+    delete_expired_guests.delay()
+    return session_for(user, status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def google(request):
+    """Exchange a Google OAuth code for a session."""
+    if not settings.GOOGLE_OAUTH_CLIENT_ID:
+        return Response({"detail": "Google sign-in isn't configured."}, status=status.HTTP_404_NOT_FOUND)
+    code = request.data.get("code") or request.data.get("token")
+    if not code:
+        return Response({"detail": "Missing authorization code."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        tokens = requests.post("https://oauth2.googleapis.com/token", data={
+            "code": code,
+            "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
+            "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
+            "redirect_uri": settings.GOOGLE_REDIRECT_URI,
+            "grant_type": "authorization_code",
+        }, timeout=15).json()
+        if "error" in tokens:
+            return Response({"detail": tokens.get("error_description", tokens["error"])}, status=status.HTTP_400_BAD_REQUEST)
+        info = id_token.verify_oauth2_token(tokens["id_token"], google_requests.Request(), settings.GOOGLE_OAUTH_CLIENT_ID)
+    except (requests.RequestException, ValueError, KeyError) as e:
+        logger.warning(f"Google sign-in failed: {e}")
+        return Response({"detail": "Google sign-in failed. Try again."}, status=status.HTTP_400_BAD_REQUEST)
+
+    email = info["email"].lower()
+    domains = settings.ALLOWED_EMAIL_DOMAINS
+    if domains and email.rsplit("@", 1)[-1] not in domains:
+        return Response(
+            {"detail": f"Sign in with an address at {', '.join('@' + d for d in domains)}."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    user, created = User.objects.get_or_create(email=email, defaults={
+        "username": email,
+        "first_name": info.get("given_name", ""),
+        "last_name": info.get("family_name", ""),
+        "avatar": info.get("picture", ""),
+        "google_id": info["sub"],
+    })
+    if created:
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+    elif not user.google_id:
+        user.google_id = info["sub"]
+        user.save(update_fields=["google_id"])
+    return session_for(user)
+
+
+class MeView(APIView):
     permission_classes = [IsAuthenticated]
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get(self, request):
-        """
-        Get the authenticated user's profile
-        """
-        serializer = UserSerializer(request.user)
-        user_data = serializer.data
-        full_url = f"https://catsightai.ngrok.app{user_data['avatar']}"
-        user_data['avatar'] = full_url
-        return Response(user_data, status=status.HTTP_200_OK)
-    
+        return Response(UserSerializer(request.user).data)
+
     def patch(self, request):
-        """
-        Update the authenticated user's profile
-        """
-        data = request.data.copy()
-        
-        logger.info(f"PATCH Profile request data: {data}")
-        
-        if 'avatar' in request.FILES:
-            avatar_file = request.FILES['avatar']
-            extension = os.path.splitext(avatar_file.name)[1]
-            filename = f"avatars/{uuid.uuid4()}{extension}"
-            path = default_storage.save(filename, ContentFile(avatar_file.read()))
-            data['avatar'] = path
-        
-        serializer = UserSerializer(request.user, data=data, partial=True)
-        
-        if serializer.is_valid():
-            serializer.save()
-            user_data = serializer.data
-            full_url = f"https://catsightai.ngrok.app{user_data['avatar']}"
-            user_data['avatar'] = full_url
-            return Response(user_data, status=status.HTTP_200_OK)
-        
-        logger.error(f"Serializer errors: {serializer.errors}")
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
+        user = request.user
+        serializer = ProfileUpdateSerializer(user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        if avatar := request.FILES.get("avatar"):
+            if avatar.size > MAX_AVATAR_BYTES or not (avatar.content_type or "").startswith("image/"):
+                return Response({"detail": "Avatars must be images up to 2 MB."}, status=status.HTTP_400_BAD_REQUEST)
+            name = f"avatars/{uuid.uuid4().hex}{Path(avatar.name).suffix.lower()[:5]}"
+            user.avatar = default_storage.save(name, avatar)
+            user.save(update_fields=["avatar"])
+        return Response(UserSerializer(user).data)
