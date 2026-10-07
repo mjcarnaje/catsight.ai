@@ -32,9 +32,12 @@ export function Privacy() {
             <>
               <h3 className="text-3xl font-medium tracking-[-0.03em]">A public demo you can also run entirely on your own hardware.</h3>
               <p className="leading-relaxed text-muted-foreground">
-                This demo reads pages and writes answers through OpenRouter, so don't upload anything sensitive. Guest
-                uploads stay private to your session and are deleted with it. Self-host CATSight and switch one setting
-                to run every model locally with Ollama; then files never leave your servers.
+                This demo reads pages and writes answers through OpenRouter.{" "}
+                {config?.uploads_enabled
+                  ? "Don't upload anything sensitive: guest uploads stay private to your session and are deleted with it."
+                  : "Its library is a fixed set of public university documents, and guest chats are deleted after a day."}{" "}
+                Self-host CATSight and switch one setting to run every model locally with Ollama; then files never leave
+                your servers.
               </p>
             </>
           )}

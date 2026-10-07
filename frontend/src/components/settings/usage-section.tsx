@@ -71,7 +71,7 @@ export function UsageSection() {
             note={usage.messages.used > 0 ? resetsText(usage.messages.resets_at) : null}
           />
         )}
-        {usage.uploads.limit > 0 && (
+        {config.uploads_enabled && usage.uploads.limit > 0 && (
           <Meter
             label="Uploads and re-runs"
             used={usage.uploads.used}
@@ -79,7 +79,7 @@ export function UsageSection() {
             note={usage.uploads.used > 0 ? resetsText(usage.uploads.resets_at) : null}
           />
         )}
-        {usage.library_pages.limit > 0 && (
+        {config.uploads_enabled && usage.library_pages.limit > 0 && (
           <Meter
             label="Library page budget"
             used={usage.library_pages.used}

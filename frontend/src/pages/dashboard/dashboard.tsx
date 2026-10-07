@@ -13,7 +13,7 @@ import { UploadDialog } from "@/components/documents/upload-dialog";
 import { PageContainer } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/contexts/session-context";
-import { useDashboard } from "@/lib/queries";
+import { useDashboard, useUploadsEnabled } from "@/lib/queries";
 
 function greeting(date: Date) {
   const hour = date.getHours();
@@ -25,6 +25,7 @@ function greeting(date: Date) {
 export default function DashboardPage() {
   const { user } = useSession();
   const [uploading, setUploading] = useState(false);
+  const canUpload = useUploadsEnabled();
   const { data, isLoading } = useDashboard();
   const now = new Date();
   const name = user?.is_guest ? "" : user?.first_name;
@@ -41,15 +42,19 @@ export default function DashboardPage() {
           </h1>
           <p className="text-sm text-muted-foreground">
             {user?.is_guest
-              ? "You're in the live demo. Ask the library anything, or upload a PDF of your own."
+              ? canUpload
+                ? "You're in the live demo. Ask the library anything, or upload a PDF of your own."
+                : "You're in the live demo. Ask the library anything; every answer cites the page it came from."
               : "Ask the library anything; every answer cites the page it came from."}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={openUpload}>
-            <Upload />
-            Upload
-          </Button>
+          {canUpload && (
+            <Button variant="outline" size="sm" onClick={openUpload}>
+              <Upload />
+              Upload
+            </Button>
+          )}
           <Button asChild size="sm">
             <Link to="/chat">
               <MessageSquarePlus />
@@ -71,13 +76,13 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <RecentDocuments onUpload={openUpload} />
+          <RecentDocuments onUpload={canUpload ? openUpload : undefined} />
         </div>
         <RecentChats />
       </div>
 
       <CoverageChart data={data} isLoading={isLoading} />
-      <UploadDialog open={uploading} onOpenChange={setUploading} />
+      {canUpload && <UploadDialog open={uploading} onOpenChange={setUploading} />}
     </PageContainer>
   );
 }

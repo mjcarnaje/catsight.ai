@@ -46,6 +46,8 @@ export type Extractor = "vision" | "marker" | "docling" | "markitdown";
 
 export interface AppConfig {
   demo_mode: boolean;
+  /** Whether this visitor may upload (admins always can). */
+  uploads_enabled: boolean;
   guest_access: boolean;
   google_login: boolean;
   google_client_id: string;

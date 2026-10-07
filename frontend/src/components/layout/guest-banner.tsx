@@ -32,7 +32,8 @@ export function GuestBanner() {
     <div className="flex items-center gap-3 border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground sm:px-8">
       <span className="size-1.5 shrink-0 rounded-full bg-gold" />
       <p className="flex-1">
-        You're exploring a live demo as a guest. Your chats and uploads are private and are deleted after{" "}
+        You're exploring a live demo as a guest. Your {config?.uploads_enabled ? "chats and uploads are" : "chats are"} private
+        and are deleted after{" "}
         {config?.guest_ttl_hours ?? 24} hours.
       </p>
       <button onClick={dismiss} className="rounded p-1 hover:bg-accent hover:text-foreground" aria-label="Dismiss">

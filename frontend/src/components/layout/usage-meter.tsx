@@ -1,5 +1,5 @@
 import { useSidebar } from "@/components/ui/sidebar";
-import { useConfig } from "@/lib/queries";
+import { useConfig, useUploadsEnabled } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import type { UsageCounter } from "@/types";
 
@@ -7,6 +7,7 @@ import type { UsageCounter } from "@/types";
 export function UsageMeter() {
   const { data: config } = useConfig();
   const { state } = useSidebar();
+  const canUpload = useUploadsEnabled();
   const usage = config?.usage;
   if (!usage?.limited || state === "collapsed") return null;
 
@@ -14,7 +15,7 @@ export function UsageMeter() {
     <div className="mx-2 mb-1 flex flex-col gap-2.5 rounded-lg border bg-sidebar-accent/40 p-3 [@media(max-height:640px)]:hidden">
       <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Today's demo allowance</p>
       <Meter label="Questions" counter={usage.messages} />
-      <Meter label="Uploads" counter={usage.uploads} />
+      {canUpload && <Meter label="Uploads" counter={usage.uploads} />}
     </div>
   );
 }

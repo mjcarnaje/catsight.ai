@@ -13,7 +13,7 @@ import { PageContainer, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/api";
 import { plural } from "@/lib/format";
-import { useDashboard, useDocuments } from "@/lib/queries";
+import { useDashboard, useDocuments, useUploadsEnabled } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 
 /**
@@ -27,6 +27,7 @@ export default function DocumentsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [uploadOpen, setUploadOpen] = useState(false);
+  const canUpload = useUploadsEnabled();
 
   const dashboard = useDashboard();
   const documents = useDocuments({ ...filters, page_size: PAGE_SIZE });
@@ -36,9 +37,9 @@ export default function DocumentsPage() {
   const wantsUpload = (location.state as { upload?: boolean } | null)?.upload === true;
   useEffect(() => {
     if (!wantsUpload) return;
-    setUploadOpen(true);
+    if (canUpload) setUploadOpen(true);
     navigate(location.pathname + location.search, { replace: true, state: null });
-  }, [wantsUpload, navigate, location.pathname, location.search]);
+  }, [wantsUpload, canUpload, navigate, location.pathname, location.search]);
 
   // A page that no longer exists (documents were deleted, or the filters changed) goes back to page 1
   const pageGone = isError && page > 1 && axios.isAxiosError(error) && error.response?.status === 404;
@@ -68,10 +69,12 @@ export default function DocumentsPage() {
           library ? `${plural(library.documents, "document")} · ${plural(library.pages, "page")} indexed` : undefined
         }
         actions={
-          <Button onClick={() => setUploadOpen(true)}>
-            <Upload />
-            Upload
-          </Button>
+          canUpload && (
+            <Button onClick={() => setUploadOpen(true)}>
+              <Upload />
+              Upload
+            </Button>
+          )
         }
       />
 
@@ -111,12 +114,18 @@ export default function DocumentsPage() {
             <EmptyState
               icon={FileText}
               title="No documents yet"
-              description="Upload scanned PDFs and they'll be read, catalogued and made searchable."
+              description={
+                canUpload
+                  ? "Upload scanned PDFs and they'll be read, catalogued and made searchable."
+                  : "The library is being prepared. Check back soon."
+              }
               action={
-                <Button size="sm" onClick={() => setUploadOpen(true)}>
-                  <Upload />
-                  Upload documents
-                </Button>
+                canUpload && (
+                  <Button size="sm" onClick={() => setUploadOpen(true)}>
+                    <Upload />
+                    Upload documents
+                  </Button>
+                )
               }
             />
           )
@@ -166,7 +175,7 @@ export default function DocumentsPage() {
         )}
       </section>
 
-      <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />
+      {canUpload && <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />}
     </PageContainer>
   );
 }

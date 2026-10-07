@@ -99,6 +99,12 @@ def documents(request):
 
 def _upload(request):
     """Accept PDFs, skip duplicates, enforce limits and queue each for processing."""
+    if not settings.UPLOADS_ENABLED and not request.user.is_admin:
+        return Response(
+            {"detail": "Uploading is turned off in this demo. You can search and ask about the documents in the library.",
+             "code": "uploads_disabled"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     files = request.FILES.getlist("files")
     if not files:
         return Response({"detail": "Choose at least one PDF."}, status=status.HTTP_400_BAD_REQUEST)

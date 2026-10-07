@@ -46,7 +46,7 @@ function ListCard({ title, description, to, children }: { title: string; descrip
   );
 }
 
-export function RecentDocuments({ onUpload }: { onUpload: () => void }) {
+export function RecentDocuments({ onUpload }: { onUpload?: () => void }) {
   const { data, isLoading } = useDocuments({ page_size: 5 });
   const documents = data?.results ?? [];
 
@@ -58,8 +58,10 @@ export function RecentDocuments({ onUpload }: { onUpload: () => void }) {
         <EmptyState
           icon={FileText}
           title="No documents yet"
-          description="Upload a PDF and watch it get read, catalogued and indexed."
-          action={<Button size="sm" onClick={onUpload}>Upload a PDF</Button>}
+          description={
+            onUpload ? "Upload a PDF and watch it get read, catalogued and indexed." : "The library is being prepared."
+          }
+          action={onUpload && <Button size="sm" onClick={onUpload}>Upload a PDF</Button>}
         />
       ) : (
         <ul className="-mx-2 flex flex-col">

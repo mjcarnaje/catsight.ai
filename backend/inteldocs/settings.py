@@ -156,6 +156,9 @@ GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", f"{PUBLIC_URL}/login")
 # DEMO_MODE turns on one-click guest accounts and the per-user limits below.
 # Admins are never limited. 0 disables an individual limit.
 DEMO_MODE = env_bool("DEMO_MODE", False)
+# Off: only admins can upload (the library is curated, e.g. with `manage.py ingest`);
+# everyone else can still search and chat with what's there.
+UPLOADS_ENABLED = env_bool("UPLOADS_ENABLED", True)
 GUEST_ACCESS = env_bool("GUEST_ACCESS", DEMO_MODE)
 GUEST_TTL_HOURS = env_int("GUEST_TTL_HOURS", 24)  # guests and their uploads are removed after this
 DEMO_DAILY_UPLOADS = env_int("DEMO_DAILY_UPLOADS", 3)  # documents per user per day

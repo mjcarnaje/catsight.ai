@@ -182,3 +182,14 @@ def test_media_route_cannot_reach_documents(api, admin, settings, tmp_path):
     for probe in ("/media/avatars/../docs/1/original.pdf", "/media/avatars/..%2fdocs/1/original.pdf",
                   "/media/avatars/%2e%2e/docs/1/original.pdf", "/media/docs/1/original.pdf"):
         assert client.get(probe).status_code == 404, probe
+
+
+@pytest.mark.django_db
+def test_uploads_can_be_turned_off_for_everyone_but_admins(api, admin, guest, member, settings):
+    settings.UPLOADS_ENABLED = False
+    for user in (guest, member):
+        response = upload(api(user), pdf("x.pdf", seed=user.email))
+        assert response.status_code == 403 and response.json()["code"] == "uploads_disabled"
+        assert api(user).get("/api/config/").json()["uploads_enabled"] is False
+    assert upload(api(admin), pdf("y.pdf", seed="admin")).status_code == 201
+    assert api(admin).get("/api/config/").json()["uploads_enabled"] is True

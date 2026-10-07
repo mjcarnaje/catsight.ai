@@ -28,6 +28,11 @@ export function useConfig() {
   return useQuery({ queryKey: keys.config, queryFn: configApi.get, staleTime: 30_000 });
 }
 
+/** Whether the current visitor may upload documents. */
+export function useUploadsEnabled() {
+  return useConfig().data?.uploads_enabled ?? false;
+}
+
 export function useTags() {
   return useQuery({ queryKey: keys.tags, queryFn: tagsApi.list, staleTime: 60_000 });
 }

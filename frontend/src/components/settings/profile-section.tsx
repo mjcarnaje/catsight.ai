@@ -61,7 +61,7 @@ function GuestNotice() {
         </div>
       </div>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        Guest sessions are temporary. This one, with its chats and uploads, is deleted after {hours} hours. Profile
+        Guest sessions are temporary. This one, with its chats, is deleted after {hours} hours. Profile
         details can't be edited as a guest. Create an account to keep your own.
       </p>
       <Button asChild className="w-fit">
