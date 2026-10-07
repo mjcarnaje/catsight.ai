@@ -125,7 +125,6 @@ export const authApi = {
   register: (data: { email: string; password: string; first_name: string; last_name: string }) =>
     api.post<AuthResponse>("/auth/register/", data).then((r) => r.data),
   guest: () => api.post<AuthResponse>("/auth/guest/").then((r) => r.data),
-  google: (code: string) => api.post<AuthResponse>("/auth/google/", { code }).then((r) => r.data),
   me: () => api.get<User>("/auth/me/").then((r) => r.data),
   updateMe: (data: FormData | Partial<Pick<User, "first_name" | "last_name">>) =>
     api.patch<User>("/auth/me/", data).then((r) => r.data),

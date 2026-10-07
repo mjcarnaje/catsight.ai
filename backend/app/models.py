@@ -32,7 +32,6 @@ class User(AbstractUser):
     first_name = models.CharField(max_length=255, blank=True, default="")
     last_name = models.CharField(max_length=255, blank=True, default="")
     avatar = models.CharField(max_length=255, blank=True, default="")
-    google_id = models.CharField(max_length=255, null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]

@@ -2,14 +2,11 @@ import io
 import logging
 import uuid
 
-import requests
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from PIL import Image
-from google.auth.transport import requests as google_requests
-from google.oauth2 import id_token
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -95,54 +92,6 @@ def guest(request):
     )
     delete_expired_guests.delay()
     return session_for(user, status.HTTP_201_CREATED)
-
-
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def google(request):
-    """Exchange a Google OAuth code for a session."""
-    if not settings.GOOGLE_OAUTH_CLIENT_ID:
-        return Response({"detail": "Google sign-in isn't configured."}, status=status.HTTP_404_NOT_FOUND)
-    code = request.data.get("code") or request.data.get("token")
-    if not code:
-        return Response({"detail": "Missing authorization code."}, status=status.HTTP_400_BAD_REQUEST)
-    try:
-        tokens = requests.post("https://oauth2.googleapis.com/token", data={
-            "code": code,
-            "client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
-            "client_secret": settings.GOOGLE_OAUTH_CLIENT_SECRET,
-            "redirect_uri": settings.GOOGLE_REDIRECT_URI,
-            "grant_type": "authorization_code",
-        }, timeout=15).json()
-        if "error" in tokens:
-            return Response({"detail": tokens.get("error_description", tokens["error"])}, status=status.HTTP_400_BAD_REQUEST)
-        info = id_token.verify_oauth2_token(tokens["id_token"], google_requests.Request(), settings.GOOGLE_OAUTH_CLIENT_ID)
-    except (requests.RequestException, ValueError, KeyError) as e:
-        logger.warning(f"Google sign-in failed: {e}")
-        return Response({"detail": "Google sign-in failed. Try again."}, status=status.HTTP_400_BAD_REQUEST)
-
-    email = info["email"].lower()
-    domains = settings.ALLOWED_EMAIL_DOMAINS
-    if domains and email.rsplit("@", 1)[-1] not in domains:
-        return Response(
-            {"detail": f"Sign in with an address at {', '.join('@' + d for d in domains)}."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-    user = User.objects.filter(email=email).first()
-    if user is None:
-        user = User.objects.create_user(
-            email=email, username=email, password=None, google_id=info["sub"],
-            first_name=info.get("given_name", ""), last_name=info.get("family_name", ""),
-            avatar=info.get("picture", ""),
-        )
-    elif user.google_id != info["sub"]:
-        # Registration doesn't verify email ownership, so an existing password account
-        # with this address may belong to someone else: never merge into it silently.
-        return Response(
-            {"detail": "An account with this email already exists. Sign in with its password instead."},
-            status=status.HTTP_409_CONFLICT,
-        )
-    return session_for(user)
 
 
 class MeView(APIView):

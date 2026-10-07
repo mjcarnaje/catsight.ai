@@ -37,8 +37,6 @@ def app_config(request):
         # For this visitor: admins can always upload
         "uploads_enabled": settings.UPLOADS_ENABLED or (request.user.is_authenticated and request.user.is_admin),
         "guest_access": settings.GUEST_ACCESS,
-        "google_login": bool(settings.GOOGLE_OAUTH_CLIENT_ID),
-        "google_client_id": settings.GOOGLE_OAUTH_CLIENT_ID,
         "allowed_email_domains": settings.ALLOWED_EMAIL_DOMAINS,
         "provider": settings.LLM_PROVIDER,
         "models": {

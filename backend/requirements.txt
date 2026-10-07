@@ -7,8 +7,6 @@ Django>=5.1,<5.2
 djangorestframework>=3.15,<4
 djangorestframework-simplejwt>=5.3,<6
 django-cors-headers>=4.4,<5
-google-auth>=2.30,<3
-requests>=2.32,<3
 gunicorn>=23,<24
 whitenoise>=6.7,<7
 

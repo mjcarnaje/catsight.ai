@@ -1,9 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
 import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 
-import { AuthShell, Divider, GoogleIcon } from "@/components/auth/auth-shell";
+import { AuthShell, Divider } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,13 +12,10 @@ import { useGuestSignIn } from "@/hooks/use-guest-sign-in";
 import { authApi, errorMessage } from "@/lib/api";
 import { useConfig } from "@/lib/queries";
 
-const OAUTH_STATE = "catsight:oauth-state";
-
 export default function LoginPage() {
   const { signIn } = useSession();
   const { data: config } = useConfig();
   const guest = useGuestSignIn();
-  const [params, setParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,48 +24,12 @@ export default function LoginPage() {
     mutationFn: () => authApi.login(email.trim(), password),
     onSuccess: signIn,
   });
-  const google = useMutation({ mutationFn: authApi.google, onSuccess: signIn });
-  const exchangeGoogleCode = google.mutate;
-
-  // Google redirects back here with ?code=...&state=...; exchange it once, and only
-  // if `state` matches the one this tab stored (otherwise a link from someone else
-  // could sign this browser into *their* account: login CSRF).
-  const exchanged = useRef(false);
-  const [oauthError, setOauthError] = useState("");
-  useEffect(() => {
-    const code = params.get("code");
-    if (!code || exchanged.current) return;
-    exchanged.current = true;
-    const expected = sessionStorage.getItem(OAUTH_STATE);
-    sessionStorage.removeItem(OAUTH_STATE);
-    setParams({}, { replace: true });
-    if (!expected || params.get("state") !== expected) {
-      setOauthError("That sign-in link didn't start here. Try “Continue with Google” again.");
-      return;
-    }
-    exchangeGoogleCode(code);
-  }, [params, setParams, exchangeGoogleCode]);
-
-  const startGoogle = () => {
-    const state = crypto.randomUUID();
-    sessionStorage.setItem(OAUTH_STATE, state);
-    const query = new URLSearchParams({
-      client_id: config!.google_client_id,
-      redirect_uri: `${window.location.origin}/login`,
-      response_type: "code",
-      scope: "openid email profile",
-      prompt: "select_account",
-      state,
-    });
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${query}`;
-  };
-
   const submit = (e: FormEvent) => {
     e.preventDefault();
     login.mutate();
   };
 
-  const error = login.error ?? google.error ?? (oauthError ? new Error(oauthError) : null);
+  const error = login.error;
 
   return (
     <AuthShell
@@ -96,13 +57,6 @@ export default function LoginPage() {
             </p>
             <Divider label="or sign in" />
           </>
-        )}
-
-        {config?.google_login && (
-          <Button variant="outline" size="lg" onClick={startGoogle} disabled={google.isPending} className="w-full">
-            {google.isPending ? <Loader2 className="animate-spin" /> : <GoogleIcon />}
-            Continue with Google
-          </Button>
         )}
 
         <form onSubmit={submit} className="flex flex-col gap-4">

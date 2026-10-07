@@ -49,8 +49,6 @@ export interface AppConfig {
   /** Whether this visitor may upload (admins always can). */
   uploads_enabled: boolean;
   guest_access: boolean;
-  google_login: boolean;
-  google_client_id: string;
   allowed_email_domains: string[];
   provider: "openrouter" | "ollama";
   models: { chat: string; ocr: string; embedding: string; reranker: string };

@@ -13,7 +13,6 @@ urlpatterns = [
     path("auth/register/", auth.register, name="register"),
     path("auth/login/", auth.login, name="login"),
     path("auth/guest/", auth.guest, name="guest"),
-    path("auth/google/", auth.google, name="google"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/me/", auth.MeView.as_view(), name="me"),
 

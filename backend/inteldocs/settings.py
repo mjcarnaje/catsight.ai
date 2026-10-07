@@ -148,9 +148,6 @@ SIMPLE_JWT = {
 # Comma-separated email domains allowed to register; empty allows any domain.
 ALLOWED_EMAIL_DOMAINS = env_list("ALLOWED_EMAIL_DOMAINS")
 
-GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", f"{PUBLIC_URL}/login")
 
 # --- Public demo limits -------------------------------------------------------
 # DEMO_MODE turns on one-click guest accounts and the per-user limits below.
