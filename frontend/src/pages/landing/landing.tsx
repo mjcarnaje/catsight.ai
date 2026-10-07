@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/landing/site-header";
 import { Statement } from "@/components/landing/statement";
 
 export function LandingPage() {
-  // The marketing site uses the dark theme; the app itself stays light.
+  // The marketing site always renders dark, whatever theme the app is set to.
   return (
     <div className="dark relative z-10 min-h-screen overflow-x-clip bg-background text-foreground [color-scheme:dark]">
       <SiteHeader />

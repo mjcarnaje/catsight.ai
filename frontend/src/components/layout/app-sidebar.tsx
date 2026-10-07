@@ -6,6 +6,7 @@ import {
   LogOut,
   MessageSquare,
   MoreHorizontal,
+  Palette,
   Pencil,
   Plus,
   Search,
@@ -19,6 +20,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { CatMark } from "@/components/brand/cat-mark";
 import { UsageMeter } from "@/components/layout/usage-meter";
+import { THEMES } from "@/components/settings/theme-options";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +36,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -55,8 +62,10 @@ import {
 } from "@/components/ui/sidebar";
 import { useToast } from "@/components/ui/use-toast";
 import { useSession } from "@/contexts/session-context";
+import { useTheme } from "@/hooks/use-theme";
 import { chatsApi, errorMessage } from "@/lib/api";
 import { keys } from "@/lib/queries";
+import type { Theme } from "@/lib/theme";
 import type { Chat } from "@/types";
 
 const NAV: { title: string; href: string; icon: LucideIcon }[] = [
@@ -270,6 +279,7 @@ function UserMenu() {
   const { user, signOut } = useSession();
   const { isMobile } = useSidebar();
   const navigate = useNavigate();
+  const [theme, setTheme] = useTheme();
   if (!user) return null;
 
   const name = user.is_guest ? "Guest" : `${user.first_name} ${user.last_name}`.trim() || user.email;
@@ -310,6 +320,21 @@ function UserMenu() {
                 <Settings /> Settings
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Palette /> Theme
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as Theme)}>
+                  {THEMES.map(({ value, label, icon: Icon }) => (
+                    <DropdownMenuRadioItem key={value} value={value} className="gap-2">
+                      <Icon className="size-4" />
+                      {label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => {

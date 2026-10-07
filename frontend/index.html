@@ -9,6 +9,14 @@
       content="CATSight.AI reads scanned special orders and board resolutions page by page, then answers questions with citations to the exact page. Hybrid search, vision OCR and a live ingestion pipeline."
     />
     <meta name="theme-color" content="#0c0b0a" />
+    <script>
+      // Saved theme before the first paint (dark by default); src/lib/theme.ts takes over after load
+      try {
+        var t = localStorage.getItem("catsight:theme");
+        if (t === "light" || (t === "system" && matchMedia("(prefers-color-scheme: light)").matches))
+          document.documentElement.classList.remove("dark");
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <link rel="apple-touch-icon" href="/icon-180.png" />
