@@ -1,0 +1,21 @@
+# Mac overrides: CPU-only torch (Docker on macOS has no GPU passthrough).
+# Used by ./setup.sh mac (or auto-detected on macOS)
+services:
+  backend:
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+    environment:
+      - TORCH_DEVICE=cpu
+
+  celery_worker:
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+    environment:
+      - TORCH_DEVICE=cpu
+
+  jupyter:
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu

@@ -6,15 +6,8 @@ set -euo pipefail
 # ──────────────────────────────────────────────────────────
 # Platform detection for GPU support
 # ──────────────────────────────────────────────────────────
-COMPOSE_FILES="-f docker-compose.yml"
-
-# Detect if running on Linux with NVIDIA GPU
-if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v nvidia-smi &> /dev/null; then
-  echo "🎮  NVIDIA GPU detected - enabling GPU support"
-  COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.gpu.yml"
-else
-  echo "💻  Running in CPU mode (Mac or non-NVIDIA system)"
-fi
+# Usage: ./pull-llms.sh [mac|pc]   (auto-detects when omitted)
+source ./platform.sh "${1:-}"
 
 # ──────────────────────────────────────────────────────────
 # 1. Ensure containers are running

@@ -1,4 +1,4 @@
-# GPU-specific overrides for NVIDIA systems
+# PC overrides: NVIDIA GPU + CUDA torch. Used by ./setup.sh pc (or auto-detected via nvidia-smi)
 services:
   ollama:
     deploy:
@@ -10,6 +10,9 @@ services:
               capabilities: [gpu]
 
   backend:
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu124
     environment:
       - TORCH_DEVICE=cuda
     deploy:
@@ -21,6 +24,9 @@ services:
               capabilities: [gpu]
 
   celery_worker:
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu124
     environment:
       - TORCH_DEVICE=cuda
     deploy:
@@ -32,6 +38,9 @@ services:
               capabilities: [gpu]
 
   jupyter:
+    build:
+      args:
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cu124
     deploy:
       resources:
         reservations:

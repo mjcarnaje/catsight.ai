@@ -20,12 +20,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
+# Torch wheel index: CPU by default; docker-compose.gpu.yml overrides with cu124
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
 # Install Python packages
 COPY requirements.txt .
 RUN pip install --upgrade pip
+# Install torch first so marker-pdf/docling reuse it instead of pulling the default wheel
 RUN pip install --user --upgrade pip setuptools wheel \
-    && pip install --user -r requirements.txt \
-    && pip install --user torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+    && pip install --user torch torchvision torchaudio --index-url ${TORCH_INDEX_URL} \
+    && pip install --user -r requirements.txt
 
 # Final stage
 FROM python:3.11-slim

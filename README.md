@@ -27,9 +27,9 @@ The CATSight.AI Backend is a comprehensive system designed to process, analyze, 
 ## Prerequisites
 
 - Docker and Docker Compose
-- For GPU acceleration (optional): Linux system with NVIDIA GPU and nvidia-docker installed
+- For the PC (GPU) setup: an NVIDIA GPU with the NVIDIA Container Toolkit (Linux) or Docker Desktop + WSL2 GPU support (Windows)
 
-> **Note**: The setup scripts automatically detect your platform and configure GPU support only when running on Linux with NVIDIA GPU. On Mac or non-NVIDIA systems, the application runs in CPU mode.
+> **Note**: There are two Docker setups: **mac** (CPU-only torch, `docker-compose.mac.yml`) and **pc** (NVIDIA GPU + CUDA torch, `docker-compose.pc.yml`). The scripts pick one automatically (macOS → mac, `nvidia-smi` present → pc, otherwise mac), or you can choose explicitly with `./setup.sh mac` / `./setup.sh pc`.
 
 ## Installation
 
@@ -53,31 +53,30 @@ Ensure that the `ollama` service in the `docker compose.yml` is correctly config
 
 ### 3. Build and Start the Containers
 
-Use the provided setup script which handles platform detection automatically:
+Use the provided setup script, optionally naming the platform:
 
 ```bash
-./setup.sh
+./setup.sh        # auto-detect
+./setup.sh mac    # CPU-only (Mac)
+./setup.sh pc     # NVIDIA GPU (Windows/Linux PC)
+
+./setup.sh mac --skip-llms   # skip the Ollama model downloads (fetch later with ./pull-llms.sh)
 ```
 
 This script will:
-- Automatically detect if you're on a system with NVIDIA GPU support
-- Configure GPU acceleration for Linux/NVIDIA systems
-- Use CPU mode for Mac or non-NVIDIA systems
+- Select the mac (CPU) or pc (NVIDIA GPU) Docker setup
 - Clean up old data and rebuild containers
 - Pull required models
 - Set up the database and create admin user
 
-Alternatively, you can manually run:
+Alternatively, run Docker Compose manually:
 
 ```bash
-# The script automatically chooses the right configuration
-docker compose up --build
-```
+# Mac (CPU)
+docker compose -f docker-compose.yml -f docker-compose.mac.yml up --build
 
-For manual GPU support on Linux with NVIDIA GPU:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+# PC (NVIDIA GPU)
+docker compose -f docker-compose.yml -f docker-compose.pc.yml up --build
 ```
 
 ## Configuration
@@ -99,11 +98,11 @@ The easiest way to start the application is using the setup script:
 If you just want to start existing containers without rebuilding:
 
 ```bash
-# For Mac/CPU mode
-docker compose up
+# Mac (CPU)
+docker compose -f docker-compose.yml -f docker-compose.mac.yml up
 
-# For Linux with NVIDIA GPU
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+# PC (NVIDIA GPU)
+docker compose -f docker-compose.yml -f docker-compose.pc.yml up
 ```
 
 ## How It Works

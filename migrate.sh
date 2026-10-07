@@ -4,12 +4,8 @@ set -euo pipefail
 # ──────────────────────────────────────────────────────────
 # Platform detection for GPU support
 # ──────────────────────────────────────────────────────────
-COMPOSE_FILES="-f docker-compose.yml"
-
-# Detect if running on Linux with NVIDIA GPU
-if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v nvidia-smi &> /dev/null; then
-  COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.gpu.yml"
-fi
+# Usage: ./migrate.sh [mac|pc]   (auto-detects when omitted)
+source ./platform.sh "${1:-}"
 
 echo "🚀  Bringing services up (if not already running)..."
 docker compose $COMPOSE_FILES up -d

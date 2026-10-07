@@ -4,15 +4,17 @@ set -euo pipefail
 # ──────────────────────────────────────────────────────────
 # Platform detection for GPU support
 # ──────────────────────────────────────────────────────────
-COMPOSE_FILES="-f docker-compose.yml"
-
-# Detect if running on Linux with NVIDIA GPU
-if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v nvidia-smi &> /dev/null; then
-  echo "🎮  NVIDIA GPU detected - enabling GPU support"
-  COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.gpu.yml"
-else
-  echo "💻  Running in CPU mode (Mac or non-NVIDIA system)"
-fi
+# Usage: ./setup.sh [mac|pc] [--skip-llms]   (platform auto-detects when omitted)
+PLATFORM_ARG=""
+SKIP_LLMS=false
+for arg in "$@"; do
+  case "$arg" in
+    --skip-llms) SKIP_LLMS=true ;;
+    mac|pc)      PLATFORM_ARG="$arg" ;;
+    *)           echo "❌ Unknown argument '$arg'. Usage: ./setup.sh [mac|pc] [--skip-llms]"; exit 1 ;;
+  esac
+done
+source ./platform.sh "$PLATFORM_ARG"
 
 # ──────────────────────────────────────────────────────────
 # 1. Remove all media files
@@ -67,8 +69,12 @@ docker compose $COMPOSE_FILES exec backend python manage.py migrate --noinput
 # ──────────────────────────────────────────────────────────
 # 6. Pull LLM and Docling models (delegated to pull-llms.sh)
 # ──────────────────────────────────────────────────────────
-echo "🤖  Pulling LLM and Docling models via pull-llms.sh..."
-./pull-llms.sh
+if [ "$SKIP_LLMS" = true ]; then
+  echo "⏭️   Skipping model pulls (--skip-llms). Run ./pull-llms.sh later to fetch them."
+else
+  echo "🤖  Pulling LLM and Docling models via pull-llms.sh..."
+  ./pull-llms.sh
+fi
 
 # ──────────────────────────────────────────────────────────
 # 7. Create/update superuser 'admin'
