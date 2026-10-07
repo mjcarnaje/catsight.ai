@@ -91,15 +91,15 @@ def search_answer(request):
     if not query:
         return Response({"detail": "Ask a question."}, status=status.HTTP_400_BAD_REQUEST)
     try:
-        quotas.check_message(request.user)
+        usage = quotas.consume(request.user, UsageKind.MESSAGE)
     except quotas.QuotaExceeded as e:
         return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
     try:
         hits = search.search(query, request.user, k=ANSWER_K, **_filters(request))
         if not hits:
+            quotas.refund(usage)  # nothing to answer from: no model call was made
             return Response({"answer": "", "citations": []})
-        quotas.record(request.user, UsageKind.MESSAGE)
         passages = "\n\n".join(
             f"[{i}] {hit.document.title}" + (f", p. {hit.chunk.page}" if hit.chunk.page else "") + f"\n{hit.chunk.text}"
             for i, hit in enumerate(hits, start=1)
@@ -110,6 +110,7 @@ def search_answer(request):
         ])
     except Exception as error:
         logger.exception("Search answer failed")
+        quotas.refund(usage)
         return Response({"detail": describe_error(error)}, status=status.HTTP_502_BAD_GATEWAY)
 
     return Response({

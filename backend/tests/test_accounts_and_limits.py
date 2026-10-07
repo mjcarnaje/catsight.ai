@@ -40,14 +40,13 @@ def test_message_limit_applies_to_visitors_not_admins(guest, admin, settings):
     settings.DEMO_MODE = True
     settings.DEMO_DAILY_MESSAGES = 2
     for _ in range(2):
-        quotas.check_message(guest)
-        quotas.record(guest, UsageKind.MESSAGE)
+        quotas.consume(guest, UsageKind.MESSAGE)
     with pytest.raises(quotas.QuotaExceeded) as error:
-        quotas.check_message(guest)
+        quotas.consume(guest, UsageKind.MESSAGE)
     assert error.value.code == "message_limit"
+    assert UsageEvent.objects.filter(user=guest).count() == 2  # the refused one isn't recorded
     for _ in range(5):
-        quotas.check_message(admin)
-        quotas.record(admin, UsageKind.MESSAGE)
+        quotas.consume(admin, UsageKind.MESSAGE)
 
 
 @pytest.mark.django_db
@@ -55,17 +54,17 @@ def test_usage_older_than_a_day_no_longer_counts(guest, settings):
     settings.DEMO_MODE = True
     settings.DEMO_DAILY_MESSAGES = 1
     UsageEvent.objects.create(user=guest, kind="message", created_at=timezone.now() - timedelta(hours=25))
-    quotas.check_message(guest)  # doesn't raise
+    quotas.consume(guest, UsageKind.MESSAGE)  # doesn't raise
 
 
 @pytest.mark.django_db
 def test_library_page_budget_is_shared_and_survives_account_deletion(guest, member, settings):
     settings.DEMO_MODE = True
     settings.DEMO_LIBRARY_PAGE_LIMIT = 10
-    quotas.record(guest, UsageKind.UPLOAD, amount=8)
+    quotas.consume(guest, UsageKind.UPLOAD, amount=8)
     guest.delete()
     with pytest.raises(quotas.QuotaExceeded) as error:
-        quotas.check_upload(member, pages=3)
+        quotas.consume(member, UsageKind.UPLOAD, amount=3)
     assert error.value.code == "library_full"
 
 
@@ -103,3 +102,27 @@ def test_registration_rejects_weak_passwords_and_reserved_addresses(api):
         "email": "guest-abc@guest.catsight.local", "first_name": "A", "last_name": "B", "password": "a-long-password",
     })
     assert reserved.status_code == 400
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_requests_cannot_overspend_the_daily_limit(guest, settings):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import connection
+
+    settings.DEMO_MODE = True
+    settings.DEMO_DAILY_MESSAGES = 3
+
+    def ask(_):
+        try:
+            quotas.consume(guest, UsageKind.MESSAGE)
+            return True
+        except quotas.QuotaExceeded:
+            return False
+        finally:
+            connection.close()  # each thread opened its own connection
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        allowed = sum(pool.map(ask, range(8)))
+    assert allowed == 3
+    assert UsageEvent.objects.filter(user=guest, kind="message").count() == 3

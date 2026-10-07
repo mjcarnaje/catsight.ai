@@ -110,11 +110,6 @@ def chat_stream(request):
 
     if len(question) > MAX_QUESTION_CHARS:
         return Response({"detail": f"Questions can be up to {MAX_QUESTION_CHARS} characters."}, status=400)
-    try:
-        quotas.check_message(user)
-    except quotas.QuotaExceeded as e:
-        return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-
     chat = get_object_or_404(Chat, pk=chat_id, user=user) if chat_id else None
     if chat and replace_from:
         original = truncate_from(chat, str(replace_from))
@@ -126,9 +121,12 @@ def chat_stream(request):
     if chat is None:
         chat = Chat.objects.create(user=user)
 
+    try:
+        quotas.consume(user, UsageKind.MESSAGE)
+    except quotas.QuotaExceeded as e:
+        return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
     # Only documents the user may read can scope the conversation
     document_ids = list(Document.objects.visible_to(user).filter(id__in=document_ids).values_list("id", flat=True))
-    quotas.record(user, UsageKind.MESSAGE)
 
     human = HumanMessage(content=question, id=str(uuid.uuid4()))
     config = config_for(chat, user_id=user.id)

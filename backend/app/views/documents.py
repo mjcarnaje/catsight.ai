@@ -29,11 +29,9 @@ MAX_TEXT_CHARS = 300_000  # an edited text is re-summarized and re-embedded: bou
 def _charge_processing_run(user) -> Response | None:
     """Re-running paid model calls counts as one of a visitor's daily uploads."""
     try:
-        quotas.check_upload(user, pages=0)
+        quotas.consume(user, UsageKind.UPLOAD, amount=0)
     except quotas.QuotaExceeded as e:
         return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-    if quotas.applies_to(user):
-        quotas.record(user, UsageKind.UPLOAD, amount=0)
     return None
 
 

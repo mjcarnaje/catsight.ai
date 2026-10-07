@@ -85,12 +85,17 @@ def absolute_path(relative: str) -> Path:
     return Path(settings.MEDIA_ROOT) / relative
 
 
+MAX_RENDER_SIDE = 2400  # px; a page declaring huge dimensions can't exhaust memory
+
+
 def render_page(pdf_path: Path, index: int, dpi: int = 150) -> Image.Image:
-    """Render one page (0-based) to a PIL image."""
+    """Render one page (0-based) to a PIL image, at most MAX_RENDER_SIDE px on its long side."""
     pdf = pdfium.PdfDocument(str(pdf_path))
     try:
         page = pdf[index]
-        image = page.render(scale=dpi / 72).to_pil()
+        width, height = page.get_size()  # points (1/72 inch)
+        scale = min(dpi / 72, MAX_RENDER_SIDE / max(width, height, 1))
+        image = page.render(scale=scale).to_pil()
         page.close()
         return image.convert("RGB")
     finally:

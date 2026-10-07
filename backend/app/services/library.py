@@ -35,7 +35,7 @@ def add_document(user, upload: File, file_name: str, extractor: str, private: bo
         }
 
     try:
-        quotas.check_upload(user, info.page_count)
+        usage = quotas.consume(user, UsageKind.UPLOAD, amount=info.page_count)
     except quotas.QuotaExceeded as e:
         return {"file_name": file_name, "status": "rejected", "detail": e.message, "code": e.code}
 
@@ -51,9 +51,9 @@ def add_document(user, upload: File, file_name: str, extractor: str, private: bo
         logger.exception(f"Saving upload {file_name!r} failed")
         storage.delete_document_files(document.id)
         document.delete()
+        quotas.refund(usage)
         return {"file_name": file_name, "status": "rejected", "detail": "The file couldn't be saved. Try again."}
 
-    quotas.record(user, UsageKind.UPLOAD, amount=info.page_count)
     task = process_document.delay(document.id)
     Document.objects.filter(pk=document.id).update(task_id=task.id)
     return {"file_name": file_name, "status": "queued", "document_id": document.id}

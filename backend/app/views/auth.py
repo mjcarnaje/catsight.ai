@@ -27,6 +27,7 @@ from ..utils.permissions import AllowAny, IsAuthenticated
 logger = logging.getLogger(__name__)
 
 MAX_AVATAR_BYTES = 2 * 1024 * 1024
+MAX_AVATAR_PIXELS = 4000 * 4000
 
 
 def session_for(user: User, status_code=status.HTTP_200_OK) -> Response:
@@ -177,15 +178,19 @@ def _decode_avatar(upload) -> Image.Image:
     if upload.size > MAX_AVATAR_BYTES:
         raise ValueError("Avatars can be up to 2 MB.")
     try:
-        image = Image.open(upload)
+        image = Image.open(upload)  # reads the header only
+        if image.format not in {"PNG", "JPEG", "WEBP", "GIF"}:
+            raise ValueError
+        # A tiny file can declare enormous dimensions; refuse before decoding pixels
+        if image.width * image.height > MAX_AVATAR_PIXELS:
+            raise ValueError
         image.verify()  # checks the structure without decoding pixels
         upload.seek(0)
         image = Image.open(upload)
-        if image.format not in {"PNG", "JPEG", "WEBP", "GIF"}:
-            raise ValueError
+        image.draft("RGB", (512, 512))  # JPEG: decode at reduced size
         image = image.convert("RGB")
     except Exception:
-        raise ValueError("Avatars must be PNG, JPEG, WebP or GIF images.")
+        raise ValueError("Avatars must be PNG, JPEG, WebP or GIF images up to 4000 × 4000 pixels.")
     side = min(image.size)
     left, top = (image.width - side) // 2, (image.height - side) // 2
     return image.crop((left, top, left + side, top + side)).resize((256, 256))

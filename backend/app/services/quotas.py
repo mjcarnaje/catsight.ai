@@ -11,6 +11,7 @@ from datetime import timedelta
 from typing import Optional
 
 from django.conf import settings
+from django.db import connection, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -96,14 +97,13 @@ def usage(user) -> dict:
     }
 
 
-def check_upload(user, pages: int) -> None:
-    """Raise QuotaExceeded if `user` may not upload a `pages`-page document now.
+# All consumption is serialized by one transaction-scoped advisory lock, so two
+# concurrent requests can't both pass a check before either is recorded. At demo
+# traffic the lock is held for milliseconds.
+_QUOTA_LOCK_ID = 7_412_002
 
-    Callers record() each accepted file before checking the next one, so a
-    multi-file upload can't slip past the daily count.
-    """
-    if not applies_to(user):
-        return
+
+def _check_upload(user, pages: int) -> None:
     lim = limits(user)
     since = timezone.now() - WINDOW
     if lim.uploads_per_day and _used(UsageKind.UPLOAD, user, since) >= lim.uploads_per_day:
@@ -118,9 +118,7 @@ def check_upload(user, pages: int) -> None:
         )
 
 
-def check_message(user) -> None:
-    if not applies_to(user):
-        return
+def _check_message(user) -> None:
     lim = limits(user)
     if lim.messages_per_day and _used(UsageKind.MESSAGE, user, timezone.now() - WINDOW) >= lim.messages_per_day:
         raise QuotaExceeded(
@@ -129,5 +127,24 @@ def check_message(user) -> None:
         )
 
 
-def record(user, kind: UsageKind, amount: int = 1) -> None:
-    UsageEvent.objects.create(user=user, kind=kind.value, amount=amount)
+def consume(user, kind: UsageKind, amount: int = 1) -> UsageEvent:
+    """Atomically check `user`'s limit for `kind` and record the use.
+
+    Raises QuotaExceeded (recording nothing) when over the limit. Unlimited users
+    are recorded too, for the dashboard's activity numbers. `amount` is pages for
+    uploads (0 for a re-run of an existing document) and 1 for a question.
+    """
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(%s)", [_QUOTA_LOCK_ID])
+        if applies_to(user):
+            if kind is UsageKind.UPLOAD:
+                _check_upload(user, amount)
+            else:
+                _check_message(user)
+        return UsageEvent.objects.create(user=user, kind=kind.value, amount=amount)
+
+
+def refund(event: UsageEvent) -> None:
+    """Undo a consume() whose work didn't happen (e.g. the upload couldn't be saved)."""
+    UsageEvent.objects.filter(pk=event.pk).delete()

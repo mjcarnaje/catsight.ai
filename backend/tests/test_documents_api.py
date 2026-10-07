@@ -158,3 +158,10 @@ def test_avatars_are_reencoded_and_svg_is_refused(api, member, settings, tmp_pat
     disguised = SimpleUploadedFile("evil.html", png.getvalue(), content_type="text/html")
     avatar = client.patch("/api/auth/me/", {"avatar": disguised}, format="multipart").json()["avatar"]
     assert avatar.startswith("/media/avatars/") and avatar.endswith(".webp")
+
+    # A small file declaring a huge canvas is refused before its pixels are decoded
+    bomb = io.BytesIO()
+    Image.new("1", (5000, 5000)).save(bomb, format="PNG")
+    assert len(bomb.getvalue()) < 2 * 1024 * 1024
+    huge = SimpleUploadedFile("bomb.png", bomb.getvalue(), content_type="image/png")
+    assert client.patch("/api/auth/me/", {"avatar": huge}, format="multipart").status_code == 400
