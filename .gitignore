@@ -13,3 +13,6 @@ backend/.venv/
 .cursor/
 .claude/
 **/__pycache__/
+
+# PDFs to ingest on a server (docs/HOSTING.md)
+seed/

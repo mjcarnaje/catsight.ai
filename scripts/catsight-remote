@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Manage the CATSight.AI deployment on the Mac mini over SSH (Tailscale).
+#
+#   ./scripts/catsight-remote status          containers + local health
+#   ./scripts/catsight-remote logs [service]  follow logs (backend, worker, web, tunnel, db)
+#   ./scripts/catsight-remote backup          pg_dump + media archive into ~/catsight-backups
+#   ./scripts/catsight-remote deploy          backup, pull origin/master, rebuild, restart, health check
+#   ./scripts/catsight-remote ingest          add every PDF in the mini's ~/catsight/seed to the library
+#
+# The host key is still verified against the trusted mjcarnaje-macmini.local entry.
+# Override the address with CATSIGHT_HOST (e.g. mjcarnaje-macmini.local on the LAN).
+set -euo pipefail
+
+command_name="${1:-status}"
+service="${2:-}"
+host="${CATSIGHT_HOST:-100.106.183.79}"
+remote_dir="/Users/mjcarnaje/catsight"
+
+case "$command_name" in
+  status|logs|backup|deploy|ingest) ;;
+  *) echo "Usage: $0 [status|logs [service]|backup|deploy|ingest]" >&2; exit 2 ;;
+esac
+if [[ -n "$service" && ! "$service" =~ ^(backend|worker|web|tunnel|db|redis)$ ]]; then
+  echo "Unknown service: $service" >&2; exit 2
+fi
+
+read -r -d '' remote <<SCRIPT || true
+set -euo pipefail
+export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+cd "$remote_dir"
+compose() { docker compose -f docker-compose.prod.yml --env-file .env.prod --profile tunnel "\$@"; }
+health() { curl -fsS --max-time 10 http://127.0.0.1:\${WEB_PORT:-8790}/api/health/ && echo; }
+
+backup() {
+  local ts dir
+  ts=\$(date +%Y%m%d-%H%M%S); dir="\$HOME/catsight-backups"
+  mkdir -p "\$dir" && chmod 700 "\$dir"
+  compose exec -T db sh -c 'pg_dump -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" --no-owner' | gzip > "\$dir/catsight-\$ts.sql.gz"
+  compose exec -T backend tar -C /usr/src/app -czf - media > "\$dir/media-\$ts.tar.gz"
+  chmod 600 "\$dir"/*-"\$ts".*
+  ls -lh "\$dir"/*-"\$ts".*
+}
+
+case "$command_name" in
+  status) git log -1 --format='%h %s (%cr)'; compose ps; health ;;
+  logs) compose logs -f --tail 200 $service ;;
+  backup) backup ;;
+  deploy)
+    git fetch -q origin
+    if [ -n "\$(git status --porcelain --untracked-files=no)" ]; then
+      echo "The mini's checkout has local changes; reconcile them first:"; git status --short; exit 1
+    fi
+    backup
+    git merge --ff-only origin/master
+    compose build
+    compose up -d --remove-orphans
+    sleep 8
+    health
+    docker image prune -f >/dev/null
+    git log -1 --format='Deployed %h %s'
+    ;;
+  ingest) compose exec -T worker python manage.py ingest /seed ;;
+esac
+SCRIPT
+
+exec ssh -o BatchMode=yes -o ConnectTimeout=10 \
+  -o StrictHostKeyChecking=yes -o HostKeyAlias=mjcarnaje-macmini.local \
+  "mjcarnaje@$host" "bash -c $(printf '%q' "$remote")"

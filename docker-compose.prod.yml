@@ -48,6 +48,10 @@ services:
 
   worker:
     <<: *backend
+    volumes:
+      - media:/usr/src/app/media
+      # PDFs to add with `manage.py ingest /seed` (read-only; see docs/HOSTING.md)
+      - ${SEED_DIR:-./seed}:/seed:ro
     command: ["celery", "-A", "inteldocs", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
 
   web:
@@ -62,6 +66,18 @@ services:
       - media:/media:ro
     depends_on:
       - backend
+    restart: unless-stopped
+
+  # Outbound-only Cloudflare Tunnel to the web container (no inbound ports, no
+  # port forwarding). Enable with --profile tunnel and TUNNEL_TOKEN in .env.prod.
+  tunnel:
+    profiles: [tunnel]
+    image: cloudflare/cloudflared:2025.9.1
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      - web
     restart: unless-stopped
 
 volumes:

@@ -1,79 +1,81 @@
 ---
-name: catsight-pdf-conversion
-description: How CATSight.AI turns uploaded PDFs into Markdown with marker, docling or markitdown, and how that feeds chunking, summarization and pgvector embedding. Use when touching backend/app/tasks/tasks.py, changing marker or docling options, adding or debugging a markdown converter, investigating bad/empty extracted text, OCR quality, slow or failing extraction in the Celery worker, or CPU vs GPU (TORCH_DEVICE) behaviour of the conversion models.
+name: catsight-rag-pipeline
+description: How CATSight.AI turns an uploaded PDF into searchable, citable passages (vision OCR or local marker/docling, single-call cataloguing, chunking, bge-m3 + full-text indexing) and how hybrid retrieval and the chat agent use them. Use when touching backend/app/services/{extraction,summarization,indexing,search,agent,llm}.py or backend/app/tasks/tasks.py, debugging bad or empty extracted text, wrong titles/years/tags, missing or irrelevant search results, citation numbering, or provider/model configuration (OpenRouter vs Ollama).
 ---
 
-# CATSight.AI PDF → Markdown pipeline
+# CATSight.AI RAG pipeline
 
 ## Where things live
 
 | What | Where |
 |---|---|
-| Converters + Celery tasks | `backend/app/tasks/tasks.py` |
-| Converter names (`marker`, `markitdown`, `docling`) | `MarkdownConverter` enum in `backend/app/constant/__init__.py` |
-| Status machine + ordering | `DocumentStatus` / `STATUS_ORDER` in the same file |
-| Per-document converter | `Document.markdown_converter` (`backend/app/models.py`) |
-| Per-user default | `User.default_markdown_converter`, default `"marker"` |
-| Upload picks converter | `backend/app/views/documents.py` (~L111: request value, else user default) |
-| Re-extract with another converter | `reextract_doc` in `documents.py`: deletes vectors (`doc_id` filter) + `DocumentFullText`, resets to `PENDING`, re-queues |
-| Extracted text storage | `DocumentFullText.text` |
-| Files on disk | `MEDIA_ROOT = backend/media` (`/usr/src/app/media` in containers) |
-| Chunking (page + section aware) | `backend/app/utils/chunking.py` (`split_markdown`) |
-| Vector store helpers | `backend/app/services/vectorstore.py`: `search_chunks`, `get_document_chunks`, `delete_document_chunks` |
-| Model tags + Ollama URL | `backend/inteldocs/settings.py` (`CHAT_MODEL`, `FAST_MODEL`, `EMBEDDING_MODEL`, `OLLAMA_BASE_URL`); clients from `services/ollama.py` |
+| Provider seam (chat, embeddings, rerank, page OCR) | `backend/app/services/llm.py` — everything goes through it; `LLM_PROVIDER=openrouter|ollama` |
+| Model defaults + knobs | `backend/inteldocs/settings.py` (`CHAT_MODEL`, `OCR_MODEL`, `EMBEDDING_MODEL`, `RERANKER_MODEL`, `RETRIEVAL_MIN_SIMILARITY`, `DEFAULT_TEXT_EXTRACTOR`) |
+| Pipeline task + stages | `backend/app/tasks/tasks.py` (`process_document`, `reprocess`) |
+| PDF → pages | `backend/app/services/extraction.py` (`vision`, `marker`, `docling`, `markitdown`) |
+| Cataloguing | `backend/app/services/summarization.py` (`analyze`) + `ANALYSIS_PROMPT` in `backend/app/constant/prompts.py` |
+| Chunking | `backend/app/utils/chunking.py` (`split_markdown`: page + heading aware) |
+| Indexing | `backend/app/services/indexing.py` (`index_document`, `chunk_context`) |
+| Retrieval | `backend/app/services/search.py` (`search`, `fuse`, `keyword_terms`) |
+| Chat agent | `backend/app/services/agent.py` (LangGraph + Postgres checkpointer), SSE in `backend/app/views/chat.py` |
+| Upload / dedupe / limits | `backend/app/services/library.py`, `storage.py`, `quotas.py` |
 
-## Flow
+## Pipeline
 
-`process_document_task(document_id)` (queued with `.delay`) reads the saved status *before* marking the document `PROCESSING`, then runs only the unfinished steps (via `STATUS_ORDER`):
+`process_document(document_id)` runs `queued → extracting → summarizing → indexing → ready`,
+starting at the document's current stage. A failure sets `is_failed=True` and a
+readable `error_message` but keeps the stage, so `POST /api/documents/<id>/reprocess/`
+resumes there. `reprocess(doc, stage)` restarts from any stage (editing the text
+restarts at `summarizing`; changing the extractor at `extracting`).
 
-1. `extract_text_task`: picks the converter from `CONVERTERS[document.markdown_converter]` and writes Markdown to `DocumentFullText`. Status goes `TEXT_EXTRACTING` → `TEXT_EXTRACTION_DONE`. A converter exception or an empty result **fails the document** and stops the pipeline.
-2. `generate_document_summary_task`: map-reduce summary, then one structured call for `title`, `year` (null when unstated) and `tags` (`services/summarization_agent.py`), with `max_concurrency=SUMMARY_MAX_CONCURRENCY`.
-3. `chunk_and_embed_text_task`: `split_markdown()` splits at headings (each chunk starts with its heading and records `page` + `section`), then `save_document_chunks` deletes the old chunks and upserts new ones with stable ids `doc_{id}_chunk_{i}`, then `COMPLETED`.
+1. **Extracting** — `extraction.extract(path, extractor)` returns `Page`s.
+   - `vision` (default with OpenRouter): each page rendered with pypdfium2 at 150 DPI
+     (max 2400 px) and transcribed by `OCR_MODEL` with `OCR_PROMPT`, 4 pages at a
+     time. It ignores the "UNOFFICIAL COPY" watermark and letterhead contact lines.
+   - `marker` / `docling` / `markitdown` need an image built with `LOCAL_OCR=1`.
+     `markitdown` only reads a text layer: empty for scans (the step then fails
+     with a hint instead of storing nothing).
+   - Pages are joined with `<!-- page:N -->` markers (`join_pages`) into
+     `DocumentFullText.text`; the markers survive edits and give chunks their page.
+2. **Summarizing** — `summarization.analyze(markdown)`: one structured call over the
+   whole text (`DocumentAnalysis`: title, summary, reference_number, issued_on, year,
+   tags, questions). Only text longer than `SINGLE_PASS_CHARS` is summarized section
+   by section first. Tags must match existing `Tag` names (case-insensitive); the
+   tag descriptions are what the model chooses by.
+3. **Indexing** — `split_markdown` (1000 chars, 150 overlap, never across headings),
+   each chunk embedded as `"{context}\n{text}"` where `context` = title · reference
+   number · year. Embeddings are computed before old chunks are deleted, so a
+   failure leaves the previous index searchable. `update_search_vectors` builds the
+   tsvector (context weight A, text B) after normalising leading zeros.
 
-Tasks run in the `celery_worker` container (`celery -A inteldocs worker --concurrency=1`), not in `backend`.
+## Retrieval (`search.search`)
 
-## The three converters
+- Scope: ready, non-failed documents the user may see (`Document.objects.visible_to`)
+  narrowed by document ids / years / tags.
+- Vector leg: exact cosine distance (no ANN index on purpose; see the
+  `DocumentChunk` docstring). Keyword leg: OR of terms via `to_tsquery('english')`.
+- Reciprocal Rank Fusion (`fuse`, k=60), vector-only hits must reach
+  `RETRIEVAL_MIN_SIMILARITY`, optional rerank through OpenRouter `/rerank`
+  (`RERANKER_MODEL`, failures fall back to the fused order), max 3 passages per document.
+- Identifier queries ("SO 01592-2023", "1592") work because `keyword_terms` and the
+  index both strip leading zeros and split on hyphens.
 
-All three are created lazily behind `@lru_cache(maxsize=1)`, so each worker process loads its models once on the first document and reuses them. With `--concurrency=1` there is a single copy in memory. Raising concurrency multiplies model memory, because each worker process loads its own copy.
+## Chat agent
 
-### marker (`get_marker_converter`)
-Built from `ConfigParser(marker_config)` → `PdfConverter(...)`, then `text_from_rendered(rendered)` returns the Markdown. The current config:
-- `force_ocr: True`, `strip_existing_ocr: True`: always re-OCRs, even PDFs that already have a text layer. This is the right choice for scanned documents but the slowest path for digital PDFs.
-- `paginate_output: True`: page separators (`{n}` + 48 dashes) appear in the Markdown. `split_markdown` strips them and turns them into each chunk's `page`, so keep this on.
-- `format_lines: True`, `disable_image_extraction: True`, `output_format: "markdown"`.
-- `use_llm: False`: the Ollama settings (`settings.OLLAMA_BASE_URL`, `settings.CHAT_MODEL`) are **unused** unless you flip this.
-- `create_model_dict()` loads the layout/OCR models, which are downloaded on first use rather than baked into the image. Expect the first conversion after a fresh container to be slow.
+`assistant` may call `search_documents` up to 3 times per question. Sources are
+numbered per answer and keep their number across searches (`merge_sources`), so
+`[n]` in the text always matches `sources[n]` in the UI. Earlier turns' raw search
+results are left out of the prompt (`_model_context`). `truncate_from` powers
+regenerate/edit; `delete_chat` also deletes the thread's checkpoints.
 
-### docling (`get_docling_converter`)
-Uses a plain `DocumentConverter()` with default pipeline options, then `result.document.export_to_markdown()`. To tune OCR or tables, pass `format_options` with `PdfPipelineOptions` (for example `do_ocr`, `do_table_structure`). Check the installed docling version's API before editing, because these options have moved between releases. Its models are also downloaded on first use.
+## Debugging checklist
 
-### markitdown (`get_markitdown_converter`)
-`MarkItDown().convert(path).text_content`. It's fast and uses no ML models, but it does no OCR, so scanned PDFs come back nearly empty.
-
-## CPU vs GPU
-
-- `TORCH_DEVICE` is set by compose: `cpu` in `docker-compose.mac.yml` and the base file, `cuda` in `docker-compose.pc.yml`. marker reads it.
-- The torch wheel is chosen at build time by the `TORCH_INDEX_URL` build arg in `backend/Dockerfile`. It defaults to CPU, and `docker-compose.pc.yml` sets cu124. Torch is installed **before** `requirements.txt` so that marker-pdf and docling reuse it instead of pulling another torch.
-- On Mac (CPU), marker with `force_ocr` is slow: expect minutes per multi-page scan.
-
-## Gotchas
-
-- **Never add the PyPI package `marker`.** It's an unrelated tool that installs into the same `marker/` package as `marker-pdf` and breaks `from marker.converters...` (this once silently broke the default converter). Check with `python -c "from marker.converters.pdf import PdfConverter"` in the container.
-- **Failed documents:** `is_failed=True` and `status` is the step that failed. Read the worker logs (`logger.exception`) for the cause; retrying resumes from that step.
-- **Chunk metadata is only `doc_id`, `id`, `index`, `page`, `section`.** Don't copy document fields such as year or tags into chunks: they change when a summary is regenerated and the copies go stale. The search page's year/tag filters resolve matching document ids from the `Document` table (`_matching_doc_ids` in `services/rag_agent.py`) and search with `{"doc_id": {"$in": ids}}`. PGVector's `$in` also can't match list-valued metadata.
-- **Deleting chunks:** `PGVector.delete()` only accepts explicit ids and silently ignores `filter=`. Use `delete_document_chunks(doc_id)`. To list a document's chunks use `get_document_chunks(doc_id)`, not a similarity search for `""`.
-- Ollama is reached at `settings.OLLAMA_BASE_URL` (`http://ollama:11434`, the compose service name).
-- Adding a converter means touching the `MarkdownConverter` enum, a new `get_*_converter` / `convert_pdf_with_*` pair registered in `CONVERTERS` (tasks.py), and the frontend option list (`frontend/src/lib/markdown-converter.tsx`, used by `upload-documents-modal.tsx`).
-
-## Trying a converter by hand
-
-Run these from the repo root. `platform.sh` sets `$COMPOSE_FILES` for mac or pc.
-
-```bash
-source ./platform.sh
-docker compose $COMPOSE_FILES exec celery_worker python manage.py shell -c "
-from app.tasks.tasks import convert_pdf_with_docling
-print(convert_pdf_with_docling('/usr/src/app/media/docs/<file>.pdf')[:2000])"
-```
-
-Swap in `convert_pdf_with_marker` or `convert_pdf_with_markitdown` to compare outputs on the same file.
+- Bad text: `GET /api/documents/<id>/text/` (or the Text tab). Re-run from
+  extracting with another extractor if available.
+- Wrong catalogue: correct it in the UI (`PATCH /api/documents/<id>/`: chunk
+  headers and search vectors are refreshed without re-embedding) or re-run from
+  summarizing.
+- Missing results: try the same query on `/search` (shows which leg matched each
+  passage); check the document is `ready` and visible to that user.
+- Tests: `docker compose exec -T backend python -m pytest` — fake embedder and
+  scripted chat model, no API calls.
