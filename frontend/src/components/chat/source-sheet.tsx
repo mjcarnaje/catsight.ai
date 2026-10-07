@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { passageText, plural } from "@/lib/format";
 import type { Source } from "@/types";
 
 /** The passages an answer cited from one document, with a way into the document. */
@@ -17,7 +18,7 @@ export function SourceSheet({ source, onClose }: { source: Source | null; onClos
               <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Source [{source.n}]</p>
               <SheetTitle className="text-base leading-snug">{source.title}</SheetTitle>
               <SheetDescription>
-                {[source.reference_number, source.year, source.page_count ? `${source.page_count} pages` : null]
+                {[source.reference_number, source.year, source.page_count ? plural(source.page_count, "page") : null]
                   .filter(Boolean)
                   .join(" · ")}
               </SheetDescription>
@@ -42,7 +43,7 @@ export function SourceSheet({ source, onClose }: { source: Source | null; onClos
                       {[passage.page ? `Page ${passage.page}` : null, passage.section].filter(Boolean).join(" · ") || "Passage"}
                     </span>
                     <blockquote className="whitespace-pre-wrap rounded-md border-l-2 border-gold/60 bg-muted/40 px-3 py-2 text-[13px] leading-relaxed">
-                      {passage.text}
+                      {passageText(passage.text, passage.section)}
                     </blockquote>
                   </li>
                 ))}

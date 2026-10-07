@@ -14,6 +14,27 @@ export function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/**
+ * A stored passage for display: drops heading lines that repeat its `section`
+ * (shown separately) and Markdown markers that would otherwise show as text.
+ */
+export function passageText(text: string, section?: string | null) {
+  const repeated = (section ?? "").toLowerCase();
+  const lines = text.trim().split("\n");
+  while (lines.length && /^#{1,6}\s/.test(lines[0])) {
+    const heading = lines[0].replace(/^#{1,6}\s+/, "").replace(/\*\*/g, "").trim().toLowerCase();
+    if (!repeated.includes(heading)) break;
+    lines.shift();
+    while (lines.length && !lines[0].trim()) lines.shift();
+  }
+  return lines
+    .join("\n")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/<!-- page:\d+ -->/g, "")
+    .trim();
+}
+
 export function plural(count: number, one: string, many = `${one}s`) {
   return `${count.toLocaleString()} ${count === 1 ? one : many}`;
 }

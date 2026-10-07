@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 
 import { Highlight } from "@/components/search/highlight";
 import { snippet, tidy } from "@/components/search/query-text";
+import { passageText } from "@/lib/format";
 import type { SearchPassage } from "@/types";
 
 const LABELS = { keyword: "exact match", vector: "related meaning" } as const;
@@ -20,7 +21,7 @@ export function Passage({
   pattern: RegExp | null;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const full = useMemo(() => tidy(passage.text), [passage.text]);
+  const full = useMemo(() => tidy(passageText(passage.text, passage.section)), [passage.text, passage.section]);
   const view = useMemo(
     () => (expanded ? { text: full, before: false, after: false } : snippet(full, pattern, SNIPPET_CHARS)),
     [expanded, full, pattern]
