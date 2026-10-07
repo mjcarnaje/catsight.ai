@@ -115,3 +115,18 @@ first) to avoid mixing old and new rows.
 - Link previews: <https://catsight.mjcarnaje.com/og.png> loads (1200×630).
 - Worker: `./scripts/catsight-remote logs worker` shows documents moving through
   `extracting → summarizing → indexing → ready`.
+
+## Current deployment
+
+Verified 7 October 2026:
+
+- Tunnel `catsight-macmini` (dashboard-managed, token in `.env.prod`) publishes
+  `catsight.mjcarnaje.com` → `http://web:80`; the existing `mission-control` and
+  `lumen-sanctorum-macmini` tunnels are unchanged.
+- `DEMO_MODE=1`, `UPLOADS_ENABLED=0`: visitors sign in as guests and search and
+  chat with the library; only the admin (`ADMIN_EMAIL` in `.env.prod`) can add
+  documents, through the UI or `catsight-remote ingest`.
+- Library: the 50 MSU-IIT sample PDFs from `seed/` (48 unique; 158 pages, 516
+  passages, 1970–2024). Ingest cost $0.22 on OpenRouter.
+- Checked publicly: `/api/health/`, landing page, `/og.png`, guest sign-in, a
+  refused guest upload, and a streamed, cited chat answer (≈6 s end to end).

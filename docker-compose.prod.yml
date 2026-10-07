@@ -75,7 +75,7 @@ services:
   # port forwarding). Enable with --profile tunnel and TUNNEL_TOKEN in .env.prod.
   tunnel:
     profiles: [tunnel]
-    image: cloudflare/cloudflared:2025.9.1
+    image: cloudflare/cloudflared:2026.10.0
     command: ["tunnel", "--no-autoupdate", "run"]
     environment:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
