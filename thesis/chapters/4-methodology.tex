@@ -1,0 +1,140 @@
+\chapter{Research Methodology}\label{ch:methodology}
+
+This chapter outlines the methodology used to develop CatSight AI, a document retrieval system (DRS) tailored for Mindanao State University – Iligan Institute of Technology (MSU-IIT). Adapted from Pallavi Sinha’s framework for building LLM-powered applications, the process excludes deployment-related steps to align with the project’s timeline (January–April 2025) as shown in \textbf{Figure 2.} However, this study only follows six key phases. The structured approach ensures that CatSight AI meets MSU-IIT’s specific needs, following best practices in AI development such as iterative testing and data-driven refinement. \begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/defended/sinha-steps.png}
+  \caption{Steps Breakdown for Building LLM-Powered Applications (Sinha, 2024)}
+\end{figure} Only six key phases were adopted to ensure the feasibility and relevance of the system during its limited development window. This structured approach ensures that CatSight AI meets MSU-IIT’s specific needs, following best practices in AI development, such as iterative testing, ethical considerations, and data-driven refinement (Amershi et al., 2019).
+
+\section{Use Case Discovery}
+
+The proponents observed that MSU-IIT’s current document retrieval system posed challenges for students, faculty, and staff. The keyword-based search often failed to return relevant results when queries didn’t match exact terms, making it difficult to find necessary documents. For instance, searching for “policy updates” might miss files labeled differently, such as “revised regulations.” These limitations revealed the system’s lack of contextual understanding and highlighted the need for a more intelligent solution. CatSight AI addresses this by integrating OCR, vector similarity search, and LLM-based chat interfaces, enabling semantic search and conversational interaction to improve search accuracy and user experience.
+
+\subsection{Process of Document Collection and Preparation}
+
+Building on the identified limitations of MSU-IIT’s traditional document retrieval system, the study moves toward developing and evaluating a more intelligent solution—CatSight AI. To ensure that the system is tested under realistic and representative conditions, the process begins with the careful collection and preparation of institutional documents. These documents are sourced from two main repositories: (1) MSU-IIT’s internal document archives and (2) the MSU System Board of Regents (BOR) Resolutions.
+
+Both scanned and text-based PDF files are gathered, curated, and pre-processed to serve as the dataset for evaluating the proposed Document Retrieval System (DRS). This step ensures the inclusion of a wide variety of document types, formats, and complexities, particularly those that require Optical Character Recognition (OCR) for semantic interpretation.
+
+To maintain relevance and comprehensiveness, specific criteria were observed in selecting the documents:
+
+\begin{itemize}
+  \item \textbf{Relevance}: Files were chosen based on their alignment with commonly referenced administrative functions and institutional topics.
+  \item \textbf{Diversity of Content}: The dataset includes various categories such as policies, appointments, and event-related issuances.
+  \item \textbf{Format Variety}: Both scanned and digitally native PDFs were included to assess the system’s performance in handling OCR and different file structures.
+  \item \textbf{Structural Complexity}: Documents featuring tables, multiple sections, and complex layouts were prioritized to rigorously test the DRS's retrieval capabilities.
+\end{itemize}
+
+This comprehensive document preparation process sets the foundation for a meaningful evaluation of CatSight AI’s ability to overcome the limitations of the current system and deliver more accurate, context-aware search results.
+
+\subsection{Problem Definition \& Stakeholders}
+
+The development of CatSight AI was motivated by critical limitations observed in the existing Document Retrieval System (DRS) at Mindanao State University - Iligan Institute of Technology (MSU-IIT). The institution relies on two primary repositories: the Board of Regents (BOR) Resolutions Archive, which governs MSU System policies, and IIT Docs, a repository of Special Orders, Memorandum Orders, and administrative issuances built on Google Drive’s keyword-based search. While functional, these systems exhibit significant shortcomings:
+
+\begin{enumerate}
+  \item Semantic Blindness: The keyword-only mechanism fails to interpret contextual nuances or semantic relationships, leading to irrelevant or incomplete results. For example:
+\end{enumerate}
+
+\begin{itemize}
+  \item Queries for "Special Orders" miss documents labeled with abbreviations like "SO."
+  \item Synonym-rich content (e.g., "academic calendar" vs. "term schedule") remains undiscovered.
+  \item Paraphrased queries (e.g., "student allowances" vs. "financial aid") yield inconsistent results.
+\end{itemize}
+
+\begin{enumerate}
+  \item Format Exclusion: Scanned or image-based PDFs are entirely excluded from search results due to the lack of Optical Character Recognition (OCR) capabilities. Documents with complex layouts—such as tables, multi-column text, or handwritten annotations—are similarly unsearchable.
+  \item Rigid Interaction: Users cannot refine queries iteratively due to the absence of a conversational interface, forcing them to rely on repetitive keyword adjustments.
+\end{enumerate}
+
+\textbf{Primary Stakeholders:}
+
+\begin{itemize}
+  \item Students: Require timely access to academic policies (e.g., scholarship resolutions, enrollment guidelines) and event announcements.
+  \item Staff: Responsible for locating memorandums (e.g., procurement procedures, compliance records) to streamline operational workflows.
+\end{itemize}
+
+\section{Agent Prototype Building}
+
+\section{LLM System Strategy}
+
+Strategic design decisions were made, including model selection, embedding strategies, and chunking techniques for documents. The LLM System Strategy for CatSight AI prioritized a single LLM approach to streamline development and reduce computational overhead, opting against multi-agent systems that are better suited for complex, specialized tasks (Chen et al., 2023). This decision was informed by a rigorous evaluation of multiple candidate models from \textbf{Ollama} to ensure optimal performance for document retrieval and conversational interaction at MSU-IIT. Several models were tested for both the primary LLM and the embedding model:
+
+For the LLM:
+
+\begin{itemize}
+  \item \textbf{llama3.1:8b}: Demonstrated strong language understanding but required significant computational resources, making it less feasible for real-time applications.
+  \item \textbf{llama3.2:1b}: A lightweight model with low resource demands but insufficient for handling complex conversational tasks requiring deep contextual understanding.
+  \item \textbf{qwen3:1.7b}: Offered good language capabilities but struggled with processing long-context documents, a critical requirement for MSU-IIT’s use case.
+  \item \textbf{qwen2.5:7b-instruct-q4\_K\_M}: Excelled in instruction-following tasks but was less efficient for real-time interaction due to higher latency.
+  \item \textbf{llama3.1:8b-text-fp16}: Optimized for text processing, it performed well but was less versatile than Llama 3.1 for conversational applications but requires more resources.
+  \item \textbf{llama3.18b-q4}: Selected as the primary LLM for its balanced performance, efficiency, and ability to handle complex queries and generate context-aware responses, fine-tuned for MSU-IIT’s institutional context (Meta AI, 2025).
+\end{itemize}
+
+For the embedding model:
+
+\begin{itemize}
+  \item \textbf{bge-m3:latest}: Initially evaluated for its multi-lingual support but found lacking in accurately capturing specific entities such as names, numbers, and native terms prevalent in MSU-IIT’s documents.
+  \item \textbf{mxbai-embed-large}: Chosen for its superior semantic accuracy, particularly in handling nuanced entities, making it ideal for semantic search across MSU-IIT’s diverse document set (mixedbread.ai, 2024).
+\end{itemize}
+
+Benchmarking was conducted using sample documents from MSU-IIT, focusing on tasks such as text generation, question answering, and semantic similarity search. Metrics included response accuracy, latency, and resource utilization. Llama 3.1 8B Q4 outperformed other LLMs in generating accurate and contextually relevant responses with moderate computational requirements, making it suitable for real-time applications. Similarly, mxbai-embed-large demonstrated higher precision in embedding tasks compared to bge-m3, particularly for documents containing names, numbers, and native terms, ensuring robust retrieval performance (Brown et al., 2020; mixedbread.ai, 2024).
+
+\section{LLM Setup}
+
+One of the key processes of this study is choosing the right LLM setup. This section discusses the LLM setup chosen by the proponents:
+
+\subsection{LLM Underlying Process}
+
+According to Mulugeta (2023), a Large Language Model (LLM) operates through a series of structured processes to interpret and generate human-like text. A simplified representation of this workflow is illustrated in the following image
+
+\emph{IMAGE}
+
+The article then provides a deeper exploration of several key steps in the process while intentionally excluding more advanced topics—such as model training—that fall outside the scope of the current discussion.
+
+\subsection{Ollama}
+
+Ollama is an open-source framework optimized for local deployment and efficient inference of large language models (LLMs). In CatSight AI, Ollama serves as the foundational LLM engine, running entirely on-premises within MSU-IIT’s infrastructure to guarantee compliance with the Philippine Data Privacy Act. It integrates seamlessly with Django’s REST framework to expose inference endpoints and with our Retrieval-Augmented Generation (RAG) pipeline for context-aware academic document retrieval. This setup balances low-latency performance, domain-specific customization (e.g., adherence to MSU-IIT’s document schemas and terminologies), and institutional governance requirements—ensuring a scalable, privacy-preserving AI solution tailored to an academic environment.
+
+\subsection{Llama 3.1:8b-Q4}
+
+Llama 3.1’s 8-billion-parameter variant, quantized to 4 bits per weight (Q4), offers nearly FP16-level performance (∼99.3 \% relative quality) while reducing memory footprint by over 4×—making on-premises inference feasible on modest hardware of 4–8 GB RAM (Meta AI, 2024). This quantized model runs natively in Ollama, enabling CatSight AI to deliver fast, context-aware responses without offloading data externally.
+
+\subsection{mxbai-embed-large}
+
+The mxbai-embed-large model from Mixedbread AI produces dense, 768-dimensional sentence embeddings optimized for semantic retrieval. Trained without overlap on the MTEB benchmark, it outperforms many same-sized and even larger proprietary models (Mixedbread AI, 2024). This ensures high-quality vector representations for MSU-IIT’s diverse document corpus. In CatSight AI, these embeddings power our pgvector store, underpinning precise similarity search in the RAG pipeline.
+
+\section{LLM Hosting}
+
+CatSight AI’s core LLM is hosted on-premises via Ollama, ensuring all document embeddings and inference remain within MSU-IIT’s infrastructure to uphold institutional data-privacy requirements (Philippine Data Privacy Act compliance). Ollama’s lightweight local runtime provides cloud-like elasticity—seamlessly scaling to accommodate peak query loads, while exposing inference endpoints through Django’s REST framework. This integration delivers low-latency, auditable API calls for document retrieval, fits naturally into CatSight AI’s unified agent architecture, and aligns with MSU-IIT’s governance policies around data sovereignty.
+
+\section{Development of the System}
+
+This section outlines the technical implementation of the system. Under this section are the dependency management, system algorithm, system functions, environment, and resources that underpin the system operation.
+
+\subsection{Dependency Management and Setting up Development Environment}
+
+CatSight AI leverages \textbf{Docker} to package the application and all its dependencies into a containerized environment. Docker is an open platform for developing, shipping, and running applications in lightweight, self-contained units called containers. By defining a \textbf{Dockerfile} that lists the base image, required system packages, Python runtime, and Python libraries (in a `requirements.txt`), every developer and deployment environment uses the exact same setup, eliminating “it works on my machine” issues. Containers isolate CatSight AI’s runtime from host-level variations, streamline onboarding (one `docker build` + `docker run` command), and support consistent CI/CD pipelines across development, testing, and production stages (Docker, 2024).
+
+\subsection{System Algorithm}
+
+The core logic of the system is captured in three complementary algorithms: the Document Process Algorithm, which the user uploads files which will then be converted into Markdown, then from Markdown, it will be broken down using \emph{RecursiveTextSplitter} from \emph{Langchain} for context-aware retrieval, then the retrieved markdown will be embedded, then the contents that have been embedded will be summarized which will also result to metadata extraction, the Search-Retrieval Algorithm, which handles both traditional keyword and semantic (AI-powered) document searches, and the Interactive-Chat Algorithm, which enables users to engage in dynamic, conversational queries for more contextual and human-like interactions. Each user request includes the input query along with session-specific metadata, enabling personalized and efficient response generation.
+
+\subsubsection{Document Process Algorithm}
+
+\subsubsection{Search-Retrieval Algorithm}
+
+\subsubsection{Interactive-Chat Algorithm}
+
+\subsection{Flowchart of CatSightAI}
+
+The chatbot engine processes user input and generates responses through a structured, LLM-powered workflow, as illustrated in Fig. 3.17. Each user message follows these stages: \begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.55\linewidth]{figures/defended/system-workflow.png}
+  \caption{System Workflow}
+\end{figure}
+
+\subsection{System Workflow Diagram}
+
+\subsection{System Functions}
+
+\subsection{Environment and Resources}

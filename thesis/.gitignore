@@ -1,0 +1,11 @@
+# LaTeX build products (main.pdf is kept)
+*.aux
+*.bbl
+*.blg
+*.log
+*.lof
+*.lot
+*.loa
+*.out
+*.toc
+*.synctex.gz

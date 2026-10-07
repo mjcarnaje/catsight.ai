@@ -1,0 +1,45 @@
+\chapter{Theoretical Framework}\label{ch:framework}
+
+This chapter lays the conceptual foundation for the development of CatSight AI. The study integrates theories and models from the domains of information retrieval (IR), human-computer interaction (HCI), and large language models (LLMs), ensuring the system addresses both technical effectiveness and user satisfaction.
+
+\section{Information Retrieval Theory}
+
+Information Retrieval (IR) Theory is the study of methods and systems for finding relevant information from large collections of data, especially unstructured data such as text. It forms the foundation of technologies like search engines, digital libraries, and question-answering systems. At its core, IR involves documents—units of data stored in the system—and queries, which represent users' information needs. To enable efficient retrieval, documents undergo preprocessing through indexing, which includes tokenization, stopword removal, stemming or lemmatization, and the construction of inverted indexes.
+
+\subsection{Tokenization}
+
+Tokenization in Information Retrieval (IR) is the process of breaking down text into smaller units called tokens, typically words or meaningful terms, which serve as the basic building blocks for indexing and matching documents to queries. It is a crucial preprocessing step that standardizes text by removing punctuation, handling case sensitivity, and separating compound words, thereby enabling efficient and accurate information retrieval. For instance, the sentence "Information retrieval is powerful" would be tokenized into ["Information", "retrieval", "is", "powerful"], allowing the IR system to analyze and compare textual content effectively. The complexity of tokenization can vary depending on the language—English tokenization is relatively straightforward, whereas languages like Chinese or Japanese require more sophisticated segmentation techniques. Tokenization facilitates the construction of structures like inverted indexes and significantly impacts retrieval performance. For a comprehensive discussion of tokenization, Jurafsky and Martin (2023).
+
+\subsection{Cosine Similarity in Semantic Search}
+
+Cosine similarity is a method used in semantic search to measure how similar two texts are by comparing their vector representations. In CatSight AI, it helps match the meaning of user queries with institutional documents using vectors generated from language models. This method focuses on the angle between vectors, not their length, allowing for more accurate, context-aware search results than traditional keyword matching (Huang, 2008). \textbf{Equation 1,} shows the equation of getting the cosine silimilarity of the semantic search.
+
+\begin{verbatim}
+\begin{equation}
+\text{Cosine Similarity} = \frac{\vec{A} \cdot \vec{B}}{\|\vec{A}\| \times \|\vec{B}\|}
+\end{equation}
+Explaination:
+\vec{A} and \vec{B} denote vectors A and B
+
+\cdot represents the dot product
+
+\| \vec{A} \| and \| \vec{B} \| are the magnitudes (norms) of the vectors
+\end{verbatim}
+
+\section{Large Language Models in IR}
+
+Recent advancements in transformer-based LLMs such as BERT (Devlin et al., 2018) and GPT (Radford et al., 2019) have revolutionized retrieval-based tasks through semantic search and contextual query understanding. CatSight AI adopts such LLMs to handle open-ended queries with improved precision, echoing approaches validated in contemporary research (Gao et al., 2021).
+
+\subsection{LLM Hallucinations}
+
+Hallucination in Large Language Models (LLMs) refers to the generation of text that is fluent and contextually relevant but factually incorrect or fabricated. This phenomenon poses a significant challenge in systems like CatSight AI, which rely on LLMs to interpret and retrieve information from documents. Since LLMs are trained on vast, mixed-quality datasets using statistical language modeling, they generate responses based on learned word patterns rather than verified facts. Without grounding in external knowledge bases or the original document context, LLMs may produce answers that appear relevant but do not accurately reflect the source material. This issue is particularly critical in document retrieval systems, where factual accuracy and source traceability are essential. Furthermore, reinforcement techniques like RLHF (Reinforcement Learning from Human Feedback) may unintentionally favor responses that are convincing over those that are correct. Understanding and mitigating hallucination is thus crucial to improving the reliability and trustworthiness of CatSight AI’s LLM-based chat interface (Ji et al., 2023).
+
+\section{System Evaluation}
+
+\section{Cognitive Load Theory and Usability}
+
+Drawing from Cognitive Load Theory (Sweller, 1988), CatSight AI is designed to minimize user confusion through a clean interface and structured interactions. This theory guides UI/UX choices, ensuring users can process and retrieve information without cognitive overload (Paas \& Van Merriënboer, 1994).
+
+\section{Summary of Theoretical Model}
+
+The integrated framework—composed of IR principles, LLM-driven search, TAM for adoption, and cognitive load for usability—guides both the functional and experiential design of CatSight AI. This synthesis ensures a technically sound, user-friendly system tailored to MSU-IIT’s academic needs.

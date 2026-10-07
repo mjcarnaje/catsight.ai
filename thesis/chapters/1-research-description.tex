@@ -1,0 +1,58 @@
+\chapter{Research Description}\label{ch:description}
+
+In today’s era of digital transformation, organizations generate and store an unprecedented volume of documents daily. This exponential growth in document storage has created a pressing demand for efficient document retrieval systems (DRS) to access, manage, and leverage information effectively. A document retrieval system is a specialized application of information retrieval (IR) designed to locate relevant documents within vast repositories based on user queries. By enabling quick and accurate access to information, DRS plays a pivotal role in knowledge management, informed decision-making, and productivity enhancement across diverse domains, including education, business, healthcare, and research (Blair, n.d.; Macdonald \& Tait, 2020).
+
+At its core, document retrieval addresses the challenge of identifying stored documents that contain pertinent information. The primary objective is to distinguish between relevant and non-relevant documents for a user’s specific query. Modern DRS employs various techniques to achieve this, ranging from traditional keyword-based methods to advanced machine learning approaches. Keyword-based retrieval is a foundational technique that matches user queries to specific keywords within documents. While it is straightforward and easy to implement, its reliance on exact matches can limit its ability to capture the broader context of queries (Blair, n.d.). Boolean retrieval, an early and widely used approach, utilizes logical operators like AND, OR, and NOT to narrow down search results based on exact keyword matches. Though simple, it often lacks the flexibility to handle nuanced user queries (Macdonald \& Tait, 2020). The Vector Space Model (VSM) improves on this by representing documents and queries as vectors in a multi-dimensional space, with relevance determined by the cosine similarity between these vectors, enabling more precise ranking of results compared to Boolean methods (Blair, n.d.). Latent Semantic Analysis (LSA) takes this further by uncovering hidden relationships between terms in a document collection through term-document matrix analysis, thereby enhancing retrieval accuracy by capturing the semantic meaning of words rather than relying solely on exact matches (Macdonald \& Tait, 2020). Machine learning-based retrieval techniques, such as support vector machines (SVMs), random forests, and deep learning models, dynamically adapt to user behavior and context, significantly enhancing retrieval accuracy (Blair, 1984). Neural information retrieval systems, leveraging advanced deep learning architectures like recurrent neural networks (RNNs) and transformers, model complex language patterns and contextual nuances in documents, offering even greater precision and relevance in search results (Macdonald \& Tait, 2020).
+
+A notable advancement in modern DRS is the integration of Retrieval-Augmented Generation (RAG) frameworks. RAG combines document retrieval with generative AI models to provide highly contextual and human-like responses. This approach retrieves relevant documents from the repository and feeds them into generative models, like GPT, which synthesize coherent and informative answers to user queries. The RAG framework not only enhances the retrieval process but also bridges the gap between static document retrieval and dynamic information synthesis, making it a revolutionary tool in data-driven environments (Macdonald \& Tait, 2020).
+
+This research aims to explore the evolving landscape of document retrieval systems, emphasizing their significance in transforming data into actionable knowledge. By analyzing advanced retrieval techniques and highlighting the role of RAG, this study underscores the pivotal role of DRS in fostering innovation and informed decision-making in the digital age.
+
+\section{Background of the Study}
+
+Effective management and access to extensive information repositories are crucial for institutions that maintain vast collections of documents. Document Retrieval Systems (DRS) are essential tools that enable users to efficiently locate specific documents. This study focuses on the Mindanao State University – Iligan Institute of Technology (MSU-IIT), which has its own repositories for Special Orders, Memorandums, and other important records. MSU-IIT maintains two primary repositories:
+
+\begin{itemize}
+  \item \textbf{Board of Regents (BOR) Resolutions Archive:} This repository contains BOR resolutions of the MSU System. (Mindanao State University - Iligan Institute of Technology, n.d.-a)
+  \item \textbf{IIT Docs:} This repository houses Special Orders, Memorandum Orders, and other issuances of MSU-IIT. (Mindanao State University - Iligan Institute of Technology, n.d.-b)
+\end{itemize}
+
+Both repositories utilize keyword-based document search mechanisms. IIT Docs, for instance, is built on top of Google Drive and leverages its search capabilities.
+
+While functional, the current keyword-based approach presents several challenges that limit its effectiveness. Keyword searches often fail to account for the context or semantics of user queries, leading to inaccurate or irrelevant search results. Users frequently encounter difficulties in locating exact documents based on their information needs, particularly when dealing with large or complex datasets. This issue is particularly pronounced at MSU-IIT, where reliance on traditional keyword-based models highlights significant gaps in accuracy and efficiency.
+
+In the advent of large language models, the MSU-IIT repository can benefit from enhanced search capabilities that understand the context and semantics of user queries, potentially improving the precision and efficiency of document retrieval.
+
+The current system's gap lies in its inability to comprehend the semantic nuances of user queries, limiting its effectiveness in handling large or complex datasets. As a result, the system is held back in providing a streamlined and user-friendly retrieval process. This inefficiency hinders the institution's ability to fully leverage its vast repository of documents, affecting productivity and decision-making processes.
+
+The study was conducted to address these limitations and explore potential solutions to enhance document retrieval at MSU-IIT. By investigating advanced approaches such as content-based retrieval systems, which will utilize technologies like Optical Character Recognition (OCR), vector embeddings, and Large Language Model (LLM)-powered conversational interfaces, the research will aim to improve search accuracy, user experience, and overall system efficiency. This initiative will seek to bridge the gap between traditional methods and modern technological capabilities, ensuring that MSU-IIT can effectively meet the demands of its users and maintain operational excellence.
+
+\section{Statement of the Problem}
+
+Traditional keyword-based document retrieval systems face global challenges in providing accurate and relevant results due to their lack of contextual and semantic understanding. This often leads to inefficient search experiences for users worldwide. At MSU-IIT, students, faculty, and staff experience similar issues when retrieving institutional documents. The current system’s reliance on exact keyword matches limits access to important information. A more advanced, context-aware solution is needed to address these limitations and position MSU-IIT as a model for modern document retrieval.
+
+\section{Research Objective}
+
+The following are the general and specific objects:
+
+\subsection{General Objective}
+
+To develop and evaluate a content-based document retrieval system that integrates Optical Character Recognition (OCR), vector embeddings, and Large Language Model (LLM)-powered conversational interaction.
+
+\subsection{Specific Objective}\label{sec:objectives}
+
+\begin{enumerate}
+  \item To collect and annotate representative documents from MSU-IIT’s institutional repositories, specifically IIT Docs and BOR Resolutions.
+  \item To design a content-based document retrieval system architecture integrating OCR for scanned PDFs, vector embeddings for semantic search, and LLMs for conversational queries.
+  \item To implement the system’s key components: OCR processing, semantic search using vector similarity, and an LLM-based chat interface.
+  \item To evaluate the system’s performance in terms of accuracy, user experience, and retrieval speed.
+  \item To analyze evaluation results to validate system effectiveness and recommend future enhancements.
+\end{enumerate}
+
+\section{Scope and Limitations of the Research}\label{sec:scope}
+
+This study focuses on enhancing the Document Retrieval System (DRS) at Mindanao State University - Iligan Institute of Technology (MSU-IIT). The research will involve a sample of 50 PDF documents and will be conducted from January 2025 to April 2025, with participants including MSU-IIT students, faculty, and staff. A notable limitation of the current system is its inability to analyze images and tables within documents, restricting its effectiveness in processing non-textual data. This constraint may impact the retrieval accuracy for documents where critical information is presented in these formats. By acknowledging this limitation, the study aims to provide a clear understanding of the system's current capabilities and identify areas for improvement to effectively meet the institution's document retrieval needs.
+
+\section{Significance of the Study}
+
+This study holds significant value not only for MSU-IIT students, staff, and faculty but also for other institutions and entities that require efficient document storage and retrieval systems. It aims to enhance the overall efficiency and effectiveness of managing and accessing documents within an organization.
