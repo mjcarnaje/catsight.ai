@@ -21,6 +21,8 @@ x-backend: &backend
     XDG_CACHE_HOME: /usr/src/app/.cache
     HF_HOME: /usr/src/app/.cache/huggingface
     TORCH_DEVICE: cpu
+    # Marker downloads a font on first use; site-packages isn't writable by the app user
+    FONT_PATH: /usr/src/app/.cache/marker/GoNotoCurrent-Regular.ttf
     SURYA_INFERENCE_BACKEND: llamacpp
     SURYA_INFERENCE_URL: ${SURYA_INFERENCE_URL:-http://ocr:8080/v1}
     SURYA_INFERENCE_PARALLEL: "2"
