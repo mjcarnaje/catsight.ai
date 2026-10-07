@@ -10,9 +10,10 @@ secrets, volumes and the tunnel are documented there. A deploy is **Git for code
 never for data**: the laptop pushes, the mini fast-forwards. The mini's Postgres
 volume and media volume are production's source of truth.
 
-All remote work goes through `./scripts/catsight-remote` (Tailscale address,
-verified host key, fixed commands). Don't improvise other SSH commands that
-change state.
+All remote work goes through `./scripts/catsight-remote` (SSH target from the
+gitignored `.env.remote`, verified host key, fixed commands). If `.env.remote` is
+missing, ask the user for the target rather than guessing. Don't improvise other
+SSH commands that change state.
 
 ## 1. Prepare on the laptop
 
@@ -53,5 +54,5 @@ change state.
 - Ingesting PDFs (`catsight-remote ingest`) or `reindex`: they spend OpenRouter credit.
 - Creating or changing the Cloudflare tunnel, DNS, or the OpenRouter key/limit.
 - Restoring a backup or deleting volumes.
-- Anything touching Mission Control (`~/mission-control`, port 8787) or
-  Lumen Sanctorum (`~/catholic-stories`, port 47819): out of scope.
+- Anything outside `~/catsight` and its `catsight` Compose project on the mini
+  (the other services there, their ports and tunnels): out of scope.

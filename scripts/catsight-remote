@@ -7,14 +7,16 @@
 #   ./scripts/catsight-remote deploy          backup, pull origin/master, rebuild, restart, health check
 #   ./scripts/catsight-remote ingest          add every PDF in the mini's ~/catsight/seed to the library
 #
-# The host key is still verified against the trusted mjcarnaje-macmini.local entry.
-# Override the address with CATSIGHT_HOST (e.g. mjcarnaje-macmini.local on the LAN).
+# Where the mini is comes from the environment or, for unset variables, a gitignored
+# .env.remote at the repo root (plain KEY=value lines):
+#
+#   CATSIGHT_SSH=user@host           required: the mini's SSH login (e.g. its Tailscale address)
+#   CATSIGHT_HOST_KEY_ALIAS=name     optional: verify the host key under this known_hosts name
+#   CATSIGHT_DIR=catsight            optional: the checkout, relative to the remote home
 set -euo pipefail
 
 command_name="${1:-status}"
 service="${2:-}"
-host="${CATSIGHT_HOST:-100.106.183.79}"
-remote_dir="/Users/mjcarnaje/catsight"
 
 case "$command_name" in
   status|logs|backup|deploy|ingest) ;;
@@ -23,6 +25,18 @@ esac
 if [[ -n "$service" && ! "$service" =~ ^(backend|worker|web|tunnel|db|redis)$ ]]; then
   echo "Unknown service: $service" >&2; exit 2
 fi
+
+config="$(dirname "$0")/../.env.remote"
+if [[ -f "$config" ]]; then
+  # Read, don't source: only CATSIGHT_* names, and the environment wins
+  while IFS='=' read -r key value || [[ -n "$key" ]]; do
+    if [[ "$key" =~ ^CATSIGHT_[A-Z_]+$ && -z "${!key:-}" ]]; then printf -v "$key" '%s' "$value"; fi
+  done < "$config"
+fi
+: "${CATSIGHT_SSH:?set it to user@host in the environment or .env.remote (see docs/HOSTING.md)}"
+remote_dir="${CATSIGHT_DIR:-catsight}"
+ssh_options=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes)
+if [[ -n "${CATSIGHT_HOST_KEY_ALIAS:-}" ]]; then ssh_options+=(-o "HostKeyAlias=$CATSIGHT_HOST_KEY_ALIAS"); fi
 
 read -r -d '' remote <<SCRIPT || true
 set -euo pipefail
@@ -63,6 +77,4 @@ case "$command_name" in
 esac
 SCRIPT
 
-exec ssh -o BatchMode=yes -o ConnectTimeout=10 \
-  -o StrictHostKeyChecking=yes -o HostKeyAlias=mjcarnaje-macmini.local \
-  "mjcarnaje@$host" "bash -c $(printf '%q' "$remote")"
+exec ssh "${ssh_options[@]}" "$CATSIGHT_SSH" "bash -c $(printf '%q' "$remote")"

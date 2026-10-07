@@ -1,6 +1,7 @@
 # Secrets and local configuration
 .env
 .env.prod
+.env.remote
 .env.*.local
 
 # Local model weights and runtime data

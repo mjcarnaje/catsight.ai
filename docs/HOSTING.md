@@ -1,30 +1,39 @@
 # Hosting on the Mac mini
 
-CATSight.AI runs as a public demo on `mjcarnaje-macmini.local`, next to Mission
-Control and Lumen Sanctorum, and is published at <https://catsight.mjcarnaje.com>
-through its own Cloudflare Tunnel. Unlike those two, everything runs in Docker
-(`docker-compose.prod.yml`): Postgres + pgvector, Redis, the Django API
+CATSight.AI runs as a public demo on a Mac mini, alongside other self-hosted
+services, and is published at <https://catsight.mjcarnaje.com> through its own
+Cloudflare Tunnel. Everything runs in Docker (`docker-compose.prod.yml`): Postgres + pgvector, Redis, the Django API
 (gunicorn), the Celery worker, nginx serving the built frontend, and
 `cloudflared`.
 
 | | |
 |---|---|
-| Checkout | `/Users/mjcarnaje/catsight` (outside `Documents`, like the other services) |
-| Listens on | `127.0.0.1:8790` (nginx); nothing else is published. 8787 is Mission Control, 47819 is Lumen. |
+| Checkout | `~/catsight` on the mini (outside `Documents`) |
+| Listens on | `127.0.0.1:8790` (nginx); nothing else is published. Set `WEB_PORT` if 8790 is taken. |
 | Public URL | <https://catsight.mjcarnaje.com> via tunnel `catsight-macmini` (outbound only, no port forwarding) |
 | Access | The app's own sign-in plus one-click guest accounts. No Cloudflare Access: it's a public demo. |
-| Secrets | `/Users/mjcarnaje/catsight/.env.prod` (mode 600, gitignored) |
+| Secrets | `~/catsight/.env.prod` (mode 600, gitignored) |
 | Data | Docker volumes `catsight_pgdata` (database) and `catsight_media` (PDFs, previews, avatars) |
 | Backups | `~/catsight-backups/` (mode 700): `catsight-<ts>.sql.gz` + `media-<ts>.tar.gz` |
-| Seed PDFs | `/Users/mjcarnaje/catsight/seed/` (gitignored), mounted read-only at `/seed` in the worker |
+| Seed PDFs | `~/catsight/seed/` (gitignored), mounted read-only at `/seed` in the worker |
 
 The mini's database is production's source of truth. A laptop database is a
 development copy: never restore it over production or move data through Git.
 
 ## Manage it from the laptop
 
-`scripts/catsight-remote` connects over Tailscale with the same verified host key
-as `mc-remote` and runs fixed commands in the mini's checkout:
+`scripts/catsight-remote` connects over SSH (Tailscale here) with a verified host
+key and runs fixed commands in the mini's checkout. It reads the target from a
+gitignored `.env.remote` at the repo root; the same variables in the environment
+take precedence:
+
+```sh
+CATSIGHT_SSH=you@100.x.y.z            # the mini's SSH login, e.g. its Tailscale address
+CATSIGHT_HOST_KEY_ALIAS=mini.local    # optional: check the host key under this known_hosts name
+CATSIGHT_DIR=catsight                 # optional: the checkout, relative to the remote home
+```
+
+Then:
 
 ```sh
 ./scripts/catsight-remote status        # revision, containers, /api/health/
@@ -35,15 +44,15 @@ as `mc-remote` and runs fixed commands in the mini's checkout:
 ```
 
 `deploy` refuses to run when the mini's checkout has local changes. On the home
-network, `CATSIGHT_HOST=mjcarnaje-macmini.local ./scripts/catsight-remote status` also works.
+network, `CATSIGHT_SSH=you@mini.local ./scripts/catsight-remote status` also works.
 
 ## First-time setup
 
-Done once, by the owner, on the mini (`ssh -o HostKeyAlias=mjcarnaje-macmini.local mjcarnaje@100.106.183.79`):
+Done once, by the owner, on the mini over SSH:
 
 1. **Docker Desktop**: Settings → General → *Start Docker Desktop when you sign in*.
    Containers use `restart: unless-stopped`, so they return with Docker after a reboot
-   (the macOS user must log in, as for the other services). Check free space first:
+   (the macOS user must be logged in). Check free space first:
    `docker system df` and `df -h ~`. The images need about 3 GB.
 2. **Checkout**: `git clone https://github.com/mjcarnaje/catsight.ai.git ~/catsight`.
 3. **Secrets**: create `~/catsight/.env.prod` from `.env.example` with `chmod 600`:
@@ -70,14 +79,14 @@ Done once, by the owner, on the mini (`ssh -o HostKeyAlias=mjcarnaje-macmini.loc
 5. **Tunnel**: in Cloudflare Zero Trust → Networks → Tunnels, create
    `catsight-macmini` (cloudflared connector), copy its token into `TUNNEL_TOKEN`,
    and add the public hostname `catsight.mjcarnaje.com` → `http://web:80`
-   (the tunnel container reaches nginx on the Compose network). The existing
-   Mission Control and Lumen tunnels are untouched.
+   (the tunnel container reaches nginx on the Compose network). Other tunnels on
+   the account are untouched.
 6. **Start**: `cd ~/catsight && docker compose -f docker-compose.prod.yml --env-file .env.prod --profile tunnel up -d --build`.
    The backend migrates the database and creates the admin from `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
 7. **Seed the library**: copy the PDFs from the laptop, then ingest them:
 
    ```sh
-   rsync -av -e "ssh -o HostKeyAlias=mjcarnaje-macmini.local" "$HOME/Downloads/Thesis PDF/" mjcarnaje@100.106.183.79:catsight/seed/
+   rsync -av path/to/pdfs/ you@mini:catsight/seed/
    ./scripts/catsight-remote ingest
    ```
 
@@ -121,8 +130,8 @@ first) to avoid mixing old and new rows.
 Verified 7 October 2026:
 
 - Tunnel `catsight-macmini` (dashboard-managed, token in `.env.prod`) publishes
-  `catsight.mjcarnaje.com` → `http://web:80`; the existing `mission-control` and
-  `lumen-sanctorum-macmini` tunnels are unchanged.
+  `catsight.mjcarnaje.com` → `http://web:80`; other tunnels on the account are
+  unchanged.
 - `DEMO_MODE=1`, `UPLOADS_ENABLED=0`: visitors sign in as guests and search and
   chat with the library; only the admin (`ADMIN_EMAIL` in `.env.prod`) can add
   documents, through the UI or `catsight-remote ingest`.
