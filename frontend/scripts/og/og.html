@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- Source of public/og.png. Re-render with: npm run og -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=block" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 630px; }
+  body {
+    background: #0c0b0a;
+    color: #f4f2ef;
+    font-family: Geist, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    position: relative;
+  }
+  /* faint grid, fading out to the right */
+  .grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(#ffffff08 1px, transparent 1px), linear-gradient(90deg, #ffffff08 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(100deg, #000 0%, transparent 62%);
+  }
+  .left { position: absolute; left: 72px; top: 64px; bottom: 64px; width: 560px; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+  .brand span { color: #8f8a85; }
+  .mark { width: 44px; height: 44px; }
+  h1 { margin-top: 72px; font-size: 68px; line-height: 1.02; font-weight: 500; letter-spacing: -0.045em; }
+  p.sub { margin-top: 24px; font-size: 23px; line-height: 1.45; color: #9e9892; max-width: 500px; letter-spacing: -0.01em; }
+  p.sub b { color: #f4f2ef; font-weight: 500; }
+  .tags { margin-top: auto; display: flex; gap: 10px; font-family: "Geist Mono", monospace; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #8f8a85; }
+  .tags i { font-style: normal; color: #4a4643; }
+
+  .card {
+    position: absolute; right: 64px; top: 50%; transform: translateY(-50%); width: 470px;
+    background: #141210; border: 1px solid #2a2724; border-radius: 18px;
+    padding: 26px; display: flex; flex-direction: column; gap: 18px;
+    box-shadow: 0 30px 80px -20px #000;
+  }
+  .q { align-self: flex-end; max-width: 330px; background: #24211e; border-radius: 16px 16px 6px 16px; padding: 12px 16px; font-size: 17px; line-height: 1.4; }
+  .step { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #8f8a85; }
+  .step svg { width: 14px; height: 14px; }
+  .a { font-size: 18px; line-height: 1.55; color: #e9e6e2; }
+  .chip { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; margin: 0 2px; border: 1px solid #34302c; background: #1d1a18; border-radius: 5px; font-family: "Geist Mono", monospace; font-size: 11px; color: #a9a39d; vertical-align: 2px; }
+  .label { font-family: "Geist Mono", monospace; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: #77716b; margin-top: 6px; }
+  .sources { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .src { border: 1px solid #2a2724; border-radius: 10px; padding: 11px 12px; display: flex; gap: 10px; background: #171513; }
+  .src .n { flex: none; width: 20px; height: 20px; border: 1px solid #34302c; border-radius: 5px; display: grid; place-items: center; font-family: "Geist Mono", monospace; font-size: 11px; color: #a9a39d; }
+  .src b { display: block; font-size: 13.5px; font-weight: 500; line-height: 1.3; }
+  .src small { display: block; margin-top: 3px; font-size: 12px; color: #8f8a85; }
+  .glow { position: absolute; right: 120px; bottom: -160px; width: 520px; height: 320px; background: radial-gradient(closest-side, #f9b91f1a, transparent); }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="glow"></div>
+  <div class="left">
+    <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" class="mark">
+  <title>CATSight.AI</title>
+  <defs>
+    <linearGradient id="cs-grad" x1="9" y1="5" x2="55" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B3122F"/>
+      <stop offset="0.5" stop-color="#E0442C"/>
+      <stop offset="1" stop-color="#FBBF24"/>
+    </linearGradient>
+    <mask id="cs-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+      <path d="M13.2 5.2 26.5 16.5Q32 15.2 37.5 16.5L50.8 5.2 53.6 24 56 34 45 51.5 32 57.5 19 51.5 8 34 10.4 24Z" fill="#fff" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M15.8 31.6C19 27.6 25.8 28.4 28.8 34.6 24.6 37.6 18.4 37 15.8 31.6Z" fill="#000"/>
+      <path d="M22.6 28.6C24.3 31.3 24.3 34.7 22.6 37.4 20.9 34.7 20.9 31.3 22.6 28.6Z" fill="#fff"/>
+      <path d="M41.5 24.6C42.3 30.3 43.5 31.6 49.2 32.6 43.5 33.6 42.3 34.9 41.5 40.6 40.7 34.9 39.5 33.6 33.8 32.6 39.5 31.6 40.7 30.3 41.5 24.6Z" fill="#000"/>
+      <path d="M49.4 22.2C49.7 24 50.1 24.4 51.9 24.7 50.1 25 49.7 25.4 49.4 27.2 49.1 25.4 48.7 25 46.9 24.7 48.7 24.4 49.1 24 49.4 22.2Z" fill="#000"/>
+      <path d="M29.8 42.4H34.2L32 45.2Z" fill="#000" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <g mask="url(#cs-cut)">
+    <rect width="64" height="64" fill="url(#cs-grad)"/>
+    <!-- gem facets, lit from the top-left -->
+    <path d="M0 0H32V42L8 22Z" fill="#fff" fill-opacity="0.16"/>
+    <path d="M8 22 32 42V60L16 54 4 34Z" fill="#fff" fill-opacity="0.07"/>
+    <path d="M60 22 32 42V60L48 54 60 34Z" fill="#000" fill-opacity="0.12"/>
+    <path d="M14.6 9.4 23.2 16.4 12.6 20.8ZM49.4 9.4 40.8 16.4 51.4 20.8Z" fill="#000" fill-opacity="0.18"/>
+  </g>
+</svg>
+<div>CATSight<span>.AI</span></div></div>
+    <h1>Ask your documents anything.</h1>
+    <p class="sub"><b>RAG over scanned university records.</b> Special orders and board resolutions, read page by page. Every answer cites the exact page.</p>
+    <div class="tags">Hybrid search <i>/</i> Vision OCR <i>/</i> Cited answers</div>
+  </div>
+  <div class="card">
+    <div class="q">When does a special order take effect?</div>
+    <div class="step">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      Searched for “special order effectivity” · 2 documents
+    </div>
+    <div class="a">Most take effect immediately upon issuance<span class="chip">1</span>, unless the order states its own effectivity date<span class="chip">2</span>. Board resolutions apply from the date the Board of Regents approves them<span class="chip">2</span>.</div>
+    <div class="label">2 cited</div>
+    <div class="sources">
+      <div class="src"><span class="n">1</span><div><b>Game Officials, 56th Charter Day</b><small>SO No. 01612-IIT, s. 2024 · p. 1</small></div></div>
+      <div class="src"><span class="n">2</span><div><b>Designation of an Acting Director</b><small>BOR Res. No. 177, s. 2003 · p. 1</small></div></div>
+    </div>
+  </div>
+</body>
+</html>
