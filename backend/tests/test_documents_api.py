@@ -165,3 +165,20 @@ def test_avatars_are_reencoded_and_svg_is_refused(api, member, settings, tmp_pat
     assert len(bomb.getvalue()) < 2 * 1024 * 1024
     huge = SimpleUploadedFile("bomb.png", bomb.getvalue(), content_type="image/png")
     assert client.patch("/api/auth/me/", {"avatar": huge}, format="multipart").status_code == 400
+
+
+@pytest.mark.django_db
+def test_media_route_cannot_reach_documents(api, admin, settings, tmp_path):
+    from app.services import storage
+
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "avatars").mkdir()
+    (tmp_path / "avatars" / ("a" * 32 + ".webp")).write_bytes(b"RIFF")
+    storage.document_dir(1).mkdir(parents=True)
+    (storage.document_dir(1) / "original.pdf").write_bytes(b"%PDF-secret")
+
+    client = api()
+    assert client.get("/media/avatars/" + "a" * 32 + ".webp").status_code == 200
+    for probe in ("/media/avatars/../docs/1/original.pdf", "/media/avatars/..%2fdocs/1/original.pdf",
+                  "/media/avatars/%2e%2e/docs/1/original.pdf", "/media/docs/1/original.pdf"):
+        assert client.get(probe).status_code == 404, probe
