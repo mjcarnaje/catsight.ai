@@ -5,6 +5,7 @@ environment (see .env.example at the repository root). Defaults are for local
 development; production sets DJANGO_DEBUG=0 and a real DJANGO_SECRET_KEY.
 """
 
+import importlib.util
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -178,13 +179,15 @@ if LLM_PROVIDER not in {"openrouter", "ollama"}:
     raise ImproperlyConfigured(f"LLM_PROVIDER must be 'openrouter' or 'ollama', not {LLM_PROVIDER!r}")
 
 _DEFAULT_MODELS = {
-    # Verified against OpenRouter's model list on 2026-10-07. Gemini 3.1 Flash-Lite
-    # reads scans well, calls tools and supports strict JSON schemas, at $0.25/$1.50
-    # per million tokens. bge-m3 is the same multilingual embedder as the Ollama setup.
+    # Open-weight models served through OpenRouter (verified against its model list on
+    # 2026-10-07), so the same weights can later run on the institution's own GPUs.
+    # Qwen3-VL-30B-A3B-Instruct (Apache-2.0) reads page images, calls tools and
+    # supports strict JSON schemas, at $0.15/$0.60 per million tokens; BGE-M3 (MIT)
+    # is the same multilingual embedder as the Ollama setup.
     "openrouter": {
-        "CHAT_MODEL": "google/gemini-3.1-flash-lite",
-        "FAST_MODEL": "google/gemini-3.1-flash-lite",
-        "OCR_MODEL": "google/gemini-3.1-flash-lite",
+        "CHAT_MODEL": "qwen/qwen3-vl-30b-a3b-instruct",
+        "FAST_MODEL": "qwen/qwen3-vl-30b-a3b-instruct",
+        "OCR_MODEL": "qwen/qwen3-vl-30b-a3b-instruct",
         "EMBEDDING_MODEL": "baai/bge-m3",
     },
     "ollama": {
@@ -192,7 +195,8 @@ _DEFAULT_MODELS = {
         # which reasons for minutes per reply on CPU.
         "CHAT_MODEL": "qwen3:4b-instruct-2507-q4_K_M",
         "FAST_MODEL": "qwen3:1.7b",
-        "OCR_MODEL": "",  # local OCR uses marker/docling instead of a vision model
+        # Optional local vision model for marker's LLM mode (e.g. "qwen3-vl:8b"); empty = off
+        "OCR_MODEL": "",
         "EMBEDDING_MODEL": "bge-m3",
     },
 }[LLM_PROVIDER]
@@ -215,15 +219,19 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 # Context window requested from Ollama; its default (2-4k) silently truncates long prompts.
 OLLAMA_NUM_CTX = env_int("OLLAMA_NUM_CTX", 8192)
 
-# How PDFs become text: "vision" sends page images to OCR_MODEL (needs openrouter);
-# "marker" / "docling" / "markitdown" run locally (needs the local-ocr image).
+# How PDFs become text: "marker" (Marker 2 with Surya OCR 2; the default wherever the
+# local-ocr image installed it), "vision" (page images to OCR_MODEL, needs openrouter),
+# or "docling" / "markitdown" (local-ocr image).
 DEFAULT_TEXT_EXTRACTOR = os.getenv(
-    "DEFAULT_TEXT_EXTRACTOR", "vision" if LLM_PROVIDER == "openrouter" else "marker"
+    "DEFAULT_TEXT_EXTRACTOR",
+    "marker" if importlib.util.find_spec("marker") or LLM_PROVIDER == "ollama" else "vision",
 )
+# Marker's LLM mode: tables, forms and handwriting are refined by OCR_MODEL
+MARKER_USE_LLM = env_bool("MARKER_USE_LLM", True)
 
 # Optional reranking of hybrid search results with a cross-encoder through
-# OpenRouter's /rerank endpoint (~$0.0002 per question). Empty disables it.
-RERANKER_MODEL = os.getenv("RERANKER_MODEL", "voyageai/rerank-2.5-lite" if LLM_PROVIDER == "openrouter" else "")
+# OpenRouter's /rerank endpoint; Qwen3-Reranker-8B is open-weight (Apache-2.0). Empty disables it.
+RERANKER_MODEL = os.getenv("RERANKER_MODEL", "qwen/qwen3-reranker-8b" if LLM_PROVIDER == "openrouter" else "")
 
 # --- i18n / static / media ----------------------------------------------------
 LANGUAGE_CODE = "en-us"
