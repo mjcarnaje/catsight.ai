@@ -7,9 +7,8 @@ import { SiteHeader } from "@/components/landing/site-header";
 import { Statement } from "@/components/landing/statement";
 
 export function LandingPage() {
-  // The marketing site always renders dark, whatever theme the app is set to.
   return (
-    <div className="dark relative z-10 min-h-screen overflow-x-clip bg-background text-foreground [color-scheme:dark]">
+    <div className="relative z-10 min-h-screen overflow-x-clip bg-background text-foreground">
       <SiteHeader />
       <main>
         <Hero />

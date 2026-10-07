@@ -2,8 +2,7 @@
  * Light / dark / system theme. Dark is the default; the choice is kept per browser.
  *
  * index.html applies the saved theme before the first paint (no flash of the wrong
- * theme); this module owns it after that. The marketing landing page always renders
- * dark, whatever is chosen here.
+ * theme); this module owns it after that.
  */
 export type Theme = "light" | "dark" | "system";
 
