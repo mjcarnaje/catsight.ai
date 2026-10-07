@@ -8,7 +8,7 @@ def test_marker_llm_mode_uses_the_vision_model_through_openrouter(settings):
     settings.MARKER_USE_LLM = True
     options = marker_llm_options()
     assert options["use_llm"] is True
-    assert options["llm_service"] == "marker.services.openrouter.OpenRouterService"
+    assert options["llm_service"] == "app.services.marker_services.CappedOpenRouterService"
     assert options["openrouter_model"] == "qwen/qwen3-vl-30b-a3b-instruct"
     assert options["openrouter_api_key"] == "test-key"
 

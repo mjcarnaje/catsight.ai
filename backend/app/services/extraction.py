@@ -163,7 +163,7 @@ def marker_llm_options() -> dict:
     if llm.is_openrouter():
         return {
             "use_llm": True,
-            "llm_service": "marker.services.openrouter.OpenRouterService",
+            "llm_service": "app.services.marker_services.CappedOpenRouterService",
             "openrouter_base_url": settings.OPENROUTER_BASE_URL,
             "openrouter_api_key": settings.OPENROUTER_API_KEY,
             "openrouter_model": settings.OCR_MODEL,
