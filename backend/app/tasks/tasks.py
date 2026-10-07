@@ -205,7 +205,8 @@ def chunk_and_embed_text_task(self, document_id):
             raise ValueError(f"Document {document_id} has no text to embed")
         logger.info(f"Split text into {len(chunks)} chunks")
 
-        tag_ids = list(document.tags.values_list("id", flat=True))
+        # Year and tags are deliberately not copied into chunks: they change when a
+        # summary is regenerated, so search filters read them from the Document instead.
         docs = [
             Doc(
                 page_content=chunk.text,
@@ -215,8 +216,6 @@ def chunk_and_embed_text_task(self, document_id):
                     "index": i,
                     "page": chunk.page,
                     "section": chunk.section,
-                    "year": document.year,
-                    "tags": tag_ids,
                 },
             )
             for i, chunk in enumerate(chunks)
@@ -286,8 +285,7 @@ def process_document_task(self, document_id):
     Process a document completely: extract text, generate the summary, then chunk and embed.
 
     Resumes from the document's saved status, so a retry after a failure only
-    re-runs the steps that haven't finished. (Summary runs before embedding
-    because chunk metadata carries the extracted year and tags.)
+    re-runs the steps that haven't finished.
     """
     logger.info(f"Starting complete document processing for document_id: {document_id}")
 

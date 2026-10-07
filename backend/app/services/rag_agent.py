@@ -7,7 +7,7 @@ The "is this a question?" check runs in parallel with retrieval instead of
 after it, so it no longer adds an LLM round-trip to every search.
 """
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from django.conf import settings
 from langchain_core.documents import Document as Doc
@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 from ..constant.prompts import SUMMARIZER_PROMPT
+from ..models import Document
 from .ollama import FAST_NUM_CTX, get_chat_model
 from .sources import sources_from_chunks
 from .vectorstore import search_chunks
@@ -33,23 +34,38 @@ class State(TypedDict):
     documents: List[Doc]
     sources: List[Dict[str, Any]]
     summary: str
-    years: List[str]
-    tags: List[str]
+    years: List[int]
+    tags: List[int]  # tag ids
 
 
 class ShouldAnswerSchema(BaseModel):
     should_answer: bool
 
 
+def _matching_doc_ids(years: List[int], tags: List[int]) -> Optional[List[int]]:
+    """Ids of documents matching the year and tag filters; None when neither is set.
+
+    Filters are resolved against the Document table rather than copies in chunk
+    metadata, so a regenerated summary's new year/tags apply immediately.
+    A document matches if it has any selected year and any selected tag.
+    """
+    if not years and not tags:
+        return None
+    docs = Document.objects.all()
+    if years:
+        docs = docs.filter(year__in=years)
+    if tags:
+        docs = docs.filter(tags__id__in=tags)
+    return list(docs.values_list("id", flat=True).distinct())
+
+
 def retrieve(state: State):
     """Relevant passages for the query, narrowed by the selected years and tags."""
-    filters = {}
-    if state.get("years"):
-        filters["year"] = {"$in": state["years"]}
-    if state.get("tags"):
-        filters["tags"] = {"$in": state["tags"]}
-
-    return {"documents": search_chunks(state["query"], k=SEARCH_K, filter=filters or None)}
+    doc_ids = _matching_doc_ids(state.get("years") or [], state.get("tags") or [])
+    if doc_ids == []:
+        return {"documents": []}  # filters match nothing; don't fall back to everything
+    doc_filter = {"doc_id": {"$in": doc_ids}} if doc_ids is not None else None
+    return {"documents": search_chunks(state["query"], k=SEARCH_K, filter=doc_filter)}
 
 
 def transform_documents(state: State):

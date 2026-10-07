@@ -34,6 +34,11 @@ from ..utils.langgraph import _print_event
 logger = logging.getLogger(__name__)
 
 
+def _csv_ints(value: str) -> list[int]:
+    """Parse "2024, 2025" into [2024, 2025]; raises ValueError on non-numbers."""
+    return [int(part) for part in value.split(",") if part.strip()]
+
+
 def _sse(event: str, data) -> str:
     """One Server-Sent Event; data is always JSON-encoded so quotes can't break it."""
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
@@ -390,17 +395,24 @@ def update_doc_markdown(request, doc_id):
 @permission_classes([IsAuthenticated])
 def search_docs(request):
     query = request.GET.get("query", "").strip()
-    years = request.GET.get("year", "").strip()
-    tags = request.GET.get("tags", "").strip()
-    
     is_accurate = request.GET.get("accurate", "false") == "true"
-    
+
     if not query:
         return Response(
             {"error": "The 'query' parameter is required."},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
+
+    # The search page sends comma-separated values: year=2024,2025&tags=3,8 (tag ids)
+    try:
+        years = _csv_ints(request.GET.get("year", ""))
+        tags = _csv_ints(request.GET.get("tags", ""))
+    except ValueError:
+        return Response(
+            {"error": "'year' and 'tags' must be comma-separated numbers."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     logger.info(f"Search query: {query}, years: {years}, tags: {tags}")
 
     try:
