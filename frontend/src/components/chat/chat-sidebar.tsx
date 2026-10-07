@@ -28,8 +28,8 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
   const groupedChats = groupChatsByDate(recentChats.results);
 
   return (
-    <div className="z-10 flex flex-col w-64 h-full bg-white border-r border-gray-200">
-      <div className="p-4 border-b border-gray-200">
+    <div className="z-10 flex flex-col w-64 h-full bg-card border-r border-border">
+      <div className="p-4 border-b border-border">
         <Button onClick={handleNewChat} className="w-full">
           New Chat
         </Button>
@@ -85,7 +85,7 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full text-xs text-gray-500 hover:text-gray-900"
+                  className="w-full text-xs text-muted-foreground hover:text-foreground"
                   onClick={loadMoreChats}
                   disabled={isLoading}
                 >
@@ -105,7 +105,7 @@ export function ChatSidebar({ currentChatId }: SidebarProps) {
             )}
           </>
         ) : (
-          <div className="px-4 py-8 text-sm text-center text-gray-500">
+          <div className="px-4 py-8 text-sm text-center text-muted-foreground">
             No chats found. Start a new conversation!
           </div>
         )}

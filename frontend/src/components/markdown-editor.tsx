@@ -59,6 +59,7 @@ export default function MDXEditorComponent({
   return (
     <div className="w-full h-full overflow-hidden">
       <MDXEditor
+        className="dark-theme"
         markdown={markdown}
         onChange={handleChange}
         contentEditableClassName="prose prose-sm md:prose-base lg:prose-lg dark:prose-invert max-w-none h-full p-4 overflow-auto"

@@ -59,7 +59,7 @@ export function SourcesButton({ sources, className }: SourcesButtonProps) {
                     className={cn(
                       "flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full overflow-hidden",
                       index > 0 && "-ml-1.5",
-                      "border-[1.5px] border-white"
+                      "border-[1.5px] border-background"
                     )}
                     style={{ zIndex: 3 - index }}
                   >
@@ -70,7 +70,7 @@ export function SourcesButton({ sources, className }: SourcesButtonProps) {
                         className="object-cover w-full h-full"
                       />
                     ) : (
-                      <div className="flex items-center justify-center w-full h-full text-white bg-primary">
+                      <div className="flex items-center justify-center w-full h-full text-primary-foreground bg-primary">
                         {source.title.charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -78,7 +78,7 @@ export function SourcesButton({ sources, className }: SourcesButtonProps) {
                 ))}
                 {hasMoreSources && (
                   <div
-                    className="flex items-center justify-center w-5 h-5 -ml-1.5 text-[10px] font-bold border-[1.5px] rounded-full border-white bg-gray-100 text-gray-600"
+                    className="flex items-center justify-center w-5 h-5 -ml-1.5 text-[10px] font-bold border-[1.5px] rounded-full border-background bg-muted text-muted-foreground"
                     style={{ zIndex: 0 }}
                   >
                     +{sources.length - 3}

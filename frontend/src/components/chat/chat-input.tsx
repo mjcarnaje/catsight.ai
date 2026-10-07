@@ -219,9 +219,9 @@ export function ChatInput({
 
   return (
     <>
-      <div className="relative z-10 w-full max-w-4xl px-5 py-5 mx-auto bg-white border-t border-gray-100 shadow-md rounded-t-3xl">
+      <div className="relative z-10 w-full max-w-4xl px-5 py-5 mx-auto bg-card border-t border-border shadow-md rounded-t-3xl">
         {!selectedModel && !disabled && (
-          <div className="flex items-center gap-2 p-3 mb-4 text-sm border rounded-lg bg-amber-50 border-amber-200 text-amber-800">
+          <div className="flex items-center gap-2 p-3 mb-4 text-sm border rounded-lg bg-amber-500/10 border-amber-500/30 text-amber-400">
             <AlertCircle size={16} className="shrink-0" />
             <span>Please select a model to continue</span>
           </div>
@@ -253,7 +253,7 @@ export function ChatInput({
             >
               <div
                 className={cn(
-                  "relative flex-1 overflow-hidden rounded-2xl border border-gray-200 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 shadow-sm transition-all",
+                  "relative flex-1 overflow-hidden rounded-2xl border border-border focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 shadow-sm transition-all",
                   disabled ? "opacity-60" : "",
                   isDragActive
                     ? "border-primary bg-primary/5 ring-2 ring-primary/20"
@@ -275,7 +275,7 @@ export function ChatInput({
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
                   disabled={disabled || !selectedModel || processingDocuments}
-                  className="w-full py-3 px-4 pr-14 min-h-[56px] max-h-[200px] resize-none border-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent placeholder:text-gray-400"
+                  className="w-full py-3 px-4 pr-14 min-h-[56px] max-h-[200px] resize-none border-none focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent placeholder:text-muted-foreground"
                 />
                 <Button
                   type="submit"
@@ -287,7 +287,7 @@ export function ChatInput({
                     uploadingFiles.length > 0 ||
                     processingDocuments
                   }
-                  className="absolute w-10 h-10 text-white transition-colors shadow-sm bg-primary right-2 bottom-2 rounded-xl hover:bg-primary/90 disabled:opacity-50"
+                  className="absolute w-10 h-10 text-primary-foreground transition-colors shadow-sm bg-primary right-2 bottom-2 rounded-xl hover:bg-primary/90 disabled:opacity-50"
                 >
                   {disabled ||
                     uploadingFiles.length > 0 ||
@@ -319,7 +319,7 @@ export function ChatInput({
                   disabled={
                     disabled || uploadingFiles.length > 0 || processingDocuments
                   }
-                  className="absolute w-8 h-8 text-gray-500 transition-colors right-14 bottom-3 hover:text-primary disabled:opacity-50"
+                  className="absolute w-8 h-8 text-muted-foreground transition-colors right-14 bottom-3 hover:text-primary disabled:opacity-50"
                 >
                   <Paperclip className="w-5 h-5" />
                   <span className="sr-only">Attach file</span>
@@ -353,7 +353,7 @@ export function ChatInput({
           </div>
 
           <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Sparkles className="w-3 h-3" />
               <span>
                 AI can make mistakes. Consider checking important information.
@@ -448,7 +448,7 @@ const UploadedFile = ({
       <div className="flex items-center gap-3 overflow-hidden max-w-[70%]">
         <div
           className={cn(
-            "p-2 rounded-md bg-white/30 shadow-sm",
+            "p-2 rounded-md bg-muted/50 shadow-sm",
             statusInfo.showLoading && "animate-pulse"
           )}
         >
@@ -478,7 +478,7 @@ const UploadedFile = ({
             className={cn(
               "w-7 h-7 p-0 rounded-full",
               "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
-              "hover:bg-white/20 hover:text-red-500"
+              "hover:bg-accent hover:text-red-500"
             )}
           >
             <X className="w-4 h-4" />

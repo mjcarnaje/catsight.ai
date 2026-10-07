@@ -26,7 +26,7 @@ export const SearchDocumentCard: React.FC<SearchDocumentCardProps> = ({ source }
 
   return (
     <>
-      <Card className="flex flex-col overflow-hidden transition-all duration-200 border shadow-md rounded-xl md:flex-row group bg-gradient-to-b from-white to-muted/5 hover:shadow-lg hover:border-primary/20">
+      <Card className="flex flex-col overflow-hidden transition-all duration-200 border shadow-md rounded-xl md:flex-row group bg-gradient-to-b from-card to-muted/5 hover:shadow-lg hover:border-primary/20">
         <div className="relative flex items-center justify-center w-[120px] h-[160px] sm:w-[140px] sm:h-[180px] aspect-[210/297] bg-gradient-to-br from-muted/20 to-muted/5 overflow-hidden">
           {source.preview_image && source.blurhash ? (
             <>
@@ -103,7 +103,7 @@ export const SearchDocumentCard: React.FC<SearchDocumentCardProps> = ({ source }
               </div>
             )}
           </div>
-          <div className="p-4 mt-1 bg-white rounded-lg shadow-sm">
+          <div className="p-4 mt-1 bg-card rounded-lg shadow-sm">
             <Markdown
               content={source.summary}
               className="text-sm font-medium !my-0 !p-0 !bg-transparent !border-none prose-p:mb-1 prose-p:mt-0 prose-p:leading-relaxed"
@@ -153,7 +153,7 @@ export const SearchDocumentCard: React.FC<SearchDocumentCardProps> = ({ source }
               source.contents.map((content, idx) => (
                 <div
                   key={idx}
-                  className="p-4 transition-all duration-200 border rounded-lg shadow-sm bg-gradient-to-br from-white to-muted/5 hover:bg-muted/10 hover:border-primary/20"
+                  className="p-4 transition-all duration-200 border rounded-lg shadow-sm bg-gradient-to-br from-card to-muted/5 hover:bg-muted/10 hover:border-primary/20"
                 >
                   <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/30 shadow-sm backdrop-blur-sm w-fit">
@@ -192,7 +192,7 @@ export default SearchDocumentCard;
 
 export const SearchDocumentCardSkeleton = () => {
   return (
-    <Card className="flex flex-col overflow-hidden border shadow-md rounded-xl md:flex-row bg-gradient-to-b from-white to-muted/5">
+    <Card className="flex flex-col overflow-hidden border shadow-md rounded-xl md:flex-row bg-gradient-to-b from-card to-muted/5">
       <div className="relative flex items-center justify-center w-[120px] h-[160px] sm:w-[140px] sm:h-[180px] bg-gradient-to-br from-muted/30 to-muted/10">
         <Skeleton className="w-full h-full" />
       </div>

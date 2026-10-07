@@ -71,7 +71,7 @@ export function DocumentViewPage() {
   if (error || !data) {
     return (
       <div className="container flex flex-col z-10 items-center justify-center min-h-[70vh] mx-auto">
-        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-white to-muted/20">
+        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-card to-muted/20">
           <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-muted/30 backdrop-blur-sm">
             <FileText className="w-8 h-8 text-muted-foreground" />
           </div>
@@ -204,7 +204,7 @@ export function DocumentViewPage() {
 
           {/* Quick stats */}
           <div className="grid grid-cols-3 gap-4 py-4">
-            <div className="p-4 transition-all border shadow-sm rounded-xl bg-gradient-to-br from-white to-muted/10 hover:shadow-md">
+            <div className="p-4 transition-all border shadow-sm rounded-xl bg-gradient-to-br from-card to-muted/10 hover:shadow-md">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">Pages</span>
                 <Book className="w-3.5 h-3.5 text-primary/70" />
@@ -212,7 +212,7 @@ export function DocumentViewPage() {
               <p className="text-2xl font-medium">{data.page_count || 0}</p>
             </div>
 
-            <div className="p-4 transition-all border shadow-sm rounded-xl bg-gradient-to-br from-white to-muted/10 hover:shadow-md">
+            <div className="p-4 transition-all border shadow-sm rounded-xl bg-gradient-to-br from-card to-muted/10 hover:shadow-md">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">Chunks</span>
                 <Layers className="w-3.5 h-3.5 text-primary/70" />
@@ -220,7 +220,7 @@ export function DocumentViewPage() {
               <p className="text-2xl font-medium">{data.no_of_chunks || 0}</p>
             </div>
 
-            <div className="p-4 transition-all border shadow-sm rounded-xl bg-gradient-to-br from-white to-muted/10 hover:shadow-md">
+            <div className="p-4 transition-all border shadow-sm rounded-xl bg-gradient-to-br from-card to-muted/10 hover:shadow-md">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">Year</span>
                 <Calendar className="w-3.5 h-3.5 text-primary/70" />
@@ -233,7 +233,7 @@ export function DocumentViewPage() {
           <div className="grid grid-cols-3 gap-4">
             <Button
               variant="outline"
-              className="flex flex-col items-center justify-center h-auto gap-2 py-4 transition-all bg-white border shadow-sm rounded-xl hover:bg-primary/5 hover:shadow-md"
+              className="flex flex-col items-center justify-center h-auto gap-2 py-4 transition-all bg-card border shadow-sm rounded-xl hover:bg-primary/5 hover:shadow-md"
               onClick={handlePdfViewClick}
             >
               <Eye className="w-5 h-5 text-primary/80" />
@@ -242,7 +242,7 @@ export function DocumentViewPage() {
 
             <Button
               variant="outline"
-              className="flex flex-col items-center justify-center h-auto gap-2 py-4 transition-all bg-white border shadow-sm rounded-xl hover:bg-primary/5 hover:shadow-md"
+              className="flex flex-col items-center justify-center h-auto gap-2 py-4 transition-all bg-card border shadow-sm rounded-xl hover:bg-primary/5 hover:shadow-md"
               onClick={handleMarkdownViewClick}
             >
               <FileCode className="w-5 h-5 text-primary/80" />
@@ -251,7 +251,7 @@ export function DocumentViewPage() {
 
             <Button
               variant="outline"
-              className="flex flex-col items-center justify-center h-auto gap-2 py-4 transition-all bg-white border shadow-sm rounded-xl hover:bg-primary/5 hover:shadow-md"
+              className="flex flex-col items-center justify-center h-auto gap-2 py-4 transition-all bg-card border shadow-sm rounded-xl hover:bg-primary/5 hover:shadow-md"
               onClick={handleComparisonViewClick}
             >
               <SplitSquareVertical className="w-5 h-5 text-primary/80" />
@@ -298,12 +298,12 @@ export function DocumentViewPage() {
           )}
 
           {/* Summary */}
-          <div className="p-6 bg-white border shadow-sm rounded-xl">
+          <div className="p-6 bg-card border shadow-sm rounded-xl">
             <h2 className="mb-3 text-sm font-medium text-muted-foreground">Summary</h2>
             {data.summary ? (
               <Markdown
                 content={data.summary}
-                className="prose-sm max-w-none prose-p:my-1.5 prose-headings:my-2"
+                className="prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-headings:my-2"
               />
             ) : (
               <p className="text-sm italic text-muted-foreground">
@@ -313,7 +313,7 @@ export function DocumentViewPage() {
           </div>
 
           {/* Basic info */}
-          <div className="p-6 border shadow-sm rounded-xl bg-gradient-to-br from-white to-muted/5">
+          <div className="p-6 border shadow-sm rounded-xl bg-gradient-to-br from-card to-muted/5">
             <h2 className="mb-4 text-sm font-medium text-muted-foreground">Document Information</h2>
             <div className="grid grid-cols-2 text-sm gap-y-4">
               <div className="font-medium text-muted-foreground">File Type</div>

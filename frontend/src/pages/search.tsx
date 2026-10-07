@@ -137,9 +137,9 @@ export function SearchPage() {
   return (
     <div className="container max-w-4xl py-8 mx-auto">
       <Card className={cn(
-        "mb-8 border-0 shadow-md bg-white",
+        "mb-8 border-0 shadow-md bg-card",
         "transition-all duration-300 hover:shadow-lg",
-        isAccurate && "bg-gradient-to-r from-white to-blue-50 border-l-4 border-l-primary"
+        isAccurate && "bg-gradient-to-r from-card to-primary/5 border-l-4 border-l-primary"
       )}>
         <CardContent className="pt-6">
           <form onSubmit={handleSearch} className="flex flex-col gap-4">
@@ -159,7 +159,7 @@ export function SearchPage() {
                   className={cn(
                     "h-12 pl-10 transition-all focus-visible:ring-2",
                     isAccurate
-                      ? "focus-visible:ring-primary border-primary/20 bg-white/80"
+                      ? "focus-visible:ring-primary border-primary/20 bg-card/80"
                       : "focus-visible:ring-primary"
                   )}
                   autoFocus
@@ -184,18 +184,18 @@ export function SearchPage() {
               <div className={cn(
                 "flex flex-col gap-2 p-3 rounded-lg transition-all",
                 isAccurate
-                  ? "bg-blue-50 border border-primary/20"
-                  : "hover:bg-slate-50"
+                  ? "bg-blue-500/10 border border-primary/20"
+                  : "hover:bg-accent"
               )}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className={cn(
                       "p-1.5 rounded-md transition-colors",
-                      isAccurate ? "bg-primary text-white" : "bg-slate-100"
+                      isAccurate ? "bg-primary text-primary-foreground" : "bg-muted"
                     )}>
                       {isAccurate
                         ? <Sparkles className="w-4 h-4" />
-                        : <FileText className="w-4 h-4 text-slate-500" />
+                        : <FileText className="w-4 h-4 text-muted-foreground" />
                       }
                     </div>
                     <div className="cursor-pointer select-none" onClick={() => setIsAccurate(!isAccurate)}>
@@ -214,7 +214,7 @@ export function SearchPage() {
                             <TooltipContent className="max-w-xs p-4 shadow-lg">
                               <p className="mb-2 font-medium">Search Modes:</p>
                               <div className="flex items-start gap-2 mb-2">
-                                <FileText className="w-4 h-4 mt-0.5 text-slate-500" />
+                                <FileText className="w-4 h-4 mt-0.5 text-muted-foreground" />
                                 <div>
                                   <p className="font-medium">Standard Search</p>
                                   <p className="text-xs text-muted-foreground">Searches only titles and summaries. Fast but limited.</p>
@@ -247,7 +247,7 @@ export function SearchPage() {
                 <div className="flex items-center gap-3 ml-9">
                   <div className={cn(
                     "flex-1 text-xs px-2 py-1 rounded-md transition-colors",
-                    isAccurate ? "text-primary/80 bg-white" : "text-muted-foreground"
+                    isAccurate ? "text-primary/80 bg-card" : "text-muted-foreground"
                   )}>
                     {isAccurate
                       ? "Searches full document content and can answer specific questions"
@@ -406,7 +406,7 @@ export function SearchPage() {
                     </Badge>
                   </div>
                   {results.query_time !== undefined && (
-                    <Badge variant="outline" className="flex items-center gap-1 px-2 py-1 font-normal text-slate-600 bg-slate-100 border-slate-200">
+                    <Badge variant="outline" className="flex items-center gap-1 px-2 py-1 font-normal text-muted-foreground bg-muted border-border">
                       <Clock className="w-3 h-3" />
                       {results.query_time.toFixed(2)}s
                     </Badge>

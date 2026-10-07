@@ -47,7 +47,7 @@ export function ModelSelector({
 
   if (error) {
     return (
-      <div className="flex items-center gap-1.5 h-10 px-4 py-2 text-sm font-medium bg-red-50 rounded-md text-red-700">
+      <div className="flex items-center gap-1.5 h-10 px-4 py-2 text-sm font-medium bg-red-500/10 rounded-md text-red-400">
         <span>Error: {error}</span>
       </div>
     );

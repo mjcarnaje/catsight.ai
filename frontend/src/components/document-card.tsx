@@ -186,7 +186,7 @@ export function DocumentCard({ doc }: DocumentCardProps) {
   return (
     <Card
       key={doc.id}
-      className="flex flex-col h-full overflow-hidden transition-all duration-300 border rounded-xl bg-gradient-to-b from-white to-muted/5 group hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+      className="flex flex-col h-full overflow-hidden transition-all duration-300 border rounded-xl bg-gradient-to-b from-card to-muted/5 group hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
     >
       {/* Top Section with Image and Basic Info */}
       <div className="flex">

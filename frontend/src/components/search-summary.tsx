@@ -32,7 +32,7 @@ export const SearchSummary = ({ summary, queryTime }: SearchSummaryProps) => {
             {queryTime !== undefined && (
               <Badge
                 variant="outline"
-                className="flex items-center gap-1 px-2 py-1 font-normal text-slate-600 bg-slate-100 border-slate-200"
+                className="flex items-center gap-1 px-2 py-1 font-normal text-muted-foreground bg-muted border-border"
               >
                 <Clock className="w-3 h-3" />
                 {queryTime.toFixed(2)}s
@@ -41,7 +41,7 @@ export const SearchSummary = ({ summary, queryTime }: SearchSummaryProps) => {
           </div>
           <Markdown
             content={summary}
-            className="prose prose-p:mb-2 prose-p:mt-0 prose-p:leading-snug prose-p:text-muted-foreground"
+            className="prose dark:prose-invert prose-p:mb-2 prose-p:mt-0 prose-p:leading-snug prose-p:text-muted-foreground"
           />
         </div>
       </CardContent>

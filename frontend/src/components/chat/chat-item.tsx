@@ -57,8 +57,8 @@ export function ChatItem({ chat, currentChatId }: ChatItemProps) {
   return (
     <div
       className={`flex items-center justify-between px-2 py-2 rounded ${String(chat.id) === currentChatId
-        ? "bg-gray-100 text-gray-900"
-        : "hover:bg-gray-100 text-gray-700"
+        ? "bg-muted text-foreground"
+        : "hover:bg-accent text-foreground"
         }`}
     >
       <Link to={`/chat/${chat.id}`} className="flex-1 block text-sm truncate">
@@ -71,10 +71,10 @@ export function ChatItem({ chat, currentChatId }: ChatItemProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="w-6 h-6 opacity-0 hover:opacity-100 hover:bg-gray-200 group-hover:opacity-100"
+            className="w-6 h-6 opacity-0 hover:opacity-100 hover:bg-accent group-hover:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <Trash2 className="w-4 h-4 text-gray-500" />
+            <Trash2 className="w-4 h-4 text-muted-foreground" />
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>

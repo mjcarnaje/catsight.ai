@@ -42,7 +42,7 @@ export default function MarkdownPreview({ content, highlight }: MarkdownPreviewP
         components={{
           mark: ({ children }) => <mark>{children}</mark>
         }}
-        className="prose-sm prose md:prose-base max-w-none"
+        className="prose-sm prose dark:prose-invert md:prose-base max-w-none"
       >
         {processedContent}
       </ReactMarkdown>

@@ -176,7 +176,7 @@ export function EditDocumentPage() {
               <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{data.title}</h1>
               <Badge
                 variant="outline"
-                className="rounded-full px-3 py-0.5 font-medium text-xs bg-amber-500/10 text-amber-600 border-amber-200"
+                className="rounded-full px-3 py-0.5 font-medium text-xs bg-amber-500/10 text-amber-400 border-amber-500/30"
               >
                 Editing
               </Badge>

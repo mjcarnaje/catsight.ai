@@ -85,8 +85,8 @@ export function DocumentSelector({
           size={iconOnly ? "icon" : "sm"}
           className={cn(
             iconOnly
-              ? "w-8 h-8 text-gray-500 hover:text-primary"
-              : "gap-1.5 text-gray-600 hover:text-primary",
+              ? "w-8 h-8 text-muted-foreground hover:text-primary"
+              : "gap-1.5 text-muted-foreground hover:text-primary",
             selectedDocs.length > 0 && "text-primary",
             selectedDocs.length > 0 && !iconOnly && "border-primary"
           )}
@@ -102,7 +102,7 @@ export function DocumentSelector({
             </span>
           )}
           {iconOnly && selectedDocs.length > 0 && (
-            <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full">
+            <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 text-[10px] font-bold text-primary-foreground bg-primary rounded-full">
               {selectedDocs.length}
             </span>
           )}
@@ -137,7 +137,7 @@ export function DocumentSelector({
 
           {selectedDocs.length > 0 && (
             <div className="mb-2">
-              <p className="mb-1 text-xs font-medium text-gray-500">
+              <p className="mb-1 text-xs font-medium text-muted-foreground">
                 Selected documents:
               </p>
               <div className="flex flex-wrap gap-1">
@@ -166,7 +166,7 @@ export function DocumentSelector({
           )}
 
           {error && (
-            <div className="p-2 text-sm text-red-600 rounded bg-red-50">
+            <div className="p-2 text-sm text-red-400 rounded bg-red-500/10">
               Failed to search documents. Please try again.
             </div>
           )}
@@ -186,7 +186,7 @@ export function DocumentSelector({
                     <div
                       key={doc.id}
                       className={cn(
-                        "flex items-start gap-2 p-2 rounded-md cursor-pointer hover:bg-gray-50",
+                        "flex items-start gap-2 p-2 rounded-md cursor-pointer hover:bg-accent",
                         isSelected && "bg-primary/5 hover:bg-primary/10"
                       )}
                       onClick={() => toggleDocumentSelection(doc)}
@@ -201,7 +201,7 @@ export function DocumentSelector({
                           {doc.title || doc.file_name}
                         </div>
                         {doc.summary && (
-                          <p className="text-xs text-gray-500 line-clamp-2">
+                          <p className="text-xs text-muted-foreground line-clamp-2">
                             {doc.summary}
                           </p>
                         )}
@@ -211,8 +211,8 @@ export function DocumentSelector({
                 })}
               </div>
             ) : searchQuery.length > 2 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-center text-gray-500">
-                <BookOpenCheck className="w-8 h-8 text-gray-300" />
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-center text-muted-foreground">
+                <BookOpenCheck className="w-8 h-8 text-muted-foreground/60" />
                 <div>
                   <p className="text-sm font-medium">No documents found</p>
                   <p className="text-xs">
@@ -221,8 +221,8 @@ export function DocumentSelector({
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-center text-gray-500">
-                <Search className="w-8 h-8 text-gray-300" />
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-center text-muted-foreground">
+                <Search className="w-8 h-8 text-muted-foreground/60" />
                 <div>
                   <p className="text-sm font-medium">Search for documents</p>
                   <p className="text-xs">

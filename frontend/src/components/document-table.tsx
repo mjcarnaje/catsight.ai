@@ -196,7 +196,7 @@ export function DocumentTable({ documents }: DocumentTableProps) {
   };
 
   return (
-    <div className="overflow-hidden border shadow-md rounded-xl bg-gradient-to-b from-white to-muted/5">
+    <div className="overflow-hidden border shadow-md rounded-xl bg-gradient-to-b from-card to-muted/5">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/20 hover:bg-muted/30 backdrop-blur-sm">

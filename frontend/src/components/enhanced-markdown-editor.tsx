@@ -44,7 +44,7 @@ export default function EnhancedMarkdownEditor({
   }
 
   return (
-    <div className="w-full h-full markdown-editor-container" data-color-mode="light">
+    <div className="w-full h-full markdown-editor-container" data-color-mode="dark">
       <MDEditor
         value={value}
         onChange={handleChange}

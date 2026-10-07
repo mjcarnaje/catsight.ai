@@ -157,7 +157,7 @@ export function StatusHistoryPopover({
   const getStatusIcon = (status: DocumentStatus) => {
     switch (status) {
       case DocumentStatus.PENDING:
-        return <Clock className="w-4 h-4 text-gray-500" />;
+        return <Clock className="w-4 h-4 text-muted-foreground" />;
       case DocumentStatus.PROCESSING:
         return <FlameIcon className="w-4 h-4 text-red-500" />;
       case DocumentStatus.TEXT_EXTRACTING:

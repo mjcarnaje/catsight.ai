@@ -188,17 +188,17 @@ const SettingsPage = () => {
                           "border-2 border-dashed rounded-md p-6 cursor-pointer flex flex-col items-center justify-center",
                           isDragActive
                             ? "border-primary bg-primary/5"
-                            : "border-gray-300"
+                            : "border-border"
                         )}
                       >
                         <input {...getInputProps()} />
-                        <Upload className="w-10 h-10 mb-2 text-gray-400" />
-                        <p className="text-sm text-center text-gray-500">
+                        <Upload className="w-10 h-10 mb-2 text-muted-foreground/60" />
+                        <p className="text-sm text-center text-muted-foreground">
                           {isDragActive
                             ? "Drop the image here"
                             : "Drag & drop an image here, or click to select"}
                         </p>
-                        <p className="mt-1 text-xs text-gray-400">
+                        <p className="mt-1 text-xs text-muted-foreground/60">
                           JPG, PNG or GIF, max 2MB
                         </p>
                       </div>
@@ -259,9 +259,9 @@ const SettingsPage = () => {
                     id="email"
                     value={user?.email}
                     readOnly
-                    className="bg-gray-50"
+                    className="bg-muted"
                   />
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     Email cannot be changed
                   </p>
                 </div>

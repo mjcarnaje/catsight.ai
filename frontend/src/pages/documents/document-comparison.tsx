@@ -111,7 +111,7 @@ export function DocumentComparisonPage() {
   if (!documentData) {
     return (
       <div className="container z-10 flex flex-col items-center justify-center min-h-[70vh] mx-auto">
-        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-white to-muted/20">
+        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-card to-muted/20">
           <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-muted/30 backdrop-blur-sm">
             <FileText className="w-8 h-8 text-muted-foreground" />
           </div>
@@ -135,8 +135,8 @@ export function DocumentComparisonPage() {
   if (markdownError || !markdownData) {
     return (
       <div className="container z-10 flex flex-col items-center justify-center min-h-[70vh] mx-auto">
-        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-white to-muted/20">
-          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-red-50 backdrop-blur-sm">
+        <div className="max-w-md p-8 text-center border shadow-lg rounded-xl bg-gradient-to-b from-card to-muted/20">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-red-500/10 backdrop-blur-sm">
             <FileText className="w-8 h-8 text-red-500" />
           </div>
           <h3 className="mb-3 text-xl font-medium">
@@ -178,7 +178,7 @@ export function DocumentComparisonPage() {
               </h1>
               <Badge
                 variant="outline"
-                className="px-3 py-1 font-medium text-purple-600 border-purple-200 rounded-full shadow-sm bg-purple-500/10"
+                className="px-3 py-1 font-medium text-purple-400 border-purple-500/30 rounded-full shadow-sm bg-purple-500/10"
               >
                 Comparison
               </Badge>
@@ -295,7 +295,7 @@ export function DocumentComparisonPage() {
                     Markdown Content
                   </h3>
                 </div>
-                <div className="flex-1 p-6 overflow-auto bg-white">
+                <div className="flex-1 p-6 overflow-auto bg-card">
                   <MarkdownPreview content={markdownData.content} />
                 </div>
               </div>

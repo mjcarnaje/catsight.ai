@@ -11,7 +11,7 @@ export function ChatGroup({ title, chats, currentChatId }: ChatGroupProps) {
 
   return (
     <div>
-      <div className="px-4 py-2 text-xs text-gray-500">{title}</div>
+      <div className="px-4 py-2 text-xs text-muted-foreground">{title}</div>
       <div className="px-2 space-y-1">
         {chats.map((chat) => (
           <ChatItem key={chat.id} chat={chat} currentChatId={currentChatId} />

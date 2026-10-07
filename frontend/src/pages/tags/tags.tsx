@@ -261,12 +261,12 @@ export default function TagsPage() {
             <Card key={tag.id} className="overflow-hidden">
               <CardHeader className="pb-2">
                 <CardTitle>{tag.name}</CardTitle>
-                <CardDescription className="text-xs text-gray-500">
+                <CardDescription className="text-xs text-muted-foreground">
                   Created by {tag?.author?.first_name} {tag?.author?.last_name}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   {tag.description || "No description provided."}
                 </p>
               </CardContent>
@@ -294,10 +294,10 @@ export default function TagsPage() {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center p-8 rounded-lg bg-gray-50">
+        <div className="flex flex-col items-center justify-center p-8 rounded-lg bg-muted">
           <div className="text-center">
             <h3 className="mt-2 text-xl font-semibold">No Tags Found</h3>
-            <p className="mt-1 text-gray-500">
+            <p className="mt-1 text-muted-foreground">
               Create a new tag to help categorize documents.
             </p>
             <Button onClick={() => setIsCreateOpen(true)} className="mt-4">

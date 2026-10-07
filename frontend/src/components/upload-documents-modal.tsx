@@ -234,7 +234,7 @@ export function UploadDocumentsModal({
       case "docx":
         return <FileIcon className="w-4 h-4 text-indigo-500" />;
       default:
-        return <FileIcon className="w-4 h-4 text-gray-500" />;
+        return <FileIcon className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
@@ -278,7 +278,7 @@ export function UploadDocumentsModal({
                       className={cn(
                         "justify-between w-full h-10 transition-all",
                         {
-                          "font-normal text-gray-500": !selectedConverter,
+                          "font-normal text-muted-foreground": !selectedConverter,
                           "ring-1 ring-primary": selectedConverter,
                         }
                       )}
@@ -356,16 +356,16 @@ export function UploadDocumentsModal({
                                       key={tag}
                                       variant="outline"
                                       className={cn("text-xs", {
-                                        "bg-green-50 border-green-200 text-green-700":
+                                        "bg-green-500/10 border-green-500/30 text-green-400":
                                           tag === "accurate",
-                                        "bg-blue-50 border-blue-200 text-blue-700":
+                                        "bg-blue-500/10 border-blue-500/30 text-blue-400":
                                           tag === "fast" || tag === "reliable",
-                                        "bg-yellow-50 border-yellow-200 text-yellow-700":
+                                        "bg-yellow-500/10 border-yellow-500/30 text-yellow-400":
                                           tag === "slow" || tag === "slower",
-                                        "bg-indigo-50 border-indigo-200 text-indigo-700":
+                                        "bg-indigo-500/10 border-indigo-500/30 text-indigo-400":
                                           tag === "detailed" ||
                                           tag === "semantic",
-                                        "bg-gray-50 border-gray-200 text-gray-700":
+                                        "bg-muted border-border text-foreground":
                                           tag === "lightweight",
                                       })}
                                     >

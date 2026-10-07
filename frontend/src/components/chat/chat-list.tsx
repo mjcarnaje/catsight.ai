@@ -134,7 +134,7 @@ export function ChatList({
   if (!messages || messages.length === 0) {
     return (
       <div className="z-10 flex flex-col items-center justify-center flex-1 w-full max-w-4xl p-8 mx-auto">
-        <h2 className="mb-6 text-2xl font-semibold text-center text-gray-800">
+        <h2 className="mb-6 text-2xl font-semibold text-center text-foreground">
           How can I help you today?
         </h2>
 
@@ -144,11 +144,11 @@ export function ChatList({
             return (
               <div
                 key={idx}
-                className="z-10 p-4 bg-white border border-gray-200 rounded-lg shadow-sm"
+                className="z-10 p-4 bg-card border border-border rounded-lg shadow-sm"
               >
                 <div className="flex items-center gap-2 mb-3">
                   <Icon className="w-5 h-5 text-primary" />
-                  <h3 className="font-medium text-gray-800">
+                  <h3 className="font-medium text-foreground">
                     {category.label}
                   </h3>
                 </div>
@@ -157,7 +157,7 @@ export function ChatList({
                     <button
                       key={pIdx}
                       onClick={() => onSelectSuggestion?.(prompt)}
-                      className="w-full p-2 text-sm text-left text-gray-700 transition-colors rounded-md hover:bg-primary/20"
+                      className="w-full p-2 text-sm text-left text-foreground transition-colors rounded-md hover:bg-primary/20"
                     >
                       {prompt}
                     </button>
@@ -189,14 +189,14 @@ export function ChatList({
           return (
             <div
               key={msg.id}
-              className="z-20 flex items-center gap-4 p-2 bg-gray-100 rounded-md"
+              className="z-20 flex items-center gap-4 p-2 bg-muted rounded-md"
             >
               <PickaxeIcon className="w-5 h-5 text-primary" />
               <div className="flex flex-col">
-                <span className="font-medium text-gray-800 capitalize">
+                <span className="font-medium text-foreground capitalize">
                   {getToolName(msg.tool_call?.name)}
                 </span>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted-foreground">
                   Query: {msg.tool_call?.query}
                 </span>
               </div>

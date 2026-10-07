@@ -53,7 +53,7 @@ export const AIMessage: React.FC<AIMessageProps> = ({
   return (
     <div className={cn("flex z-20 justify-start")}>
       <div className={cn(
-        "max-w-sm sm:max-w-md md:max-w-lg relative group text-gray-800"
+        "max-w-sm sm:max-w-md md:max-w-lg relative group text-foreground"
       )}>
         <div className="pl-1">
           <Markdown content={processedContent.content || "..."} />
@@ -62,7 +62,7 @@ export const AIMessage: React.FC<AIMessageProps> = ({
             <div className="mt-3">
               <button
                 onClick={() => toggleThinking(msg.id)}
-                className="flex items-center gap-1 px-2 py-1 mb-2 text-xs text-gray-700 bg-gray-100 rounded-md"
+                className="flex items-center gap-1 px-2 py-1 mb-2 text-xs text-foreground bg-muted rounded-md"
               >
                 {showThinking ? (
                   <>
@@ -78,8 +78,8 @@ export const AIMessage: React.FC<AIMessageProps> = ({
               </button>
 
               {showThinking && (
-                <div className="p-3 mt-2 text-sm border border-gray-200 rounded-md bg-gray-50">
-                  <h4 className="mb-1 text-xs font-medium text-gray-500">AI Thinking Process:</h4>
+                <div className="p-3 mt-2 text-sm border border-border rounded-md bg-muted">
+                  <h4 className="mb-1 text-xs font-medium text-muted-foreground">AI Thinking Process:</h4>
                   <Markdown content={processedContent.thinking} />
                 </div>
               )}
@@ -95,7 +95,7 @@ export const AIMessage: React.FC<AIMessageProps> = ({
           <button
             onClick={() => onCopy(msg.content || "", msg.id)}
             className={cn(
-              "flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-gray-100 text-gray-700"
+              "flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-muted text-foreground"
             )}
             title="Copy to clipboard"
           >
@@ -115,7 +115,7 @@ export const AIMessage: React.FC<AIMessageProps> = ({
           {onRegenerate && (
             <button
               onClick={() => onRegenerate(msg.id)}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-gray-700 bg-gray-100 rounded-md"
+              className="flex items-center gap-1 px-2 py-1 text-xs text-foreground bg-muted rounded-md"
               title="Regenerate response"
             >
               <RefreshCw className="w-3 h-3" />
