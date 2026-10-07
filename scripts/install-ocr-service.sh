@@ -9,9 +9,12 @@
 #
 #   ./scripts/install-ocr-service.sh              install or update, then wait until ready
 #   OCR_PORT=8792 ./scripts/install-ocr-service.sh
+#   OCR_PARALLEL=6 ./scripts/install-ocr-service.sh   pages read at once (~0.55 GB of memory each);
+#                                                     match SURYA_INFERENCE_PARALLEL in .env.prod
 set -euo pipefail
 
 port="${OCR_PORT:-8791}"
+parallel="${OCR_PARALLEL:-2}"
 label="com.catsight.ocr"
 plist="$HOME/Library/LaunchAgents/$label.plist"
 log="$HOME/Library/Logs/catsight-ocr.log"
@@ -39,8 +42,8 @@ cat > "$plist" <<PLIST
     <string>-ngl</string><string>99</string>
     <string>--host</string><string>127.0.0.1</string>
     <string>--port</string><string>$port</string>
-    <string>--parallel</string><string>2</string>
-    <string>--ctx-size</string><string>24576</string>
+    <string>--parallel</string><string>$parallel</string>
+    <string>--ctx-size</string><string>$((parallel * 12288))</string>
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>

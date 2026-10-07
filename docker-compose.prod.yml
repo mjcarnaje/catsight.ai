@@ -25,7 +25,7 @@ x-backend: &backend
     FONT_PATH: /usr/src/app/.cache/marker/GoNotoCurrent-Regular.ttf
     SURYA_INFERENCE_BACKEND: llamacpp
     SURYA_INFERENCE_URL: ${SURYA_INFERENCE_URL:-http://ocr:8080/v1}
-    SURYA_INFERENCE_PARALLEL: "2"
+    SURYA_INFERENCE_PARALLEL: ${SURYA_INFERENCE_PARALLEL:-2}  # pages read at once; match the OCR server
   extra_hosts:
     - "host.docker.internal:host-gateway"
   volumes:
