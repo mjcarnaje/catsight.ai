@@ -5,7 +5,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Nunito Sans", "sans-serif"],
+        sans: ["Geist", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["Geist Mono", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
@@ -46,6 +47,11 @@ module.exports = {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
+        gold: {
+          DEFAULT: "hsl(var(--gold))",
+          foreground: "hsl(var(--gold-foreground))",
+        },
+        tabby: "hsl(var(--tabby))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
@@ -67,13 +73,19 @@ module.exports = {
           ring: "hsl(var(--sidebar-ring))",
         },
       },
+      keyframes: {
+        caret: {
+          "0%, 50%": { opacity: "1" },
+          "50.01%, 100%": { opacity: "0" },
+        },
+      },
+      animation: {
+        caret: "caret 1s step-end infinite",
+      },
     },
   },
   plugins: [
     require("@tailwindcss/typography"),
     require("tailwindcss-animate"),
-    function ({ addVariant }) {
-      addVariant("sidebar-expanded", '.group[data-state="expanded"] &');
-    },
   ],
 };
