@@ -40,7 +40,7 @@ if not SECRET_KEY:
     SECRET_KEY = "dev-only-insecure-key-never-use-in-production"
 
 # Public origin of the app, e.g. https://catsight.mjcarnaje.com. Used for absolute
-# URLs (avatars, OAuth redirect) and as the trusted CSRF origin.
+# URLs (Open Graph tags, attribution headers) and as the trusted CSRF origin.
 PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:3000").rstrip("/")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0,backend")
