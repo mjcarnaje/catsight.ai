@@ -186,7 +186,8 @@ def _marker_converter():
 
     config = ConfigParser({
         "output_format": "markdown",
-        "disable_image_extraction": True,
+        # Images stay "extracted" (their links are stripped below): with image extraction
+        # off, LLM mode would write a description of every logo and seal into the text
         # Re-OCR every page: the repositories' embedded text layers are often poor scans' OCR
         "force_ocr": True,
         "strip_existing_ocr": True,
@@ -205,6 +206,12 @@ def _marker_converter():
 
 # marker (paginate_output=True) puts "{<0-based page>}" + 48 dashes before every page
 _MARKER_PAGE_RE = re.compile(r"\n*\{(\d+)\}-{48}\n*")
+_MARKER_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)[ \t]*\n*")
+
+
+def strip_marker_images(text: str) -> str:
+    """Remove marker's image links (`![](_page_0_Picture_15.jpeg)`); the images aren't kept."""
+    return _MARKER_IMAGE_RE.sub("", text)
 
 
 def _extract_marker(pdf_path: Path, on_progress: Optional[ProgressCallback]) -> list[Page]:
@@ -216,6 +223,7 @@ def _extract_marker(pdf_path: Path, on_progress: Optional[ProgressCallback]) -> 
     # Marker and docling call PDFium themselves; it isn't thread-safe (the worker runs threads)
     with storage.pdfium_lock():
         text, _, _ = text_from_rendered(_marker_converter()(str(pdf_path)))
+    text = strip_marker_images(text)
     if on_progress:
         on_progress(total, total)
     parts = _MARKER_PAGE_RE.split(text)

@@ -1,4 +1,4 @@
-from app.services.extraction import marker_llm_options
+from app.services.extraction import marker_llm_options, strip_marker_images
 
 
 def test_marker_llm_mode_uses_the_vision_model_through_openrouter(settings):
@@ -30,3 +30,8 @@ def test_marker_llm_mode_is_off_without_a_vision_model_or_when_disabled(settings
     settings.OCR_MODEL = "qwen/qwen3-vl-30b-a3b-instruct"
     settings.MARKER_USE_LLM = False
     assert marker_llm_options() == {"use_llm": False}
+
+
+def test_marker_image_links_are_removed():
+    text = "{0}" + "-" * 48 + "\n\n![](_page_0_Picture_15.jpeg)\n\nSPECIAL ORDER\n![logo](_page_0_Figure_2.png) No. 01592-IIT"
+    assert strip_marker_images(text) == "{0}" + "-" * 48 + "\n\nSPECIAL ORDER\nNo. 01592-IIT"
