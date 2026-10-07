@@ -3,7 +3,7 @@ import os
 import io
 from pdf2image import convert_from_path
 from PIL import Image
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from django.conf import settings
 from django.core.files.storage import default_storage

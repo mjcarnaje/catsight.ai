@@ -49,6 +49,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libyaml-0-2 \
     # PDF processing dependencies
     poppler-utils \
+    # OpenCV (used by marker/surya) needs libGL and glib at import time
+    libgl1 \
+    libglib2.0-0 \
     # Chromium dependencies
     libasound2 \
     libatk1.0-0 \
