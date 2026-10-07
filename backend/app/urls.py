@@ -5,6 +5,7 @@ from .views import auth, chat, documents, overview, search, tags
 
 urlpatterns = [
     # App
+    path("health/", overview.health, name="health"),
     path("config/", overview.app_config, name="config"),
     path("dashboard/", overview.dashboard, name="dashboard"),
 

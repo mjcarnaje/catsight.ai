@@ -4,10 +4,11 @@ from dataclasses import asdict
 from datetime import timedelta
 
 from django.conf import settings
+from django.db import connection
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework.response import Response
 
 from ..constant import DocumentStatus, UsageKind
@@ -15,6 +16,16 @@ from ..models import Chat, Document, Tag, UsageEvent
 from ..serializers import DocumentSerializer
 from ..services import extraction, quotas
 from ..utils.permissions import AllowAny, IsAuthenticated
+
+
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def health(request):
+    """Liveness for scripts/catsight-remote and uptime checks: the database answers."""
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1")
+    return Response({"ok": True})
 
 
 @api_view(["GET"])

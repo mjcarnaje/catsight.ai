@@ -155,3 +155,16 @@ def test_deleting_a_chat_removes_its_checkpoints(api, admin, monkeypatch):
 def test_sse_frames_survive_newlines_and_quotes():
     frame = chat_views.sse("token", {"text": 'line one\n"quoted"'})
     assert frame.count("\n\n") == 1 and json.loads(frame.split("data: ", 1)[1]) == {"text": 'line one\n"quoted"'}
+
+
+@chat_db
+def test_a_failed_answer_is_not_charged(api, guest, script, settings, monkeypatch):
+    settings.DEMO_MODE = True
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(llm, "get_chat_model", broken)
+    stream = events(ask(api(guest), question="Anything?"))
+    assert [name for name, _ in stream][-2:] == ["error", "done"]
+    assert not UsageEvent.objects.filter(user=guest, kind="message").exists()

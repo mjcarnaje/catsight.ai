@@ -122,7 +122,7 @@ def chat_stream(request):
         chat = Chat.objects.create(user=user)
 
     try:
-        quotas.consume(user, UsageKind.MESSAGE)
+        usage = quotas.consume(user, UsageKind.MESSAGE)
     except quotas.QuotaExceeded as e:
         return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
     # Only documents the user may read can scope the conversation
@@ -169,6 +169,7 @@ def chat_stream(request):
                         yield sse("title", {"title": chat.title})
         except Exception as error:
             logger.exception(f"Chat {chat.id}: answering failed")
+            quotas.refund(usage)  # a failed answer doesn't count against the visitor
             yield sse("error", {"detail": describe_error(error), "code": "answer_failed"})
         Chat.objects.filter(pk=chat.pk).update(updated_at=timezone.now())
         yield sse("done", {})
