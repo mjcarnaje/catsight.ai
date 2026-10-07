@@ -22,7 +22,10 @@ export default function ChatPage() {
   const { id: chatId } = useParams<{ id: string }>();
   const { user } = useSession();
   const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
-  const [text, setText] = useState("");
+  // The dashboard's ask bar can hand over a draft prompt via router state.
+  const [text, setText] = useState<string>(
+    () => (location.state as { prompt?: string } | null)?.prompt ?? ""
+  );
   const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -300,7 +303,7 @@ export default function ChatPage() {
           <div className="flex items-center justify-center flex-1">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-sm text-gray-500">Loading conversation...</p>
+              <p className="text-sm text-muted-foreground">Loading conversation...</p>
             </div>
           </div>
         ) : (

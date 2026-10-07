@@ -25,7 +25,6 @@ import { ChatProvider } from "./contexts/chat-context";
 import { ChatStreamProvider } from "./contexts/chat-stream-context";
 import { GraphPage } from "./pages/graph/graph-page";
 import TagsPage from "./pages/tags/tags";
-import { cn } from "./lib/utils";
 import DebugPage from "./pages/debug";
 
 const queryClient = new QueryClient();
@@ -35,13 +34,6 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <div className="relative">
-          <div
-            className={cn(
-              "absolute inset-0 z-[1] pointer-events-none",
-              "[background-size:30px_30px]",
-              "[background-image:radial-gradient(#DCDCDC_1px,transparent_1px)]"
-            )}
-          />
           <Router>
             <ChatProvider>
               <ChatStreamProvider>
@@ -88,7 +80,7 @@ export default function App() {
                       path="/dashboard"
                       element={
                         <ProtectedRoute>
-                          <div className="relative z-10 p-8">
+                          <div className="relative z-10 p-4 sm:p-8">
                             <DashboardPage />
                           </div>
                         </ProtectedRoute>
