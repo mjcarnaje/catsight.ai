@@ -132,3 +132,8 @@ scripts/          catsight-remote (manage the deployment over SSH)
 docker compose exec -T backend python -m pytest      # backend, no model calls
 cd frontend && npx tsc --noEmit -p tsconfig.app.json  # frontend types
 ```
+
+## License
+
+[MIT](LICENSE). The sample MSU-IIT documents in the live demo are not part of this
+repository or its license.
