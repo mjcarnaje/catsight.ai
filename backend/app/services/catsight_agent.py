@@ -18,6 +18,7 @@ from langchain_ollama import ChatOllama
 from ..services.vectorstore import vector_store, DB_URI
 from langchain_core.runnables import RunnableConfig
 import logging
+import time
 from typing import Any, Dict
 from ..models import Document
 from ..services.postgres import get_psycopg_connection_string
@@ -35,6 +36,9 @@ CONNECTION_KWARGS = {
 PSYCOPG_DB_URI = get_psycopg_connection_string(DB_URI)
 
 _connection_pool = None
+
+# Arbitrary app-wide key for pg_advisory_lock around checkpointer.setup()
+CHECKPOINTER_SETUP_LOCK_ID = 7_412_001
 
 def get_connection_pool():
     """Get or initialize the connection pool"""
@@ -247,7 +251,21 @@ def create_catsight_agent():
     # Initialize the pool and checkpointer
     pool = get_connection_pool()
     checkpointer = PostgresSaver(pool)
-    checkpointer.setup()
+    # backend, celery_worker, jupyter and manage.py all import this module at startup;
+    # on a fresh DB their concurrent setup() calls race to create the same tables.
+    # A Postgres advisory lock makes them take turns (setup() itself is idempotent).
+    # Poll with pg_try_advisory_lock rather than blocking in pg_advisory_lock: setup()
+    # runs CREATE INDEX CONCURRENTLY, which waits for every in-flight query, including
+    # a blocked lock call, so a blocking wait would deadlock.
+    with pool.connection() as lock_conn:
+        while not lock_conn.execute(
+            "SELECT pg_try_advisory_lock(%s)", (CHECKPOINTER_SETUP_LOCK_ID,)
+        ).fetchone()[0]:
+            time.sleep(0.5)
+        try:
+            checkpointer.setup()
+        finally:
+            lock_conn.execute("SELECT pg_advisory_unlock(%s)", (CHECKPOINTER_SETUP_LOCK_ID,))
     logger.info("PostgreSQL checkpointer setup completed")
 
     # Define the tools
