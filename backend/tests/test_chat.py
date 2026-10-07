@@ -168,3 +168,26 @@ def test_a_failed_answer_is_not_charged(api, guest, script, settings, monkeypatc
     stream = events(ask(api(guest), question="Anything?"))
     assert [name for name, _ in stream][-2:] == ["error", "done"]
     assert not UsageEvent.objects.filter(user=guest, kind="message").exists()
+
+
+@chat_db
+def test_failures_after_the_model_answered_still_count(api, guest, library, script, settings, monkeypatch):
+    settings.DEMO_MODE = True
+    script += [search_call("MICeL")]  # the first model call succeeds...
+
+    def fail_search(*args, **kwargs):
+        raise RuntimeError("database went away")
+
+    original = agent.assistant
+
+    def assistant_then_crash(state, config):
+        if any(isinstance(m, agent.ToolMessage) for m in state["messages"]):
+            raise RuntimeError("late failure")  # ...then the graph fails
+        return original(state, config)
+
+    monkeypatch.setattr(agent, "assistant", assistant_then_crash)
+    graph = lru_cache(maxsize=1)(lambda: agent.build_graph(InMemorySaver()))
+    monkeypatch.setattr(chat_views, "get_agent", graph)
+    stream = events(ask(api(guest), question="Who directs MICeL?"))
+    assert "error" in [name for name, _ in stream]
+    assert UsageEvent.objects.filter(user=guest, kind="message").count() == 1

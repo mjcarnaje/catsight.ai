@@ -12,6 +12,8 @@ import { useGuestSignIn } from "@/hooks/use-guest-sign-in";
 import { authApi, errorMessage } from "@/lib/api";
 import { useConfig } from "@/lib/queries";
 
+const OAUTH_STATE = "catsight:oauth-state";
+
 export default function LoginPage() {
   const { signIn } = useSession();
   const { data: config } = useConfig();
@@ -28,24 +30,35 @@ export default function LoginPage() {
   const google = useMutation({ mutationFn: authApi.google, onSuccess: signIn });
   const exchangeGoogleCode = google.mutate;
 
-  // Google redirects back here with ?code=...; exchange it once
+  // Google redirects back here with ?code=...&state=...; exchange it once, and only
+  // if `state` matches the one this tab stored (otherwise a link from someone else
+  // could sign this browser into *their* account: login CSRF).
   const exchanged = useRef(false);
+  const [oauthError, setOauthError] = useState("");
   useEffect(() => {
     const code = params.get("code");
-    if (code && !exchanged.current) {
-      exchanged.current = true;
-      setParams({}, { replace: true });
-      exchangeGoogleCode(code);
+    if (!code || exchanged.current) return;
+    exchanged.current = true;
+    const expected = sessionStorage.getItem(OAUTH_STATE);
+    sessionStorage.removeItem(OAUTH_STATE);
+    setParams({}, { replace: true });
+    if (!expected || params.get("state") !== expected) {
+      setOauthError("That sign-in link didn't start here. Try “Continue with Google” again.");
+      return;
     }
+    exchangeGoogleCode(code);
   }, [params, setParams, exchangeGoogleCode]);
 
   const startGoogle = () => {
+    const state = crypto.randomUUID();
+    sessionStorage.setItem(OAUTH_STATE, state);
     const query = new URLSearchParams({
       client_id: config!.google_client_id,
       redirect_uri: `${window.location.origin}/login`,
       response_type: "code",
       scope: "openid email profile",
       prompt: "select_account",
+      state,
     });
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${query}`;
   };
@@ -55,7 +68,7 @@ export default function LoginPage() {
     login.mutate();
   };
 
-  const error = login.error ?? google.error;
+  const error = login.error ?? google.error ?? (oauthError ? new Error(oauthError) : null);
 
   return (
     <AuthShell

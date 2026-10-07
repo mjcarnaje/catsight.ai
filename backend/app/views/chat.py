@@ -140,6 +140,7 @@ def chat_stream(request):
             "question": {"id": human.id, "role": "user", "content": question},
         })
         turn: list = []
+        produced = False  # whether any model call has returned yet
         try:
             for mode, payload in get_agent().stream(agent_input, config, stream_mode=["messages", "updates"]):
                 if mode == "messages":
@@ -147,12 +148,14 @@ def chat_stream(request):
                     if metadata.get("langgraph_node") == "assistant" and isinstance(chunk, AIMessageChunk):
                         text = chunk.content if isinstance(chunk.content, str) else ""
                         if text:
+                            produced = True
                             yield sse("token", {"id": chunk.id, "text": text})
                     continue
 
                 for node, update in (payload or {}).items():
                     if not update:
                         continue
+                    produced = True
                     for message in update.get("messages", []):
                         if isinstance(message, AIMessage) and message.tool_calls:
                             turn.append(message)
@@ -169,7 +172,10 @@ def chat_stream(request):
                         yield sse("title", {"title": chat.title})
         except Exception as error:
             logger.exception(f"Chat {chat.id}: answering failed")
-            quotas.refund(usage)  # a failed answer doesn't count against the visitor
+            # Refund only when no model call had returned: once one has, credit was spent,
+            # and refunding would let a visitor force late errors for free answers.
+            if not produced:
+                quotas.refund(usage)
             yield sse("error", {"detail": describe_error(error), "code": "answer_failed"})
         Chat.objects.filter(pk=chat.pk).update(updated_at=timezone.now())
         yield sse("done", {})
