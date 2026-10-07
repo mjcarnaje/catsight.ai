@@ -52,6 +52,8 @@ export interface AppConfig {
   allowed_email_domains: string[];
   provider: "openrouter" | "ollama";
   models: { chat: string; ocr: string; embedding: string; reranker: string };
+  /** The default converter, and whether Marker refines hard regions with the OCR model. */
+  extraction: { default: Extractor; marker_llm: boolean };
   limits: Limits;
   guest_ttl_hours: number;
   // Signed-in only

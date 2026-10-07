@@ -2,7 +2,7 @@ import type { Extractor } from "@/types";
 
 /** How each text extractor is named in the UI. */
 export const EXTRACTOR_LABELS: Record<Extractor, string> = {
-  vision: "Vision OCR (cloud)",
+  vision: "Vision model",
   marker: "Marker",
   docling: "Docling",
   markitdown: "MarkItDown",

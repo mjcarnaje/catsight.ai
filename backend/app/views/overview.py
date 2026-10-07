@@ -45,6 +45,11 @@ def app_config(request):
             "embedding": settings.EMBEDDING_MODEL,
             "reranker": settings.RERANKER_MODEL,
         },
+        # How PDFs become text, so the UI can name the OCR engine
+        "extraction": {
+            "default": settings.DEFAULT_TEXT_EXTRACTOR,
+            "marker_llm": settings.MARKER_USE_LLM and bool(settings.OCR_MODEL),
+        },
         "limits": asdict(quotas.limits(request.user if request.user.is_authenticated else None)),
         "guest_ttl_hours": settings.GUEST_TTL_HOURS,
     }

@@ -22,7 +22,9 @@ function stageDetail(stage: DocumentStatus, config?: AppConfig) {
     case "queued":
       return "Waiting for a worker";
     case "extracting":
-      return local ? "Local OCR, page by page" : `${config ? modelName(config.models.ocr) : "Vision model"} reads each page`;
+      if (config?.extraction.default === "marker") return "Marker (Surya OCR 2) reads each page";
+      if (config?.extraction.default === "vision") return `${modelName(config.models.ocr)} reads each page`;
+      return local ? "Local OCR, page by page" : "OCR, page by page";
     case "summarizing":
       return "Title, summary, reference no., tags";
     case "indexing":

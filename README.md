@@ -36,7 +36,7 @@ them, and answers questions with numbered citations that open the exact page.
 flowchart LR
   subgraph Ingest["Ingestion (Celery)"]
     U[Upload PDF] --> D{"SHA-256 seen?"}
-    D -->|no| X["Extract: vision OCR per page"]
+    D -->|no| X["Extract: Marker 2 per page (Surya OCR 2, Qwen3-VL for hard regions)"]
     X --> S["Catalogue: title, summary, ref no., date, tags"]
     S --> I["Index: chunk + bge-m3 + tsvector"]
   end
@@ -58,7 +58,8 @@ flowchart LR
 | Pipeline | Celery + Redis, pypdfium2 for rendering, LangChain 1.x |
 | Agent | LangGraph with a Postgres checkpointer (chat history survives restarts) |
 | Search | PostgreSQL 17 + pgvector (exact cosine) and full-text search, fused with RRF |
-| Models | OpenRouter: Gemini 3.1 Flash-Lite (OCR, catalogue, answers), bge-m3 (embeddings), Voyage rerank. Or fully local via Ollama |
+| Models | Open-weight, via OpenRouter: Qwen3-VL-30B-A3B (catalogue, answers, OCR refinement), BGE-M3 (embeddings), Qwen3-Reranker-8B. Or fully local via Ollama |
+| OCR | Marker 2 with Surya OCR 2 served by llama.cpp; also Docling, MarkItDown, or page images straight to the vision model |
 | Hosting | Docker Compose on a Mac mini behind a Cloudflare Tunnel ([docs/HOSTING.md](docs/HOSTING.md)) |
 
 Cost on OpenRouter: about $0.30 to ingest the 48-document sample corpus (≈180 pages)
@@ -101,9 +102,10 @@ them all. The important ones:
 |---|---|---|
 | `LLM_PROVIDER` | `openrouter` | `openrouter` or `ollama` |
 | `OPENROUTER_API_KEY` | | Give the demo its own key with a credit limit |
-| `CHAT_MODEL` / `OCR_MODEL` | `google/gemini-3.1-flash-lite` | Answers and catalogue / page transcription |
+| `CHAT_MODEL` / `OCR_MODEL` | `qwen/qwen3-vl-30b-a3b-instruct` | Answers and catalogue / Marker's LLM mode and the vision extractor |
+| `DEFAULT_TEXT_EXTRACTOR` | `marker` where installed | `marker`, `vision`, `docling` or `markitdown` |
 | `EMBEDDING_MODEL` | `baai/bge-m3` | 1024-dim, multilingual; changing it requires `manage.py reindex --all` |
-| `RERANKER_MODEL` | `voyageai/rerank-2.5-lite` | Empty disables reranking |
+| `RERANKER_MODEL` | `qwen/qwen3-reranker-8b` | Empty disables reranking |
 | `DEMO_MODE` | `0` | Guest accounts plus per-visitor limits (`DEMO_DAILY_MESSAGES`, `DEMO_DAILY_UPLOADS`, ...) |
 | `ALLOWED_EMAIL_DOMAINS` | | Restrict registration, e.g. `g.msuiit.edu.ph` |
 

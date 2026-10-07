@@ -5,9 +5,11 @@ Every extractor returns a list of pages. They're joined with invisible
 from (citations like "p. 3") whichever extractor produced the text, and the
 markers don't show when the Markdown is rendered or edited.
 
-- vision     page images -> OCR_MODEL through OpenRouter (default for the demo;
-             reads scans with no text layer and ignores watermarks)
-- marker     local OCR models (needs the local-ocr image)
+- marker     Marker 2: Surya OCR 2 (an open vision-language OCR model served by
+             llama.cpp or vLLM) reads every page; with MARKER_USE_LLM its LLM
+             processors send tables, forms and handwriting to OCR_MODEL
+             (default when installed; needs the local-ocr image)
+- vision     page images -> OCR_MODEL through OpenRouter (no local models needed)
 - docling    local layout + OCR models (needs the local-ocr image)
 - markitdown local, text layer only: fast, but empty for scanned pages
 """
@@ -44,8 +46,8 @@ OCR_PROMPT = """You are transcribing one page of a scanned university administra
 Transcribe all of the page's content into clean Markdown, in reading order.
 - Copy the wording exactly. Fix only obvious scanning noise in characters; never paraphrase, summarize or add anything.
 - Ignore watermarks and stamps that are not part of the content, such as a diagonal "UNOFFICIAL COPY".
-- Skip repeated letterhead contact details (street addresses, telephone and fax numbers, websites), but keep the issuing office's name.
-- Keep names, numbers, dates and reference codes (e.g. "Special Order No. 01592-IIT, Series of 2023") exactly as printed.
+- Skip repeated letterhead contact details (street addresses, telephone and fax numbers, websites), but keep the issuing office's name and the date of issue.
+- Keep names, numbers, dates and reference codes (e.g. "Special Order No. 01592-IIT, Series of 2023") exactly as printed. Copy unusual surnames letter by letter; never shorten them.
 - Use "##" for the document title or subject line, Markdown lists for enumerations and Markdown tables for tables.
 - Write [illegible] for words you can't read and [signature] for signatures.
 - If the page is blank, output exactly: [blank page]
@@ -150,6 +152,31 @@ def _require(module: str, extractor: str):
         ) from e
 
 
+def marker_llm_options() -> dict:
+    """Marker's LLM mode, pointed at OCR_MODEL through whichever provider is configured.
+
+    Marker's own OCR reads every page; its LLM processors then send the regions it
+    finds hard (tables, forms, handwriting, section headers) to the vision model.
+    """
+    if not settings.MARKER_USE_LLM or not settings.OCR_MODEL:
+        return {"use_llm": False}
+    if llm.is_openrouter():
+        return {
+            "use_llm": True,
+            "llm_service": "marker.services.openrouter.OpenRouterService",
+            "openrouter_base_url": settings.OPENROUTER_BASE_URL,
+            "openrouter_api_key": settings.OPENROUTER_API_KEY,
+            "openrouter_model": settings.OCR_MODEL,
+            "openrouter_image_format": "png",
+        }
+    return {
+        "use_llm": True,
+        "llm_service": "marker.services.ollama.OllamaService",
+        "ollama_base_url": settings.OLLAMA_BASE_URL,
+        "ollama_model": settings.OCR_MODEL,
+    }
+
+
 @lru_cache(maxsize=1)
 def _marker_converter():
     _require("marker", "marker")
@@ -160,17 +187,19 @@ def _marker_converter():
     config = ConfigParser({
         "output_format": "markdown",
         "disable_image_extraction": True,
+        # Re-OCR every page: the repositories' embedded text layers are often poor scans' OCR
         "force_ocr": True,
         "strip_existing_ocr": True,
         "paginate_output": True,
         "format_lines": True,
-        "use_llm": False,
+        **marker_llm_options(),
     })
     return PdfConverter(
         config=config.generate_config_dict(),
         artifact_dict=create_model_dict(),
         processor_list=config.get_processors(),
         renderer=config.get_renderer(),
+        llm_service=config.get_llm_service(),
     )
 
 
@@ -181,7 +210,14 @@ _MARKER_PAGE_RE = re.compile(r"\n*\{(\d+)\}-{48}\n*")
 def _extract_marker(pdf_path: Path, on_progress: Optional[ProgressCallback]) -> list[Page]:
     from marker.output import text_from_rendered
 
-    text, _, _ = text_from_rendered(_marker_converter()(str(pdf_path)))
+    total = storage.page_count(pdf_path)
+    if on_progress:
+        on_progress(0, total)  # marker doesn't report per page; show the size of the job
+    # Marker and docling call PDFium themselves; it isn't thread-safe (the worker runs threads)
+    with storage.pdfium_lock():
+        text, _, _ = text_from_rendered(_marker_converter()(str(pdf_path)))
+    if on_progress:
+        on_progress(total, total)
     parts = _MARKER_PAGE_RE.split(text)
     # split() yields [before, page0, text0, page1, text1, ...]
     pages = [Page(int(parts[i]) + 1, parts[i + 1]) for i in range(1, len(parts) - 1, 2)]
@@ -197,7 +233,8 @@ def _docling_converter():
 
 
 def _extract_docling(pdf_path: Path, on_progress: Optional[ProgressCallback]) -> list[Page]:
-    document = _docling_converter().convert(str(pdf_path)).document
+    with storage.pdfium_lock():
+        document = _docling_converter().convert(str(pdf_path)).document
     return [Page(n, document.export_to_markdown(page_no=n)) for n in range(1, document.num_pages() + 1)]
 
 

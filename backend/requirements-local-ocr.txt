@@ -3,6 +3,6 @@
 #
 # Never add the PyPI package "marker": it's an unrelated tool that installs into the
 # same `marker/` package as marker-pdf and breaks `from marker.converters...`.
-marker-pdf[full]>=2.0,<3.0
-docling>=2.0,<3.0
-markitdown[pdf]>=0.1,<0.2
+marker-pdf[full]>=2.0.0,<3.0     # OCR runs Surya OCR 2 through llama.cpp/vLLM (see docker-compose.prod.yml)
+docling>=2.134,<3.0
+markitdown[pdf]>=0.1.8,<0.2

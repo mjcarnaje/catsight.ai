@@ -3,8 +3,9 @@
 CATSight.AI runs as a public demo on a Mac mini, alongside other self-hosted
 services, and is published at <https://catsight.mjcarnaje.com> through its own
 Cloudflare Tunnel. Everything runs in Docker (`docker-compose.prod.yml`): Postgres + pgvector, Redis, the Django API
-(gunicorn), the Celery worker, nginx serving the built frontend, and
-`cloudflared`.
+(gunicorn), the Celery worker (built with `LOCAL_OCR=1` for Marker), `ocr` (llama.cpp
+serving Surya OCR 2, the OCR model inside Marker 2, on the CPU), nginx serving the
+built frontend, and `cloudflared`.
 
 | | |
 |---|---|

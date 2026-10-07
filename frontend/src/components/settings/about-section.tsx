@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { SettingsSection } from "@/components/settings/section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/api";
+import { extractorLabel } from "@/components/documents/extractors";
 import { modelName } from "@/lib/format";
 import { useConfig } from "@/lib/queries";
 
@@ -51,8 +52,21 @@ export function AboutSection() {
             <Model id={config.models.chat} />
           </Row>
           <Row label="OCR">
-            <Model id={config.models.ocr} />
+            {config.extraction.default === "marker" ? (
+              <span>
+                Marker 2 <span className="text-muted-foreground">with Surya OCR 2</span>
+              </span>
+            ) : config.extraction.default === "vision" ? (
+              <Model id={config.models.ocr} />
+            ) : (
+              extractorLabel(config.extraction.default)
+            )}
           </Row>
+          {config.extraction.default === "marker" && config.extraction.marker_llm && (
+            <Row label="OCR LLM mode">
+              <Model id={config.models.ocr} />
+            </Row>
+          )}
           <Row label="Embeddings">
             <Model id={config.models.embedding} />
           </Row>

@@ -14,8 +14,17 @@ x-backend: &backend
     CELERY_BROKER: redis://redis:6379/0
     CELERY_BACKEND: redis://redis:6379/0
     CACHE_URL: redis://redis:6379/1
+    # Marker 2 (local-ocr image): its OCR model runs in the ocr service below; the
+    # text-detection model it keeps in-process downloads once into the models volume.
+    XDG_CACHE_HOME: /usr/src/app/.cache
+    HF_HOME: /usr/src/app/.cache/huggingface
+    TORCH_DEVICE: cpu
+    SURYA_INFERENCE_BACKEND: llamacpp
+    SURYA_INFERENCE_URL: http://ocr:8080/v1
+    SURYA_INFERENCE_PARALLEL: "2"
   volumes:
     - media:/usr/src/app/media
+    - models:/usr/src/app/.cache
   depends_on:
     db:
       condition: service_healthy
@@ -43,6 +52,8 @@ services:
     <<: *backend
     build:
       context: ./backend
+      args:
+        LOCAL_OCR: "1"  # torch (CPU) + marker, docling and markitdown
     entrypoint: ["./docker-entrypoint.sh"]
     command: ["gunicorn", "inteldocs.wsgi:application", "--bind", "0.0.0.0:8000", "--worker-class", "gthread",
               "--workers", "2", "--threads", "8", "--timeout", "180", "--access-logfile", "-"]
@@ -53,11 +64,29 @@ services:
     depends_on:
       backend:
         condition: service_started
+      ocr:
+        condition: service_started
     volumes:
       - media:/usr/src/app/media
+      - models:/usr/src/app/.cache
       # PDFs to add with `manage.py ingest /seed` (read-only; see docs/HOSTING.md)
       - ${SEED_DIR:-./seed}:/seed:ro
     command: ["celery", "-A", "inteldocs", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
+
+  # Surya OCR 2, the open vision-language OCR model inside Marker 2, served by llama.cpp
+  # on the CPU (on a GPU server, use a CUDA build of llama.cpp or vLLM instead). The
+  # flags match what Surya would pass if it started the server itself. ~1.5 GB, downloaded once.
+  ocr:
+    image: ghcr.io/ggml-org/llama.cpp:server-b11429
+    command: ["--hf-repo", "datalab-to/surya-ocr-2-gguf", "--hf-file", "surya-2.gguf",
+              "--mmproj-url", "https://huggingface.co/datalab-to/surya-ocr-2-gguf/resolve/main/surya-2-mmproj.gguf",
+              "--alias", "datalab-to/surya-ocr-2", "--jinja",
+              "--host", "0.0.0.0", "--port", "8080", "--parallel", "2", "--ctx-size", "24576"]
+    environment:
+      LLAMA_CACHE: /models
+    volumes:
+      - ocr-models:/models
+    restart: unless-stopped
 
   web:
     build:
@@ -85,5 +114,7 @@ services:
 
 volumes:
   pgdata:
-  # Mounted only by the backend image, so Docker creates it owned by the app user
+  # Mounted only by the backend image, so Docker creates them owned by the app user
   media:
+  models:
+  ocr-models:

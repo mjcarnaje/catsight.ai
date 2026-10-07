@@ -31,6 +31,11 @@ PREVIEW_WIDTH = 640
 _PDFIUM_LOCK = threading.RLock()
 
 
+def pdfium_lock() -> threading.RLock:
+    """The lock around every PDFium call, for extractors that use PDFium directly (marker, docling)."""
+    return _PDFIUM_LOCK
+
+
 class UploadRejected(ValueError):
     """The file can't be accepted; the message is shown to the user."""
 

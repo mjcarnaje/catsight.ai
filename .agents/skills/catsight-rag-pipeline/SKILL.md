@@ -1,6 +1,6 @@
 ---
 name: catsight-rag-pipeline
-description: How CATSight.AI turns an uploaded PDF into searchable, citable passages (vision OCR or local marker/docling, single-call cataloguing, chunking, bge-m3 + full-text indexing) and how hybrid retrieval and the chat agent use them. Use when touching backend/app/services/{extraction,summarization,indexing,search,agent,llm}.py or backend/app/tasks/tasks.py, debugging bad or empty extracted text, wrong titles/years/tags, missing or irrelevant search results, citation numbering, or provider/model configuration (OpenRouter vs Ollama).
+description: How CATSight.AI turns an uploaded PDF into searchable, citable passages (Marker 2 with Surya OCR 2 and Qwen3-VL LLM mode, or vision/docling/markitdown, single-call cataloguing, chunking, bge-m3 + full-text indexing) and how hybrid retrieval and the chat agent use them. Use when touching backend/app/services/{extraction,summarization,indexing,search,agent,llm}.py or backend/app/tasks/tasks.py, debugging bad or empty extracted text, wrong titles/years/tags, missing or irrelevant search results, citation numbering, or provider/model configuration (OpenRouter vs Ollama).
 ---
 
 # CATSight.AI RAG pipeline
@@ -29,9 +29,16 @@ resumes there. `reprocess(doc, stage)` restarts from any stage (editing the text
 restarts at `summarizing`; changing the extractor at `extracting`).
 
 1. **Extracting** — `extraction.extract(path, extractor)` returns `Page`s.
-   - `vision` (default with OpenRouter): each page rendered with pypdfium2 at 150 DPI
-     (max 2400 px) and transcribed by `OCR_MODEL` with `OCR_PROMPT`, 4 pages at a
-     time. It ignores the "UNOFFICIAL COPY" watermark and letterhead contact lines.
+   - `marker` (default wherever installed; production builds `LOCAL_OCR=1`): Marker 2
+     re-OCRs every page with Surya OCR 2, an open vision-language model served by the
+     `ocr` llama.cpp service (`SURYA_INFERENCE_URL`). With `MARKER_USE_LLM` its LLM
+     processors send tables, forms and handwriting to `OCR_MODEL`
+     (`marker_llm_options()`: OpenRouter, or Ollama with a local vision model).
+     Marker and docling run under `storage.pdfium_lock()` (PDFium isn't thread-safe).
+   - `vision`: each page rendered with pypdfium2 at 150 DPI (max 2400 px) and
+     transcribed by `OCR_MODEL` with `OCR_PROMPT`, 4 pages at a time. It ignores the
+     "UNOFFICIAL COPY" watermark; it can shorten unusual surnames, which Marker's
+     character-level OCR doesn't.
    - `marker` / `docling` / `markitdown` need an image built with `LOCAL_OCR=1`.
      `markitdown` only reads a text layer: empty for scans (the step then fails
      with a hint instead of storing nothing).

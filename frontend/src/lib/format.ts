@@ -39,12 +39,15 @@ export function plural(count: number, one: string, many = `${one}s`) {
   return `${count.toLocaleString()} ${count === 1 ? one : many}`;
 }
 
-/** "google/gemini-3.1-flash-lite" -> "Gemini 3.1 Flash Lite" */
+/** "qwen/qwen3-vl-30b-a3b-instruct" -> "Qwen3 VL 30B A3B Instruct", "baai/bge-m3" -> "BGE-M3" */
 export function modelName(id: string) {
   const name = id.split("/").pop() ?? id;
   return name
     .split(/[-:]/)
-    .map((part) => (/^\d/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .map((part) => {
+      if (/^a?\d+(\.\d+)?[bm]$/i.test(part) || /^vl$/i.test(part)) return part.toUpperCase(); // 30b, a3b, vl
+      return /^\d/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1);
+    })
     .join(" ")
     .replace(/^Bge /, "BGE-")
     .replace(/^Gpt /, "GPT-");
