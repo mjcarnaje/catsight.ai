@@ -54,7 +54,8 @@ def _extract(document: Document) -> None:
 
 
 def _summarize(document: Document) -> None:
-    analysis = summarization.analyze(document.fulltext.text, document.summarization_model or settings.CHAT_MODEL)
+    # Always the current CHAT_MODEL; the field only records which model wrote the catalogue
+    analysis = summarization.analyze(document.fulltext.text, settings.CHAT_MODEL)
     with transaction.atomic():
         document.title = analysis["title"]
         document.summary = analysis["summary"]
@@ -62,7 +63,7 @@ def _summarize(document: Document) -> None:
         document.issued_on = analysis["issued_on"]
         document.year = analysis["year"]
         document.questions = analysis["questions"]
-        document.summarization_model = document.summarization_model or settings.CHAT_MODEL
+        document.summarization_model = settings.CHAT_MODEL
         document.save(update_fields=[
             "title", "summary", "reference_number", "issued_on", "year", "questions", "summarization_model", "updated_at",
         ])
