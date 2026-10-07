@@ -31,6 +31,9 @@ services:
       - 7869:11434
     environment:
       - OLLAMA_KEEP_ALIVE=24h
+      # Chat model + one more (embeddings or the title model). A third resident
+      # model doesn't fit next to the app in Docker Desktop's default ~8 GB.
+      - OLLAMA_MAX_LOADED_MODELS=2
       - OLLAMA_DEBUG=1
     networks:
       - app-network
@@ -46,7 +49,7 @@ services:
       - POSTGRES_PORT=5432
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
-      - OLLAMA_URL=http://host.docker.internal:7869
+      - OLLAMA_BASE_URL=http://ollama:11434
       - GOOGLE_OAUTH_CLIENT_ID=***REMOVED-GOOGLE-CLIENT-ID***
       - GOOGLE_OAUTH_CLIENT_SECRET=***REMOVED-GOOGLE-CLIENT-SECRET***
       - GOOGLE_REDIRECT_URI=https://catsightai.ngrok.app/login
@@ -73,7 +76,7 @@ services:
     environment:
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
-      - OLLAMA_URL=http://host.docker.internal:7869
+      - OLLAMA_BASE_URL=http://ollama:11434
       - TORCH_DEVICE=cpu
 
     depends_on:
@@ -121,7 +124,7 @@ services:
       - POSTGRES_DB=app_db
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
-      - OLLAMA_URL=http://host.docker.internal:7869
+      - OLLAMA_BASE_URL=http://ollama:11434
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       - db

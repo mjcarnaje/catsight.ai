@@ -39,8 +39,8 @@ class User(AbstractUser):
     is_onboarded        = models.BooleanField(default=False, help_text="Whether the user has completed the onboarding process")
     is_dev_mode         = models.BooleanField(default=False, help_text="Whether the user is in dev mode")
     default_markdown_converter   = models.CharField(max_length=255, default="marker", help_text="The default converter to use for documents")
-    default_summarization_model   = models.CharField(max_length=255, default="llama3.1:8b", help_text="The default summarization model to use for documents")
-    default_chat_model   = models.CharField(max_length=255, default="llama3.1:8b", help_text="The default chat model to use for documents")
+    default_summarization_model   = models.CharField(max_length=255, default="qwen3:4b-instruct-2507-q4_K_M", help_text="The default summarization model to use for documents")
+    default_chat_model   = models.CharField(max_length=255, default="qwen3:4b-instruct-2507-q4_K_M", help_text="The default chat model to use for documents")
     
     USERNAME_FIELD  = 'email'
     REQUIRED_FIELDS = ['username']

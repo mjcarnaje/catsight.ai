@@ -32,13 +32,10 @@ done
 # 2. Pull Ollama LLM models
 # ──────────────────────────────────────────────────────────
 echo "🤖  Pulling Ollama models..."
-docker compose $COMPOSE_FILES exec ollama ollama pull llama3.1:8b
-docker compose $COMPOSE_FILES exec ollama ollama pull llama3.2:1b
-docker compose $COMPOSE_FILES exec ollama ollama pull qwen3:1.7b
-docker compose $COMPOSE_FILES exec ollama ollama pull bge-m3:latest
-docker compose $COMPOSE_FILES exec ollama ollama pull qwen2.5:7b-instruct-q4_K_M
-docker compose $COMPOSE_FILES exec ollama ollama pull llama3.1:8b-text-fp16
-docker compose $COMPOSE_FILES exec ollama ollama pull mxbai-embed-large
+# Keep in sync with CHAT_MODEL / FAST_MODEL / EMBEDDING_MODEL in backend/inteldocs/settings.py
+docker compose $COMPOSE_FILES exec ollama ollama pull qwen3:4b-instruct-2507-q4_K_M  # chat answers + summaries (~2.5 GB)
+docker compose $COMPOSE_FILES exec ollama ollama pull qwen3:1.7b  # chat titles, quick checks (~1.4 GB)
+docker compose $COMPOSE_FILES exec ollama ollama pull bge-m3      # embeddings for search (~1.2 GB)
 
 # # ──────────────────────────────────────────────────────────
 # # 3. Download Docling models

@@ -1,30 +1,16 @@
 [
   {
-    "code": "llama3.1:8b",
-    "name": "Llama 3.1 8B",
-    "description": "Meta's Llama 3.1 8B is a compact yet powerful language model designed for efficiency and high performance. With support for eight languages and a 128K token context window, it excels in multilingual tasks and long-form content generation. Its architecture incorporates Grouped-Query Attention (GQA) for efficient handling of extended contexts, making it ideal for applications requiring deep reasoning and contextual understanding.",
-    "logo": "https://avatars.githubusercontent.com/u/69631?s=200&v=4",
-    "instruct": false
-  },
-  {
-    "code": "qwen3:1.7b",
-    "name": "Qwen 3 1.7B",
-    "description": "Alibaba's Qwen 3 1.7B is a lightweight yet capable language model that offers enhanced reasoning, instruction-following, and multilingual support. Built upon extensive training, it delivers significant advancements in agent capabilities and content generation, making it suitable for a wide range of applications, including coding, math, and general-purpose tasks.",
-    "logo": "https://avatars.githubusercontent.com/u/141221163?s=200&v=4",
-    "instruct": false
-  },
-  {
-    "code": "qwen2.5:7b-instruct-q4_K_M",
-    "name": "Qwen 2.5 7B Instruct",
-    "description": "The instruction-tuned Qwen 2.5 7B model is optimized for following directions and completing specific tasks. Utilizing the Q4_K_M quantization technique, it maintains high performance while reducing resource requirements. This model excels at structured responses, creative content generation, and detailed explanations across multiple domains, making it ideal for resource-constrained environments.",
+    "code": "qwen3:4b-instruct-2507-q4_K_M",
+    "name": "Qwen 3 4B Instruct",
+    "description": "Alibaba's Qwen 3 4B Instruct (July 2025) is the default model for chat and document summaries. It answers directly instead of reasoning at length first, calls tools reliably for its size, handles English and Filipino well, and runs comfortably on a CPU-only machine.",
     "logo": "https://avatars.githubusercontent.com/u/141221163?s=200&v=4",
     "instruct": true
   },
   {
-    "code": "llama3.1:8b-text-fp16",
-    "name": "Llama 3.1 8B Text FP16",
-    "description": "Llama 3.1 8B Text FP16 combines the strengths of Meta's Llama 3.1 architecture with FP16 precision, offering a balance between context length and model size. With a 128K token context window and multilingual support, it is suitable for a wide range of applications requiring both breadth and depth of knowledge, including long-form text summarization, multilingual conversational agents, and coding assistants.",
-    "logo": "https://avatars.githubusercontent.com/u/69631?s=200&v=4",
-    "instruct": false
+    "code": "qwen3:1.7b",
+    "name": "Qwen 3 1.7B",
+    "description": "Alibaba's Qwen 3 1.7B is a lightweight model for quick answers on slower machines. It is faster than Qwen 3 4B Instruct but gives shorter, less thorough answers and summaries. CATSight also uses it for short background jobs such as naming chats.",
+    "logo": "https://avatars.githubusercontent.com/u/141221163?s=200&v=4",
+    "instruct": true
   }
 ]

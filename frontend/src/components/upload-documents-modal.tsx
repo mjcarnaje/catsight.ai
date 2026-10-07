@@ -91,7 +91,7 @@ export function UploadDocumentsModal({
   useEffect(() => {
     if (Array.isArray(llmModels) && llmModels.length > 0) {
       const _selectedModel =
-        llmModels?.find((model) => model.code === "llama3.1:8b") ||
+        llmModels?.find((model) => model.code === "qwen3:4b-instruct-2507-q4_K_M") ||
         llmModels?.[0];
 
       setSelectedModel({

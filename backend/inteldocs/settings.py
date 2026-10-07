@@ -183,6 +183,20 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=False
+
+# --- Ollama / LLMs -----------------------------------------------------------
+# Single source of truth for the Ollama endpoint and model tags. pull-llms.sh
+# pulls these same tags; app/constant/llm.json lists what users can pick.
+OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://ollama:11434')
+# Pinned tag: the bare `qwen3:4b` alias now points to the thinking-only release,
+# which reasons for minutes per reply on CPU.
+CHAT_MODEL = os.getenv('CHAT_MODEL', 'qwen3:4b-instruct-2507-q4_K_M')  # chat + summaries
+FAST_MODEL = os.getenv('FAST_MODEL', 'qwen3:1.7b')      # short jobs: chat titles
+EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'bge-m3')  # 1024-dim, multilingual
+# Context window requested from Ollama; its default (2-4k) silently truncates
+# long summarization prompts.
+OLLAMA_NUM_CTX = int(os.getenv('OLLAMA_NUM_CTX', '8192'))
+
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = []
