@@ -16,6 +16,9 @@ from app.services.extraction import Page, join_pages
 from app.views import chat as chat_views
 
 
+BOUND: list = []  # tool_choice of every bind_tools call, newest last
+
+
 class ScriptedModel(BaseChatModel):
     """Replies with the next scripted message, whatever it's asked."""
 
@@ -26,6 +29,7 @@ class ScriptedModel(BaseChatModel):
         return "scripted"
 
     def bind_tools(self, tools, **kwargs):
+        BOUND.append(kwargs.get("tool_choice"))
         return self
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
@@ -191,3 +195,35 @@ def test_failures_after_the_model_answered_still_count(api, guest, library, scri
     stream = events(ask(api(guest), question="Who directs MICeL?"))
     assert "error" in [name for name, _ in stream]
     assert UsageEvent.objects.filter(user=guest, kind="message").count() == 1
+
+
+def test_needs_search_skips_only_greetings_and_questions_about_the_assistant():
+    for text in ["hi", "Thank you!", "salamat po", "What can you do?", "who are you"]:
+        assert not agent.needs_search(text), text
+    for text in ["What teaching load reduction comes with that position?", "thanks, but who signed it?",
+                 "Sino ang OIC ng MSU-LNAC?", "travel order Zamboanga 2022"]:
+        assert agent.needs_search(text), text
+
+
+@chat_db
+def test_every_question_starts_with_a_forced_search(api, admin, library, script):
+    BOUND.clear()
+    script += [search_call("MICeL Director"), AIMessage("Prof. A [1]."), AIMessage("MICeL Director")]
+    events(ask(api(admin), question="Who is the MICeL Director?"))
+    assert BOUND[0] == "search_documents"  # first step: must search
+    assert BOUND[1] is None  # after the search: free to answer
+
+
+@chat_db
+def test_a_short_scoped_document_is_read_whole(api, admin, script):
+    document = Document.objects.create(title="Grants-in-Aid", year=2003, uploaded_by=admin, status=DocumentStatus.READY.value, file="y.pdf")
+    filler = "The committee reviewed the grants for each college and the buying power of the peso. " * 12
+    pages = [Page(1, f"Rationale. The current maximum stipend is PhP 800. {filler}"),
+             Page(2, f"## Proposed rates\n\n| GPA | Stipend |\n|---|---|\n| 1.000 | 1200.00 |\n\n{filler}")]
+    indexing.index_document(document, join_pages(pages))
+    script += [search_call("new maximum stipend"), AIMessage("PhP 1,200 [1]."), AIMessage("Stipend")]
+    sources = next(d for e, d in events(ask(api(admin), question="What is the new maximum stipend?", document_ids=[document.id])) if e == "sources")
+    passages = sources["sources"][0]["passages"]
+    stored = list(document.chunks.order_by("index").values_list("id", flat=True))
+    assert [p["chunk_id"] for p in passages] == stored  # every passage, in reading order
+    assert {p["page"] for p in passages} == {1, 2}

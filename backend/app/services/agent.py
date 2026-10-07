@@ -12,6 +12,7 @@ document in the UI.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import date
 from functools import lru_cache
@@ -30,12 +31,15 @@ from psycopg_pool import ConnectionPool
 from typing_extensions import TypedDict
 
 from ..constant.prompts import AGENT_PROMPT, AGENT_SCOPE_PROMPT, TITLE_PROMPT
-from ..models import Document, User
+from ..models import Document, DocumentChunk, User
 from . import llm, search
 
 logger = logging.getLogger(__name__)
 
 RETRIEVE_K = 6  # passages per search
+# A chat limited to one document this short reads it whole instead of searching it:
+# a search can miss the passage that answers (a table of rates worded unlike the question)
+FULL_DOCUMENT_CHARS = 60_000
 MAX_SEARCHES_PER_TURN = 3
 HISTORY_MESSAGES = 12  # earlier questions + answers kept in the model's context
 ANSWER_TEMPERATURE = 0.2
@@ -125,7 +129,12 @@ def search_documents(
     """
     try:
         user = User.objects.get(pk=config["configurable"]["user_id"])
-        hits = search.search(query, user, k=RETRIEVE_K, document_ids=state.get("document_ids") or None)
+        scope = state.get("document_ids") or None
+        hits = _whole_document(user, scope) if scope and len(scope) == 1 else None
+        if hits is None:
+            # Within a chosen scope, don't cap a document at the usual three passages
+            per_document = RETRIEVE_K if scope else search.MAX_PER_DOCUMENT
+            hits = search.search(query, user, k=RETRIEVE_K, document_ids=scope, per_document=per_document)
 
         earlier = merge_sources([m for m in current_turn(state["messages"]) if isinstance(m, ToolMessage)])
         numbers = {s["id"]: s["n"] for s in earlier}
@@ -154,6 +163,15 @@ def search_documents(
     return _format_for_model(ordered), ordered
 
 
+def _whole_document(user: User, document_ids: list[int]) -> list[search.Hit] | None:
+    """Every passage of the one scoped document, in reading order, if it's short enough."""
+    documents = search.searchable_documents(user, document_ids)
+    chunks = list(DocumentChunk.objects.filter(document__in=documents).select_related("document").order_by("index"))
+    if not chunks or sum(len(c.text) for c in chunks) > FULL_DOCUMENT_CHARS:
+        return None
+    return [search.Hit(chunk) for chunk in chunks]
+
+
 # --- Nodes ---------------------------------------------------------------------------------
 def _model_context(messages: list[AnyMessage]) -> list[AnyMessage]:
     """Earlier questions and final answers, plus everything in the current turn.
@@ -178,10 +196,25 @@ def _scope_prompt(document_ids: list[int]) -> str:
     return AGENT_SCOPE_PROMPT.format(documents="\n".join(f"  - {t or f}" for t, f in titles))
 
 
+_GREETING_RE = re.compile(r"^(hi|hello|hey|good (morning|afternoon|evening)|thanks|thank you|salamat|ok|okay)\b")
+_ABOUT_ME_RE = re.compile(r"^(who are you|what can you do|what do you do)\b")
+
+
+def needs_search(question: str) -> bool:
+    """Everything but a short greeting, thanks or question about the assistant itself."""
+    text = question.strip().lower()
+    if len(text.split()) > 6:
+        return True
+    if _ABOUT_ME_RE.match(text):
+        return False
+    return "?" in text or not _GREETING_RE.match(text)
+
+
 def assistant(state: State, config: RunnableConfig) -> dict:
     configurable = config.get("configurable", {})
     turn = current_turn(state["messages"])
     searches = sum(len(m.tool_calls) for m in turn if isinstance(m, AIMessage))
+    question = next((text_of(m) for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
 
     model = llm.get_chat_model(
         configurable.get("model") or settings.CHAT_MODEL,
@@ -189,7 +222,10 @@ def assistant(state: State, config: RunnableConfig) -> dict:
         max_tokens=ANSWER_MAX_TOKENS,
     )
     if searches < MAX_SEARCHES_PER_TURN:
-        model = model.bind_tools([search_documents])
+        # The first step of a question must search: left to choose, models answer
+        # follow-ups from the conversation, where earlier passages are no longer shown
+        force = searches == 0 and needs_search(question)
+        model = model.bind_tools([search_documents], tool_choice="search_documents" if force else None)
 
     system = SystemMessage(AGENT_PROMPT.format(
         scope=_scope_prompt(state.get("document_ids") or []),

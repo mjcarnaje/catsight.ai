@@ -176,8 +176,9 @@ def search(
     document_ids: Optional[list[int]] = None,
     years: Optional[list[int]] = None,
     tag_ids: Optional[list[int]] = None,
+    per_document: int = MAX_PER_DOCUMENT,
 ) -> list[Hit]:
-    """The k most relevant passages for `query` that `user` may read."""
+    """The k most relevant passages for `query` that `user` may read, at most `per_document` from one document."""
     query = query.strip()
     if not query:
         return []
@@ -202,12 +203,12 @@ def search(
     ]
     hits = _rerank(query, hits)
 
-    per_document: dict[int, int] = defaultdict(int)
+    taken: dict[int, int] = defaultdict(int)
     results = []
     for hit in hits:
-        if per_document[hit.chunk.document_id] >= MAX_PER_DOCUMENT:
+        if taken[hit.chunk.document_id] >= per_document:
             continue
-        per_document[hit.chunk.document_id] += 1
+        taken[hit.chunk.document_id] += 1
         results.append(hit)
         if len(results) == k:
             break
