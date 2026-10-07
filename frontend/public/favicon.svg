@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>CATSight.AI</title>
+  <defs>
+    <radialGradient id="t-bg" cx="32" cy="20" r="46" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2A1216"/>
+      <stop offset="1" stop-color="#0E0708"/>
+    </radialGradient>
+    <radialGradient id="t-glow" cx="32" cy="36" r="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F9B91F" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#F9B91F" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="t-edge" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.04"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#t-bg)"/>
+  <rect width="64" height="64" rx="15" fill="url(#t-glow)"/>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="14.25" stroke="url(#t-edge)" stroke-width="1.5"/>
+  <svg x="8" y="7" width="48" height="48" viewBox="0 0 64 64">
+    <defs>
+      <linearGradient id="cs-grad" x1="9" y1="5" x2="55" y2="58" gradientUnits="userSpaceOnUse">
+        <stop stop-color="#C8193A"/>
+        <stop offset="0.5" stop-color="#EA5130"/>
+        <stop offset="1" stop-color="#FCC93A"/>
+      </linearGradient>
+      <mask id="cs-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+        <path d="M13.2 5.2 26.5 16.5Q32 15.2 37.5 16.5L50.8 5.2 53.6 24 56 34 45 51.5 32 57.5 19 51.5 8 34 10.4 24Z" fill="#fff" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M15.8 31.6C19 27.6 25.8 28.4 28.8 34.6 24.6 37.6 18.4 37 15.8 31.6Z" fill="#000"/>
+        <path d="M22.6 28.6C24.3 31.3 24.3 34.7 22.6 37.4 20.9 34.7 20.9 31.3 22.6 28.6Z" fill="#fff"/>
+        <path d="M41.5 24.6C42.3 30.3 43.5 31.6 49.2 32.6 43.5 33.6 42.3 34.9 41.5 40.6 40.7 34.9 39.5 33.6 33.8 32.6 39.5 31.6 40.7 30.3 41.5 24.6Z" fill="#000"/>
+        <path d="M29.8 42.4H34.2L32 45.2Z" fill="#000" stroke="#000" stroke-width="1.4" stroke-linejoin="round"/>
+      </mask>
+    </defs>
+    <g mask="url(#cs-cut)">
+      <rect width="64" height="64" fill="url(#cs-grad)"/>
+      <path d="M0 0H32V42L8 22Z" fill="#fff" fill-opacity="0.16"/>
+      <path d="M8 22 32 42V60L16 54 4 34Z" fill="#fff" fill-opacity="0.07"/>
+      <path d="M60 22 32 42V60L48 54 60 34Z" fill="#000" fill-opacity="0.12"/>
+      <path d="M14.6 9.4 23.2 16.4 12.6 20.8ZM49.4 9.4 40.8 16.4 51.4 20.8Z" fill="#000" fill-opacity="0.18"/>
+    </g>
+  </svg>
+</svg>

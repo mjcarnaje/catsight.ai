@@ -2,6 +2,7 @@
 
 import type React from "react";
 
+import { BrandLogo } from "@/components/brand/brand-logo";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -94,16 +95,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-sm shadow-lg sm:max-w-md lg:max-w-lg">
         <CardHeader className="pb-4 space-y-1 text-center">
           <CardTitle className="flex items-center justify-center">
-            <div className="flex items-center gap-2 transition-transform duration-75 hover:scale-[1.01]">
-              <img
-                src="/icon.png"
-                alt="CATSight.AI Logo"
-                className="w-auto h-7 sm:h-8"
-              />
-              <span className="text-lg font-bold text-transparent sm:text-xl bg-gradient-to-r from-primary to-accent bg-clip-text">
-                CATSight.AI
-              </span>
-            </div>
+            <BrandLogo size="md" />
           </CardTitle>
           <CardDescription className="text-sm">
             Sign up to access the document management system
