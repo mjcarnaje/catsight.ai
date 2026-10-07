@@ -3,9 +3,13 @@
 CATSight.AI runs as a public demo on a Mac mini, alongside other self-hosted
 services, and is published at <https://catsight.mjcarnaje.com> through its own
 Cloudflare Tunnel. Everything runs in Docker (`docker-compose.prod.yml`): Postgres + pgvector, Redis, the Django API
-(gunicorn), the Celery worker (built with `LOCAL_OCR=1` for Marker), `ocr` (llama.cpp
-serving Surya OCR 2, the OCR model inside Marker 2, on the CPU), nginx serving the
-built frontend, and `cloudflared`.
+(gunicorn), the Celery worker (built with `LOCAL_OCR=1` for Marker), nginx serving the
+built frontend, and `cloudflared`. Marker 2's OCR model, Surya OCR 2, runs outside Docker
+on the mini's GPU (Docker on macOS can't use it): `scripts/install-ocr-service.sh`
+installs llama.cpp and a `com.catsight.ocr` launch agent on 127.0.0.1:8791, and
+`.env.prod` points the containers at it with
+`SURYA_INFERENCE_URL=http://host.docker.internal:8791/v1`. Without it, start the CPU
+container instead (`--profile ocr-cpu`, about 2 minutes per page).
 
 | | |
 |---|---|

@@ -14,14 +14,18 @@ x-backend: &backend
     CELERY_BROKER: redis://redis:6379/0
     CELERY_BACKEND: redis://redis:6379/0
     CACHE_URL: redis://redis:6379/1
-    # Marker 2 (local-ocr image): its OCR model runs in the ocr service below; the
-    # text-detection model it keeps in-process downloads once into the models volume.
+    # Marker 2 (local-ocr image): its OCR model runs outside this image, on the host's
+    # GPU (scripts/install-ocr-service.sh; set SURYA_INFERENCE_URL in .env.prod) or in
+    # the ocr container below. The text-detection model Marker keeps in-process
+    # downloads once into the models volume.
     XDG_CACHE_HOME: /usr/src/app/.cache
     HF_HOME: /usr/src/app/.cache/huggingface
     TORCH_DEVICE: cpu
     SURYA_INFERENCE_BACKEND: llamacpp
-    SURYA_INFERENCE_URL: http://ocr:8080/v1
+    SURYA_INFERENCE_URL: ${SURYA_INFERENCE_URL:-http://ocr:8080/v1}
     SURYA_INFERENCE_PARALLEL: "2"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
   volumes:
     - media:/usr/src/app/media
     - models:/usr/src/app/.cache
@@ -64,8 +68,6 @@ services:
     depends_on:
       backend:
         condition: service_started
-      ocr:
-        condition: service_started
     volumes:
       - media:/usr/src/app/media
       - models:/usr/src/app/.cache
@@ -74,9 +76,12 @@ services:
     command: ["celery", "-A", "inteldocs", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
 
   # Surya OCR 2, the open vision-language OCR model inside Marker 2, served by llama.cpp
-  # on the CPU (on a GPU server, use a CUDA build of llama.cpp or vLLM instead). The
-  # flags match what Surya would pass if it started the server itself. ~1.5 GB, downloaded once.
+  # on the CPU: ~2 min per page. Enable with --profile ocr-cpu when the host can't serve
+  # it on a GPU (see scripts/install-ocr-service.sh; on a Linux GPU server use a CUDA
+  # build of llama.cpp or vLLM). The flags match what Surya would pass if it started
+  # the server itself. ~1.5 GB, downloaded once.
   ocr:
+    profiles: [ocr-cpu]
     image: ghcr.io/ggml-org/llama.cpp:server-b11429
     command: ["--hf-repo", "datalab-to/surya-ocr-2-gguf", "--hf-file", "surya-2.gguf",
               "--mmproj-url", "https://huggingface.co/datalab-to/surya-ocr-2-gguf/resolve/main/surya-2-mmproj.gguf",
