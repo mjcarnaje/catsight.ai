@@ -23,11 +23,13 @@ class OrganizationRefSerializer(serializers.ModelSerializer):
 
 
 class MembershipSerializer(serializers.ModelSerializer):
+    """A membership; its id is what /api/organization/members/<id>/ takes (e.g. to leave)."""
+
     organization = OrganizationRefSerializer(read_only=True)
 
     class Meta:
         model = Membership
-        fields = ["organization", "role"]
+        fields = ["id", "organization", "role"]
 
 
 class UserSerializer(serializers.ModelSerializer):

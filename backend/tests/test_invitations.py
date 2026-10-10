@@ -185,6 +185,7 @@ def test_accepting_joins_the_organization_once(api, admin, org):
     response = api(invitee).post(f"/api/invitations/{token}/accept/")
     assert response.status_code == 200
     assert response.json()["membership"] == {
+        "id": membership(invitee, org).id,
         "organization": {"id": org.id, "slug": "acme", "name": "Acme"},
         "role": "member",
     }

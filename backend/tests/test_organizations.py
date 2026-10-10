@@ -284,3 +284,22 @@ def test_create_organization_applies_a_preset_and_its_admin(admin):
     assert membership(admin, created).role == "admin"
     with pytest.raises(ValueError):
         organizations.create_organization("Nope", preset="unknown")
+
+
+@pytest.mark.django_db
+def test_uploads_are_off_when_no_extractor_can_run(api, admin, org, settings):
+    org.ai_provider, org.ai_api_key, org.ollama_allowed = "ollama", "", True
+    org.save()
+    # The development image has no local extractors, and Ollama can't do vision OCR here
+    config = api(admin).get("/api/config/").json()
+    assert config["organization"]["ai_configured"] is True
+    assert config["extractors"]["options"] == [] and config["uploads_enabled"] is False
+
+
+def test_ollama_failures_read_as_a_local_model_problem():
+    from ollama import ResponseError
+
+    from app.services.errors import describe_error
+
+    message = describe_error(ResponseError("llama-server process has terminated: signal: killed", 500))
+    assert "local model couldn't run" in message and "signal: killed" in message

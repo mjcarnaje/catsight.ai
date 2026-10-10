@@ -6,9 +6,20 @@ from .extraction import ExtractorUnavailable
 from .llm import AINotConfigured
 
 
+def _is_ollama_error(error: Exception) -> bool:
+    try:
+        from ollama import ResponseError
+    except ImportError:  # langchain-ollama brings it; without it there are no Ollama calls either
+        return False
+    return isinstance(error, ResponseError)
+
+
 def describe_error(error: Exception) -> str:
     if isinstance(error, (AINotConfigured, ExtractorUnavailable, ValueError)):
         return str(error)
+    if _is_ollama_error(error):
+        # Usually the model didn't fit in the server's memory (the runner was killed) or isn't pulled
+        return f"The server's local model couldn't run ({getattr(error, 'error', error)}). It may not fit in memory, or may not be pulled yet."[:500]
     if isinstance(error, openai.AuthenticationError):
         return "The AI provider rejected the API key. An organization admin can update it in Settings."
     if getattr(error, "status_code", None) == 402:

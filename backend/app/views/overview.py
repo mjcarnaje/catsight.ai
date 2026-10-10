@@ -51,11 +51,12 @@ def app_config(request):
         "guest_access": settings.GUEST_ACCESS,
         "allowed_email_domains": settings.ALLOWED_EMAIL_DOMAINS,
         # For this member: guests never, members when uploads are on, admins always,
-        # and only while the organization's provider works
+        # and only while the organization's provider works and can read PDFs here
         "uploads_enabled": bool(
             membership is not None
             and not membership.is_guest
             and cfg is not None
+            and extraction.available_extractors(cfg)  # e.g. Ollama without the local-OCR image reads nothing
             and (settings.UPLOADS_ENABLED or membership.is_admin)
         ),
         "organization": None,

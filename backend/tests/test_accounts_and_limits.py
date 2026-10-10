@@ -18,7 +18,10 @@ def test_guest_sign_in_creates_a_limited_account_in_the_demo_organization(api, o
     assert response.status_code == 201
     body = response.json()
     assert body["user"]["is_guest"] and body["tokens"]["access"]
-    assert body["user"]["memberships"] == [{"organization": {"id": org.id, "slug": "acme", "name": "Acme"}, "role": "guest"}]
+    joined = Membership.objects.get(user_id=body["user"]["id"])
+    assert body["user"]["memberships"] == [
+        {"id": joined.id, "organization": {"id": org.id, "slug": "acme", "name": "Acme"}, "role": "guest"}
+    ]
     assert not User.objects.get(pk=body["user"]["id"]).has_usable_password()
 
 
