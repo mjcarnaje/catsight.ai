@@ -114,7 +114,7 @@ function EditForm({ doc, onDone }: { doc: DocumentDetail; onDone: () => void }) 
       </Field>
 
       <Field id="edit-reference" label="Reference number" error={errors.reference_number?.message}>
-        <Input id="edit-reference" disabled={disabled} placeholder="Special Order No. 01592-IIT, s. 2023" {...register("reference_number")} />
+        <Input id="edit-reference" disabled={disabled} placeholder="e.g. Memo No. 2023-014" {...register("reference_number")} />
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">

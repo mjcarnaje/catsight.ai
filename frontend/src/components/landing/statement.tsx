@@ -11,7 +11,7 @@ const STEPS = [
   },
   {
     title: "Ask",
-    body: "Chat or search in English, Filipino or Cebuano. Answers stream in with the document and page they came from.",
+    body: "Chat or search in your own words. Answers stream in with the document and page they came from.",
   },
 ];
 
@@ -21,9 +21,9 @@ export function Statement() {
       <div className="mx-auto flex max-w-6xl flex-col gap-20">
         <Reveal>
           <p className="max-w-4xl text-pretty text-[1.75rem] font-medium leading-[1.2] tracking-[-0.03em] sm:text-[2.5rem]">
-            Built for the paperwork a university runs on.{" "}
+            Built for the paperwork an organization runs on.{" "}
             <span className="text-muted-foreground">
-              Memos, handbooks, guidelines and scanned forms become a knowledge base anyone on campus can
+              Memos, handbooks, guidelines and scanned forms become a knowledge base anyone in the organization can
               question — and check.
             </span>
           </p>

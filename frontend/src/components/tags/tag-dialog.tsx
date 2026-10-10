@@ -90,7 +90,7 @@ function TagForm({ tag, onDone }: { tag: Tag | null; onDone: () => void }) {
         <Input
           id="tag-name"
           autoComplete="off"
-          placeholder="e.g. Special Orders"
+          placeholder="e.g. Contracts"
           aria-invalid={Boolean(errors.name)}
           aria-describedby={errors.name ? "tag-name-error" : undefined}
           {...register("name")}
@@ -107,7 +107,7 @@ function TagForm({ tag, onDone }: { tag: Tag | null; onDone: () => void }) {
         <Textarea
           id="tag-description"
           rows={4}
-          placeholder="e.g. Orders that authorize travel, details or assignments of faculty and staff."
+          placeholder="e.g. Contracts and agreements with suppliers, vendors or partners."
           aria-describedby="tag-description-hint"
           {...register("description")}
         />

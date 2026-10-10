@@ -6,9 +6,10 @@
 /*
  * CATSight.AI brand tokens
  * ------------------------
- * Maroon (MSU-IIT) is the primary brand color, gold and tabby come from the
- * cat mascot. `accent` is deliberately a quiet neutral because shadcn uses it
- * for every hover/selected surface; use `gold` when you want the brand yellow.
+ * The brand is neutral: a warm near-black primary (Linear-style dark buttons)
+ * and grays for rings and charts. The cat mascot supplies the colour, gold and
+ * tabby. `accent` is deliberately a quiet neutral because shadcn uses it for
+ * every hover/selected surface; use `gold` when you want the brand yellow.
  */
 @layer base {
   :root {
@@ -19,7 +20,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 345 18% 11%;
 
-    --primary: 350 75% 35%; /* #9C162D maroon */
+    --primary: 30 8% 10%; /* warm near-black */
     --primary-foreground: 0 0% 99%;
 
     --secondary: 30 20% 95%;
@@ -36,7 +37,7 @@
 
     --border: 30 12% 90%;
     --input: 30 12% 87%;
-    --ring: 350 75% 45%;
+    --ring: 30 6% 45%;
 
     /* Mascot colors */
     --success: 152 55% 36%;
@@ -45,27 +46,27 @@
     --tabby: 22 62% 45%; /* #BA5C2C */
 
 
-    --chart-1: 350 75% 38%; /* maroon */
+    --chart-1: 30 8% 24%; /* warm charcoal */
     --chart-2: 43 96% 56%; /* gold */
     --chart-3: 22 62% 48%; /* tabby */
-    --chart-4: 350 55% 68%; /* rose */
+    --chart-4: 30 10% 62%; /* warm gray */
     --chart-5: 25 40% 28%; /* espresso */
 
     --radius: 0.75rem;
 
     --sidebar-background: 30 25% 98.5%;
     --sidebar-foreground: 345 12% 26%;
-    --sidebar-primary: 350 75% 35%;
+    --sidebar-primary: 30 8% 10%;
     --sidebar-primary-foreground: 0 0% 99%;
-    --sidebar-accent: 350 45% 95.5%;
-    --sidebar-accent-foreground: 350 70% 30%;
+    --sidebar-accent: 30 15% 94%;
+    --sidebar-accent-foreground: 30 8% 14%;
     --sidebar-border: 30 12% 91%;
-    --sidebar-ring: 350 75% 45%;
+    --sidebar-ring: 30 6% 45%;
   }
 
   .dark {
     color-scheme: dark;
-    /* Near-neutral warm black; the brand color lives in the logo and small accents. */
+    /* Near-neutral warm black; the mascot's gold and tabby are the only colour. */
     --background: 30 6% 4.5%;
     --foreground: 30 12% 95%;
     --card: 30 5% 7%;
@@ -98,16 +99,16 @@
     --gold-foreground: 30 45% 10%;
     --tabby: 22 70% 55%;
 
-    --chart-1: 350 70% 58%;
+    --chart-1: 30 10% 86%;
     --chart-2: 43 96% 62%;
     --chart-3: 22 70% 58%;
-    --chart-4: 350 55% 75%;
+    --chart-4: 30 8% 66%;
     --chart-5: 30 10% 70%;
 
     --sidebar-background: 30 5% 6%;
     --sidebar-foreground: 30 8% 80%;
-    --sidebar-primary: 350 70% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: 30 12% 95%;
+    --sidebar-primary-foreground: 30 6% 6%;
     --sidebar-accent: 30 5% 12%;
     --sidebar-accent-foreground: 30 12% 95%;
     --sidebar-border: 30 5% 13%;

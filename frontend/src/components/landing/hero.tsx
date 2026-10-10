@@ -14,7 +14,7 @@ export function Hero() {
 
         <Reveal delay={0.08} className="mt-8 flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
           <p className="max-w-md text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
-            <span className="text-foreground">CATSight.AI reads the PDFs, scans and memos your campus runs on.</span>{" "}
+            <span className="text-foreground">CATSight.AI reads the PDFs, scans and memos your organization runs on.</span>{" "}
             Ask in your own words and get an answer with the page it came from.
           </p>
           <PrimaryCta />

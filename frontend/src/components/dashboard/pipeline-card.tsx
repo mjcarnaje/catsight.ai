@@ -23,12 +23,12 @@ function stageDetail(stage: DocumentStatus, config?: AppConfig) {
       return "Waiting for a worker";
     case "extracting":
       if (config?.extraction.default === "marker") return "Marker (Surya OCR 2) reads each page";
-      if (config?.extraction.default === "vision") return `${modelName(config.models.ocr)} reads each page`;
+      if (config?.extraction.default === "vision" && config.models) return `${modelName(config.models.ocr)} reads each page`;
       return local ? "Local OCR, page by page" : "OCR, page by page";
     case "summarizing":
       return "Title, summary, reference no., tags";
     case "indexing":
-      return config ? `${modelName(config.models.embedding)} + full-text` : "Embeddings + full-text";
+      return config?.models ? `${modelName(config.models.embedding)} + full-text` : "Embeddings + full-text";
     case "ready":
       return "Searchable and citable";
   }

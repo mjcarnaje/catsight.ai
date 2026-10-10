@@ -3,7 +3,7 @@ import { CornerDownRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboard } from "@/lib/queries";
 
-const KEYWORD_EXAMPLES = ["Special Order 01592-2023", "travel order Zamboanga", "cash incentive poster presentation"];
+const KEYWORD_EXAMPLES = ["Contract 2023-114", "travel policy per diem", "board resolution budget"];
 
 function SectionLabel({ children }: { children: string }) {
   return <h2 className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{children}</h2>;

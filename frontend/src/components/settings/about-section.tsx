@@ -6,6 +6,13 @@ import { errorMessage } from "@/lib/api";
 import { extractorLabel } from "@/components/documents/extractors";
 import { modelName } from "@/lib/format";
 import { useConfig } from "@/lib/queries";
+import type { Provider } from "@/types";
+
+const PROVIDER_LABELS: Record<Provider, string> = {
+  openrouter: "OpenRouter",
+  openai: "OpenAI",
+  ollama: "Ollama (local)",
+};
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -47,32 +54,43 @@ export function AboutSection() {
         </p>
       ) : (
         <dl className="divide-y">
-          <Row label="Provider">{config.provider === "openrouter" ? "OpenRouter" : "Ollama (local)"}</Row>
-          <Row label="Answers">
-            <Model id={config.models.chat} />
+          {/* No working provider means no models (the API sends null): say so instead of listing them */}
+          <Row label="Provider">
+            {config.provider ? PROVIDER_LABELS[config.provider] : <span className="text-muted-foreground">No AI provider yet</span>}
           </Row>
+          {config.models && (
+            <Row label="Answers">
+              <Model id={config.models.chat} />
+            </Row>
+          )}
           <Row label="OCR">
             {config.extraction.default === "marker" ? (
               <span>
                 Marker 2 <span className="text-muted-foreground">with Surya OCR 2</span>
               </span>
-            ) : config.extraction.default === "vision" ? (
+            ) : config.extraction.default === "vision" && config.models ? (
               <Model id={config.models.ocr} />
-            ) : (
+            ) : config.extraction.default ? (
               extractorLabel(config.extraction.default)
+            ) : (
+              <span className="text-muted-foreground">None available</span>
             )}
           </Row>
-          {config.extraction.default === "marker" && config.extraction.marker_llm && (
+          {config.models && config.extraction.default === "marker" && config.extraction.marker_llm && (
             <Row label="OCR LLM mode">
               <Model id={config.models.ocr} />
             </Row>
           )}
-          <Row label="Embeddings">
-            <Model id={config.models.embedding} />
-          </Row>
-          <Row label="Reranker">
-            {config.models.reranker ? <Model id={config.models.reranker} /> : <span className="text-muted-foreground">Off</span>}
-          </Row>
+          {config.models && (
+            <Row label="Embeddings">
+              <Model id={config.models.embedding} />
+            </Row>
+          )}
+          {config.models && (
+            <Row label="Reranker">
+              {config.models.reranker ? <Model id={config.models.reranker} /> : <span className="text-muted-foreground">Off</span>}
+            </Row>
+          )}
           <Row label="Demo mode">
             {config.demo_mode ? "On" : <span className="text-muted-foreground">Off</span>}
           </Row>

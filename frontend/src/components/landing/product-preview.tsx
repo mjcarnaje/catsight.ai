@@ -26,31 +26,31 @@ const NAV = [
   { icon: MessageSquare, label: "Chat", active: true },
 ];
 
-const RECENT = ["Scholarship renewal", "Thesis format memo", "Library service hours"];
+const RECENT = ["Travel per diem", "Office lease renewal", "Board resolutions 2023"];
 
-const QUESTION = "What do I need to renew my scholarship next semester?";
+const QUESTION = "What per diem do we get for a day trip?";
 const ANSWER =
-  "To renew, keep the required GWA for the semester [1] and carry a regular academic load [1]. Then submit your certified grades to the Scholarship Office before the posted deadline [2].";
+  "Day trips are paid at the destination's per diem rate [1]. Claims go in with the approved travel order and original receipts within 30 days of return [2].";
 
 const SOURCES = [
   {
     n: 1,
-    title: "Scholarship Guidelines",
+    title: "Travel Policy",
     page: 3,
-    section: "Renewal of grants",
-    before: "Grantees who wish to continue must ",
-    match: "maintain the required GWA and enroll in a regular load",
-    after: " for every semester covered by the grant.",
+    section: "Per diem allowances",
+    before: "Day trips are paid the ",
+    match: "per diem rate set for the destination",
+    after: " in the annual schedule.",
     score: 0.88,
   },
   {
     n: 2,
-    title: "Student Handbook",
-    page: 41,
-    section: "Scholarship Office",
+    title: "Claims Procedure",
+    page: 2,
+    section: "Liquidation",
     before: "",
-    match: "Certified true copies of grades are submitted",
-    after: " to the Scholarship Office within the period announced each term.",
+    match: "Claims go in with the approved travel order and original receipts",
+    after: " within 30 days of return.",
     score: 0.79,
   },
 ];
@@ -128,7 +128,7 @@ export function ProductPreview({ className }: { className?: string }) {
         {/* chat */}
         <section className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-11 shrink-0 items-center gap-3 border-b px-4">
-            <span className="truncate text-[13px] font-medium">Scholarship renewal</span>
+            <span className="truncate text-[13px] font-medium">Travel per diem</span>
             <span className="ml-auto hidden rounded border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline">
               hybrid search · cited
             </span>

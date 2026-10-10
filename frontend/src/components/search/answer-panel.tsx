@@ -121,7 +121,7 @@ export function AnswerPanel({
         <h2 id="answer-heading" className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
           Answer
         </h2>
-        {config?.models.chat && (
+        {config?.models?.chat && (
           <span className="truncate font-mono text-[10px] text-muted-foreground/80">{modelName(config.models.chat)}</span>
         )}
       </div>

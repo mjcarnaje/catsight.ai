@@ -4,15 +4,18 @@ import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useConfig } from "@/lib/queries";
 import type { Dashboard } from "@/types";
 
 /** The dashboard's way into chat; suggestions come from the library itself. */
 export function AskBox({ questions, isLoading }: { questions?: Dashboard["questions"]; isLoading: boolean }) {
   const navigate = useNavigate();
+  const { data: config } = useConfig();
+  const noProvider = config?.organization?.ai_configured === false;
   const [text, setText] = useState("");
 
   const ask = (question: string) => {
-    if (question.trim()) navigate("/chat", { state: { prompt: question.trim(), send: true } });
+    if (!noProvider && question.trim()) navigate("/chat", { state: { prompt: question.trim(), send: true } });
   };
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -40,14 +43,15 @@ export function AskBox({ questions, isLoading }: { questions?: Dashboard["questi
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Ask about special orders, resolutions, designations, travel…"
-          className="block w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground"
+          disabled={noProvider}
+          placeholder={noProvider ? "Ask an admin to add an AI provider first." : "Ask about your documents: people, dates, decisions, amounts…"}
+          className="block w-full resize-none bg-transparent px-1 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
         />
         <div className="flex items-center justify-between gap-3 pt-1">
           <span className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground sm:inline-flex">
             <CornerDownLeft className="size-3" /> to ask · answers cite their pages
           </span>
-          <Button type="submit" size="icon" className="ml-auto size-8" disabled={!text.trim()} aria-label="Ask">
+          <Button type="submit" size="icon" className="ml-auto size-8" disabled={!text.trim() || noProvider} aria-label="Ask">
             <ArrowUp />
           </Button>
         </div>
@@ -66,7 +70,8 @@ export function AskBox({ questions, isLoading }: { questions?: Dashboard["questi
               key={question}
               type="button"
               onClick={() => ask(question)}
-              className="max-w-full truncate rounded-full border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/20 hover:bg-accent hover:text-foreground"
+              disabled={noProvider}
+              className="max-w-full truncate rounded-full border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/20 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
             >
               {question}
             </button>

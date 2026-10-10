@@ -14,7 +14,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-8 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <BrandLogo size="sm" />
-          <span className="text-xs text-muted-foreground">© {new Date().getFullYear()} · MSU-IIT</span>
+          <span className="text-xs text-muted-foreground">© {new Date().getFullYear()} · CATSight</span>
         </div>
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-muted-foreground">
           {LINKS.map((l) => (

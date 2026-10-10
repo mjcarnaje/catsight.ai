@@ -9,9 +9,10 @@ export function Privacy() {
   const facts = [
     {
       label: "Models",
-      value: config ? `${modelName(config.models.chat)} · ${modelName(config.models.embedding)}` : "—",
+      // Anonymous visitors get no models from the API: show a dash, not a crash
+      value: config?.models ? `${modelName(config.models.chat)} · ${modelName(config.models.embedding)}` : "—",
     },
-    { label: "Runtime", value: local ? "Ollama, on this server" : "OpenRouter, or Ollama when self-hosted" },
+    { label: "Runtime", value: local ? "Ollama, on this server" : "OpenRouter, OpenAI or Ollama when self-hosted" },
     { label: "Storage", value: "PostgreSQL + pgvector" },
   ];
 
@@ -32,11 +33,11 @@ export function Privacy() {
             <>
               <h3 className="text-3xl font-medium tracking-[-0.03em]">A public demo you can also run entirely on your own hardware.</h3>
               <p className="leading-relaxed text-muted-foreground">
-                This demo reads pages and writes answers through OpenRouter.{" "}
+                This demo reads pages and writes answers through a hosted AI provider.{" "}
                 {config?.uploads_enabled
                   ? "Don't upload anything sensitive: guest uploads stay private to your session and are deleted with it."
-                  : "Its library is a fixed set of public university documents, and guest chats are deleted after a day."}{" "}
-                Self-host CATSight and switch one setting to run every model locally with Ollama; then files never leave
+                  : "Its library is a fixed set of sample documents, and guest chats are deleted after a day."}{" "}
+                Self-host CATSight and let your organization use the server's own Ollama models; then files never leave
                 your servers.
               </p>
             </>

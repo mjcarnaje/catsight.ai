@@ -2,8 +2,8 @@
   <title>CATSight.AI</title>
   <defs>
     <radialGradient id="t-bg" cx="32" cy="20" r="46" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2A1216"/>
-      <stop offset="1" stop-color="#0E0708"/>
+      <stop stop-color="#221A14"/>
+      <stop offset="1" stop-color="#0C0A08"/>
     </radialGradient>
     <radialGradient id="t-glow" cx="32" cy="36" r="24" gradientUnits="userSpaceOnUse">
       <stop stop-color="#F9B91F" stop-opacity="0.35"/>
@@ -20,8 +20,8 @@
   <svg x="8" y="7" width="48" height="48" viewBox="0 0 64 64">
     <defs>
       <linearGradient id="cs-grad" x1="9" y1="5" x2="55" y2="58" gradientUnits="userSpaceOnUse">
-        <stop stop-color="#C8193A"/>
-        <stop offset="0.5" stop-color="#EA5130"/>
+        <stop stop-color="#C9662F"/>
+        <stop offset="0.5" stop-color="#EC9532"/>
         <stop offset="1" stop-color="#FCC93A"/>
       </linearGradient>
       <mask id="cs-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">

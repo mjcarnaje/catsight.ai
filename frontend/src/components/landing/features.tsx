@@ -48,21 +48,18 @@ function SourcePageVisual() {
   return (
     <Frame className="flex flex-col gap-4">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span className="text-foreground">Scholarship Guidelines.pdf</span>
+        <span className="text-foreground">Travel Policy.pdf</span>
         <span className="font-mono">p. 3 / 12</span>
       </div>
       <div className="flex flex-col gap-3 rounded-lg border bg-background/50 p-5 text-[13px] leading-relaxed text-muted-foreground">
-        <span className="font-medium text-foreground">IV. Renewal of grants</span>
+        <span className="font-medium text-foreground">IV. Per diem allowances</span>
+        <p>Section 1. Per diem rates are published each year in the schedule approved by the Finance Office.</p>
         <p>
-          Section 1. Grants are reviewed at the end of each semester using the grades certified by the
-          Office of the Registrar.
-        </p>
-        <p>
-          Section 2. Grantees who wish to continue must{" "}
+          Section 2. Day trips are paid the{" "}
           <mark className="rounded-sm bg-gold/15 px-0.5 text-foreground ring-1 ring-gold/30">
-            maintain the required GWA and enroll in a regular load
+            per diem rate set for the destination
           </mark>{" "}
-          for every semester covered by the grant.
+          in the annual schedule.
         </p>
         <p className="opacity-50">Section 3. Requests for reconsideration are filed with the committee…</p>
       </div>
@@ -104,17 +101,16 @@ function CatalogVisual() {
     <Frame className="flex flex-col gap-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-[13px] font-medium">Library Services Advisory</span>
+          <span className="text-[13px] font-medium">Office Memo: Equipment Loans</span>
           <span className="text-xs text-muted-foreground">Uploaded scan · 4 pages</span>
         </div>
         <span className="rounded border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">2024</span>
       </div>
       <p className="text-[13px] leading-relaxed text-muted-foreground">
-        Announces extended library hours during the examination period and new rules for reserving
-        discussion rooms online.
+        Sets sign-out rules for projectors and laptops, the return deadline and who approves exceptions.
       </p>
       <div className="flex flex-wrap gap-1.5">
-        {["library", "advisory", "students"].map((t) => (
+        {["memo", "equipment", "policy"].map((t) => (
           <span key={t} className="rounded-md bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground">
             {t}
           </span>
@@ -147,7 +143,7 @@ export function Features() {
           flip
           label="Semantic search"
           title="Find the memo without remembering its title."
-          body="Search understands what you mean, not just the words you typed — and it works the same in English, Filipino and Cebuano."
+          body="Search understands what you mean, not just the words you typed, even when the question and the document use different languages."
           points={["Multilingual bge-m3 embeddings", "Filter by year and tags", "Jump straight to the matching passage"]}
           visual={<SearchVisual />}
         />

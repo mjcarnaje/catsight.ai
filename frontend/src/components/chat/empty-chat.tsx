@@ -3,10 +3,10 @@ import { useDashboard } from "@/lib/queries";
 import type { ScopedDocument } from "@/components/chat/document-picker";
 
 const FALLBACK = [
-  "Who was designated director of the Center for eLearning?",
-  "Which travel orders cover research trips to Zamboanga?",
-  "What cash incentives were granted for paper presentations?",
-  "When is MSU-IIT's Charter Day, and who organizes it?",
+  "What does our travel policy say about per diem?",
+  "Who signed the 2023 supplier agreement?",
+  "Summarize the board's decisions on the budget this year.",
+  "Which documents mention the new office lease?",
 ];
 
 /** First screen of a new chat: what it can do, plus questions from the library. */
@@ -23,7 +23,7 @@ export function EmptyChat({ scope, onPick }: { scope: ScopedDocument[]; onPick: 
         <p className="max-w-md text-sm text-muted-foreground">
           {scope.length
             ? `Answers will come only from ${scope.length === 1 ? `“${scope[0].title}”` : `${scope.length} selected documents`}.`
-            : "CATSight searches the special orders, resolutions and memos in the library, then answers with numbered citations to the exact pages."}
+            : "CATSight searches the documents in your library, then answers with numbered citations to the exact pages."}
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">

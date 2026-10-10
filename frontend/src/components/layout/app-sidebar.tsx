@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  Building2,
   ChevronsUpDown,
   FileText,
   LayoutDashboard,
@@ -61,12 +62,13 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useToast } from "@/components/ui/use-toast";
+import { useOrganization } from "@/contexts/organization-context";
 import { useSession } from "@/contexts/session-context";
 import { useTheme } from "@/hooks/use-theme";
 import { chatsApi, errorMessage } from "@/lib/api";
 import { keys } from "@/lib/queries";
 import type { Theme } from "@/lib/theme";
-import type { Chat } from "@/types";
+import type { Chat, OrgRole } from "@/types";
 
 const NAV: { title: string; href: string; icon: LucideIcon }[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -74,6 +76,8 @@ const NAV: { title: string; href: string; icon: LucideIcon }[] = [
   { title: "Documents", href: "/documents", icon: FileText },
   { title: "Tags", href: "/tags", icon: Tag },
 ];
+
+const ROLE_LABELS: Record<OrgRole, string> = { admin: "Admin", member: "Member", guest: "Guest" };
 
 const CHATS_PAGE = 20;
 
@@ -95,6 +99,7 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <OrganizationSwitcher />
           <SidebarMenuItem>
             <SidebarMenuButton asChild variant="outline" tooltip="New chat" className="mt-1">
               <Link to="/chat">
@@ -123,6 +128,7 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        <AdminGroup />
         <RecentChats />
       </SidebarContent>
 
@@ -132,6 +138,102 @@ export function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/** The organization the app acts in. Several memberships open a menu to switch between them. */
+function OrganizationSwitcher() {
+  const { current, memberships, switchTo } = useOrganization();
+  const { isMobile } = useSidebar();
+  const navigate = useNavigate();
+  if (!current) return null;
+
+  const { name } = current.organization;
+  const summary = (
+    <>
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-sidebar-accent text-xs font-medium">
+        {name.charAt(0).toUpperCase()}
+      </span>
+      <span className="grid min-w-0 flex-1 text-left leading-tight">
+        <span className="truncate text-sm font-medium">{name}</span>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{ROLE_LABELS[current.role]}</span>
+      </span>
+    </>
+  );
+
+  // Nothing to switch to: show the organization without a menu
+  if (memberships.length < 2) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild size="lg" tooltip={name} className="cursor-default hover:bg-transparent">
+          <div>{summary}</div>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <SidebarMenuItem>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuButton size="lg" tooltip={name} className="data-[state=open]:bg-sidebar-accent">
+            {summary}
+            <ChevronsUpDown className="ml-auto" />
+          </SidebarMenuButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="w-[--radix-dropdown-menu-trigger-width] min-w-56"
+          side={isMobile ? "bottom" : "right"}
+          align="start"
+          sideOffset={4}
+        >
+          <DropdownMenuLabel className="font-mono text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
+            Organizations
+          </DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={current.organization.slug}
+            onValueChange={(slug) => {
+              switchTo(slug);
+              navigate("/dashboard");
+            }}
+          >
+            {memberships.map(({ organization, role }) => (
+              <DropdownMenuRadioItem key={organization.slug} value={organization.slug} className="gap-2">
+                <span className="grid min-w-0 flex-1 leading-tight">
+                  <span className="truncate">{organization.name}</span>
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{ROLE_LABELS[role]}</span>
+                </span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
+  );
+}
+
+/** Platform administration: only for super admins. */
+function AdminGroup() {
+  const { user } = useSession();
+  const { pathname } = useLocation();
+  if (!user?.is_super_admin) return null;
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>Admin</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname.startsWith("/admin/organizations")} tooltip="Organizations">
+              <Link to="/admin/organizations">
+                <Building2 />
+                <span>Organizations</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
 

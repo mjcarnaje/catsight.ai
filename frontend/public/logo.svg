@@ -2,8 +2,8 @@
   <title>CATSight.AI</title>
   <defs>
     <linearGradient id="cs-grad" x1="9" y1="5" x2="55" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#B3122F"/>
-      <stop offset="0.5" stop-color="#E0442C"/>
+      <stop stop-color="#BA5C2C"/>
+      <stop offset="0.5" stop-color="#E08A2C"/>
       <stop offset="1" stop-color="#FBBF24"/>
     </linearGradient>
     <mask id="cs-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">

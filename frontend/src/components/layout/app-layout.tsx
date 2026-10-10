@@ -2,13 +2,24 @@ import { Suspense, useEffect, useRef } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
 import { BrandLogo } from "@/components/brand/brand-logo";
+import { AiBanner } from "@/components/layout/ai-banner";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { GuestBanner } from "@/components/layout/guest-banner";
+import { NoOrganization } from "@/components/layout/no-organization";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { useOrganization } from "@/contexts/organization-context";
+import { useSession } from "@/contexts/session-context";
+
+// Pages that work without an organization: account settings and platform administration
+const WITHOUT_ORGANIZATION = ["/settings", "/admin"];
 
 export function AppLayout() {
   const { pathname } = useLocation();
+  const { user } = useSession();
+  const { memberships } = useOrganization();
   const scroller = useRef<HTMLDivElement>(null);
+  const noOrganization =
+    user !== null && memberships.length === 0 && !WITHOUT_ORGANIZATION.some((path) => pathname.startsWith(path));
 
   // Pages scroll inside this column, so start each page at the top
   useEffect(() => {
@@ -25,10 +36,11 @@ export function AppLayout() {
           <BrandLogo size="sm" />
         </div>
         <GuestBanner />
+        <AiBanner />
         <div ref={scroller} id="app-scroll" className="min-h-0 flex-1 overflow-y-auto">
           {/* Pages load on demand; the sidebar stays put meanwhile */}
           <Suspense fallback={<div className="h-full animate-pulse bg-background" />}>
-            <Outlet />
+            {noOrganization ? <NoOrganization /> : <Outlet />}
           </Suspense>
         </div>
       </SidebarInset>

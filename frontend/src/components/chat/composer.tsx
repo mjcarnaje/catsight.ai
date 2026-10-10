@@ -43,8 +43,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const messages = config?.usage?.limited ? config.usage.messages : null;
   const left = messages ? Math.max(messages.limit - messages.used, 0) : null;
   const outOfQuestions = left === 0;
+  // The organization has no working AI provider: its library can be read but not asked
+  const noProvider = config?.organization?.ai_configured === false;
   const tooLong = value.length > MAX_CHARS;
-  const canSend = Boolean(value.trim()) && !streaming && !tooLong && !outOfQuestions;
+  const canSend = Boolean(value.trim()) && !streaming && !tooLong && !outOfQuestions && !noProvider;
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -92,13 +94,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={
-            outOfQuestions
-              ? "You've used today's questions. Come back tomorrow!"
-              : hasMessages
-                ? "Ask a follow-up…"
-                : "Ask about special orders, resolutions, designations, travel…"
+            noProvider
+              ? "Ask an admin to add an AI provider first."
+              : outOfQuestions
+                ? "You've used today's questions. Come back tomorrow!"
+                : hasMessages
+                  ? "Ask a follow-up…"
+                  : "Ask about your documents: people, dates, decisions, amounts…"
           }
-          disabled={outOfQuestions}
+          disabled={outOfQuestions || noProvider}
           className="block max-h-[220px] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
         />
         <div className="flex items-center gap-2 p-2 pl-3">

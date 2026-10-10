@@ -7,7 +7,7 @@ import { useId, type SVGProps } from "react";
  * Mirrors public/logo.svg — keep the two in sync.
  */
 interface CatMarkProps extends SVGProps<SVGSVGElement> {
-  /** `gradient` = maroon→gold brand fill; `mono` = currentColor. */
+  /** `gradient` = tabby→gold brand fill (the mascot's colours); `mono` = currentColor. */
   variant?: "gradient" | "mono";
   /** The small companion sparkle; drop it at tiny sizes. */
   sparkle?: boolean;
@@ -32,8 +32,8 @@ export function CatMark({ variant = "gradient", sparkle = true, title, ...props 
       {title && <title>{title}</title>}
       <defs>
         <linearGradient id={gradId} x1="9" y1="5" x2="55" y2="58" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#B3122F" />
-          <stop offset="0.5" stopColor="#E0442C" />
+          <stop stopColor="#BA5C2C" />
+          <stop offset="0.5" stopColor="#E08A2C" />
           <stop offset="1" stopColor="#FBBF24" />
         </linearGradient>
         <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
