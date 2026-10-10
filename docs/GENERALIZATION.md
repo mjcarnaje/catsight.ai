@@ -113,15 +113,18 @@ deploy would silently replace the system the thesis describes.
   model, so while a library is re-embedded the keyword leg still finds the rest.
 
 ## Two editions on the mini
-- `deploy general` adds `FIELD_ENCRYPTION_KEY` (and `DEMO_ORG=default` in demo mode) to
-  `.env.prod` when missing, deploys `master`, whose migrations move the library into the
-  organization `default`, and gives it the demo's `OPENROUTER_API_KEY` as its provider
-  (`manage.py configure_organization`).
-- `deploy thesis` runs `manage.py revert_to_single_library` with the general code first
-  (refused with more than one organization), then deploys `thesis-revision`.
-- Tested end to end on a copy of the production database (thesis → general → thesis): all
-  48 documents, 556 passages, 13 tags, 21 users and 45 chats came back, and the thesis code
-  created chats and tags on the reverted schema.
+- The mini runs either edition; each has its own database and media volumes (the thesis
+  edition `pgdata`/`media`, the general edition `pgdata-general`/`media-general`), so
+  switching (`catsight-remote deploy thesis|general`) never moves data.
+- The general edition's demo library is ten fictional documents (`samples/demo`, built by
+  `samples/demo/build.py`): MSU-IIT documents stay in the thesis edition only.
+- `deploy general` adds `FIELD_ENCRYPTION_KEY` (and `DEMO_ORG`) to `.env.prod` when missing
+  and runs `manage.py ensure_demo_organization` (created once, admin `ADMIN_EMAIL`, the
+  server's OpenRouter key).
+- The first switch to general (before the volumes were separate) migrated the thesis
+  database; `manage.py revert_to_single_library` put it back, after the round trip was
+  tested on a copy of production (all 48 documents, 556 passages, 13 tags, 21 users and
+  45 chats came back, and the thesis code created chats and tags on it).
 
 ## Still open
 - Rotating `FIELD_ENCRYPTION_KEY`: today a new key makes the saved API keys unreadable, and

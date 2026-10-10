@@ -11,9 +11,10 @@ secrets, volumes and the tunnel are documented there.
 **Two editions.** The mini runs either the thesis edition (`thesis-revision`, the MSU-IIT
 system the thesis describes) or the general edition (`master`, organizations with their
 own AI providers). `./scripts/catsight-remote status` says which. A plain `deploy`
-updates the running edition; `deploy general` / `deploy thesis` switch, and switching
-migrates the database (docs/HOSTING.md, "Editions"): only switch when the user asks
-for that edition by name. A deploy is **Git for code,
+updates the running edition; `deploy general` / `deploy thesis` switch. Each edition has
+its own database and media volumes (docs/HOSTING.md, "Editions"), so a switch never
+moves data; still, only switch when the user asks for that edition by name. Never run
+`docker volume prune` on the mini: the idle edition's volumes would be deleted. A deploy is **Git for code,
 never for data**: the laptop pushes, the mini fast-forwards. The mini's Postgres
 volume and media volume are production's source of truth.
 
@@ -38,7 +39,7 @@ SSH commands that change state.
 ./scripts/catsight-remote status   # what's running now
 ./scripts/catsight-remote deploy           # backup -> ff-only merge -> build -> up -d -> health
 ./scripts/catsight-remote deploy general   # only when asked: switch to the general edition
-./scripts/catsight-remote deploy thesis    # only when asked: switch back (reverts the org migrations first)
+./scripts/catsight-remote deploy thesis    # only when asked: switch back to the thesis edition
 ```
 
 - `deploy` stops if the mini's checkout has local changes: show them to the user
@@ -61,7 +62,9 @@ SSH commands that change state.
 
 ## Things that need the user's explicit go-ahead
 
-- Ingesting PDFs (`catsight-remote ingest`) or `reindex`: they spend OpenRouter credit.
+- Ingesting PDFs (`catsight-remote ingest`) or `reindex`: they spend OpenRouter credit. The
+  general edition ingests `samples/demo` (fictional); the thesis edition ingests `seed/`
+  (MSU-IIT). Never put MSU-IIT documents in the general edition.
 - Creating or changing the Cloudflare tunnel, DNS, or the OpenRouter key/limit.
 - Restoring a backup or deleting volumes.
 - Anything outside `~/catsight` and its `catsight` Compose project on the mini

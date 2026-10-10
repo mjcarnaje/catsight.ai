@@ -9,11 +9,11 @@
 #   ./scripts/catsight-remote deploy thesis     switch back to the thesis edition (thesis-revision)
 #   ./scripts/catsight-remote ingest            add every PDF in the mini's ~/catsight/seed to the library
 #
-# Switching editions changes the database too (docs/HOSTING.md, "Editions"): going to
-# general migrates the library into one organization and adds FIELD_ENCRYPTION_KEY
-# (and DEMO_ORG) to .env.prod when missing; going back to thesis first reverts those
-# migrations with the general code, and refuses if there is more than one organization.
-# A plain `deploy` never switches.
+# Each edition keeps its own data (docs/HOSTING.md, "Editions"): the thesis edition the
+# volumes pgdata and media, the general edition pgdata-general and media-general, so
+# switching only changes which code and which volumes run. Going to general adds
+# FIELD_ENCRYPTION_KEY (and DEMO_ORG) to .env.prod when missing and makes sure the demo
+# organization exists. A plain `deploy` never switches.
 #
 # Where the mini is comes from the environment or, for unset variables, a gitignored
 # .env.remote at the repo root (plain KEY=value lines):
@@ -76,14 +76,15 @@ wait_healthy() { for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do health 2>/dev/null && r
 env_value() { grep -E "^\$1=" .env.prod | tail -n 1 | cut -d= -f2- || true; }
 edition() { case "\$1" in master) echo general ;; thesis-revision) echo thesis ;; *) echo "unknown (\$1)" ;; esac; }
 is_on() { case "\$1" in 1|true|yes|on) return 0 ;; *) return 1 ;; esac; }
-library_org() { local org; org=\$(env_value DEMO_ORG); echo "\${org:-default}"; }  # the migrated library's organization
+library_org() { local org; org=\$(env_value DEMO_ORG); echo "\${org:-demo}"; }  # the general edition's demo organization
 
+# The running edition's database and media, named after the edition
 backup() {
-  local ts dir
-  ts=\$(date +%Y%m%d-%H%M%S); dir="\$HOME/catsight-backups"
+  local ts dir name
+  ts=\$(date +%Y%m%d-%H%M%S); dir="\$HOME/catsight-backups"; name=\$(edition "\$(git branch --show-current)")
   mkdir -p "\$dir" && chmod 700 "\$dir"
-  compose exec -T db sh -c 'pg_dump -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" --no-owner' | gzip > "\$dir/catsight-\$ts.sql.gz"
-  compose exec -T backend tar -C /usr/src/app -czf - media > "\$dir/media-\$ts.tar.gz"
+  compose exec -T db sh -c 'pg_dump -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" --no-owner' | gzip > "\$dir/catsight-\$name-\$ts.sql.gz"
+  compose exec -T backend tar -C /usr/src/app -czf - media > "\$dir/media-\$name-\$ts.tar.gz"
   chmod 600 "\$dir"/*-"\$ts".*
   ls -lh "\$dir"/*-"\$ts".*
 }
@@ -97,8 +98,8 @@ general_settings() {
     echo "Added a new FIELD_ENCRYPTION_KEY to .env.prod"
   fi
   if is_on "\$(env_value DEMO_MODE)" && [ -z "\$(env_value DEMO_ORG)" ]; then
-    printf '\n# The organization guests join (the migrated library is "default")\nDEMO_ORG=default\n' >> .env.prod
-    echo "Added DEMO_ORG=default to .env.prod"
+    printf '\n# The organization guests join (general edition)\nDEMO_ORG=demo\n' >> .env.prod
+    echo "Added DEMO_ORG=demo to .env.prod"
   fi
 }
 
@@ -125,10 +126,6 @@ case "$command_name" in
     fi
     if [ "\$target" = master ]; then general_settings; fi
     backup
-    if [ "\$current" = master ] && [ "\$target" = thesis-revision ]; then
-      echo "Reverting the database to one library with the general code (organizations are dropped)"
-      compose exec -T backend python manage.py revert_to_single_library
-    fi
     if [ "\$current" != "\$target" ]; then
       if git show-ref -q --verify "refs/heads/\$target"; then git switch -q "\$target"
       else git switch -q -c "\$target" --track "origin/\$target"; fi
@@ -138,11 +135,10 @@ case "$command_name" in
     compose build
     compose up -d --remove-orphans
     wait_healthy
-    if [ "\$target" = master ] && [ -n "\$(env_value OPENROUTER_API_KEY)" ]; then
-      # The migrated library keeps answering with the demo's OpenRouter key (left alone once set)
-      compose exec -T backend python manage.py configure_organization "\$(library_org)" \
-        --provider openrouter --api-key-env OPENROUTER_API_KEY --if-unconfigured \
-        || echo "Couldn't give the organization the OpenRouter key; add it in Settings -> AI provider."
+    if [ "\$target" = master ] && [ -n "\$(env_value DEMO_ORG)" ]; then
+      # The demo organization of the sample library (samples/demo): created once, never overwritten
+      compose exec -T backend python manage.py ensure_demo_organization --name "Tamsin Ridge Water Cooperative" \
+        || echo "Couldn't set up the demo organization; see the backend logs."
     fi
     docker image prune -f >/dev/null
     git log -1 --format='Deployed %h %s'

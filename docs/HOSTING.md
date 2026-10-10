@@ -120,27 +120,34 @@ containers in place.
 
 ## Editions
 
-The two editions share the database volume, but not its schema, so switching moves
-the data too. Every switch starts with a backup.
+Each edition has its own data in the same Compose project, so switching changes which
+code and which volumes run, never the data itself:
 
-- **`deploy general`** (thesis → general): adds `FIELD_ENCRYPTION_KEY` (a new random
-  key, never printed) and, in demo mode, `DEMO_ORG=default` to `.env.prod` when they
-  are missing; the backend's migrations then move the whole library, its users and
-  chats into one organization, `default` (the super admin becomes its admin, guests its
-  guests). If `.env.prod` has `OPENROUTER_API_KEY`, that key becomes the organization's
-  provider, so the demo keeps answering; rename the organization and change its models
-  in Settings. `FIELD_ENCRYPTION_KEY` must never change afterwards: the saved keys
-  would become unreadable.
-- **`deploy thesis`** (general → thesis): with the general code still running,
-  `manage.py revert_to_single_library` migrates back to the single-library schema
-  (organizations, memberships, invitations and provider settings are dropped;
-  documents, passages, tags, users and chats stay), then the thesis branch is
-  deployed. It refuses when there is more than one organization, because their
-  libraries would merge; restore the backup taken before the switch to general instead.
+| Edition | Branch | Database volume | Media volume | Library |
+|---|---|---|---|---|
+| thesis | `thesis-revision` | `catsight_pgdata` | `catsight_media` | the 48 MSU-IIT documents (`seed/`) |
+| general | `master` | `catsight_pgdata-general` | `catsight_media-general` | the 10 fictional samples in `samples/demo` |
 
-The round trip (thesis → general → thesis) was tested on a copy of the production
-database on 10 October 2026: every document, passage, tag, user and chat came back,
-and the thesis code created chats and tags on it.
+Every switch starts with a backup of the edition that was running
+(`catsight-<edition>-<ts>.sql.gz`, `media-<edition>-<ts>.tar.gz`).
+
+- **`deploy general`** adds `FIELD_ENCRYPTION_KEY` (a new random key, never printed)
+  and, in demo mode, `DEMO_ORG` to `.env.prod` when they are missing, then runs
+  `manage.py ensure_demo_organization`: the demo organization is created once, with
+  the general tag preset, the super admin (`ADMIN_EMAIL`) as its admin and the
+  server's `OPENROUTER_API_KEY` as its provider. It is never overwritten afterwards.
+  `FIELD_ENCRYPTION_KEY` must not change once keys are saved: they would become
+  unreadable. Fill an empty general library with `catsight-remote ingest` (the samples).
+- **`deploy thesis`** switches the code and volumes back; the thesis library is as
+  it was left.
+
+Never `docker volume prune` on the mini: the edition that isn't running has no
+container attached, so its volumes would be deleted.
+
+`manage.py revert_to_single_library` (general code) migrates a database that was
+migrated to the general schema back to the thesis schema. It was needed once, on
+10 October 2026, before the editions had separate volumes; the round trip was tested
+on a copy of production first.
 
 If an update changes `EMBEDDING_MODEL`, re-index every document:
 `docker compose -f docker-compose.prod.yml --env-file .env.prod exec worker python manage.py reindex --all`.
@@ -167,6 +174,12 @@ first) to avoid mixing old and new rows.
   `extracting → summarizing → indexing → ready`.
 
 ## Current deployment
+
+Since 10 October 2026: the **general edition** (`master`) with the demo organization
+Tamsin Ridge Water Cooperative and its ten sample documents. The thesis edition's data
+(48 MSU-IIT documents, 556 passages) stays in `catsight_pgdata` / `catsight_media`;
+`catsight-remote deploy thesis` brings it back. The notes below are from the thesis
+edition.
 
 Verified 7 October 2026:
 
