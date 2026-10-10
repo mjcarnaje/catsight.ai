@@ -4,9 +4,11 @@
 catalogues them, and answers questions with numbered citations that open the exact
 page. Each organization gets its own library, members, tags and AI provider.
 
-**Live demo: <https://catsight.mjcarnaje.com>** (one click, no sign-up). The demo is
-the thesis edition, built for MSU-IIT's special orders and Board of Regents resolutions;
-see [Thesis](#thesis).
+**Live demo: <https://catsight.mjcarnaje.com>** (one click, no sign-up). Its library is
+ten sample documents of a fictional water cooperative (`samples/demo`): policies, board
+minutes and resolutions, a contract, an invoice and scanned reports. The thesis edition,
+built for MSU-IIT's special orders and Board of Regents resolutions, is on its own
+branch; see [Thesis](#thesis).
 
 ![CATSight.AI: a cited answer about when a document takes effect](frontend/public/og.png)
 
@@ -158,9 +160,10 @@ cd frontend && npx tsc --noEmit -p tsconfig.app.json  # frontend types
 
 CATSight began as an undergraduate thesis for MSU-IIT. The thesis and the exact system
 it describes live on the `thesis-revision` branch (tags `thesis-defended` and
-`thesis-snapshot-2026-10`), and that branch is what the live demo runs. `master` is the
-general, multi-organization version; [docs/GENERALIZATION.md](docs/GENERALIZATION.md)
-explains the split.
+`thesis-snapshot-2026-10`); the Mac mini can run it instead of the general edition
+(`catsight-remote deploy thesis`), each with its own data. `master` is the general,
+multi-organization version; [docs/GENERALIZATION.md](docs/GENERALIZATION.md) explains
+the split.
 
 ## License
 

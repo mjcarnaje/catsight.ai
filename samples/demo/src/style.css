@@ -1,0 +1,33 @@
+/* Letterhead and print layout shared by the sample documents (US Letter). */
+@page {
+  size: Letter;
+  margin: 0.8in 0.85in 0.9in;
+  @bottom-center {
+    content: "SAMPLE DOCUMENT \00B7  fictional organization, people and figures \00B7  made for the CATSight demo";
+    font-family: Arial, Helvetica, sans-serif; font-size: 7.5pt; color: #666;
+  }
+}
+* { box-sizing: border-box; }
+body { font-family: "Times New Roman", Times, serif; font-size: 11.5pt; line-height: 1.42; color: #111; margin: 0; }
+.letterhead { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #1d4e6b; padding-bottom: 10px; margin-bottom: 22px; }
+.letterhead svg { width: 44px; height: 44px; flex: none; }
+.letterhead .org { font-family: Georgia, serif; font-size: 17pt; font-weight: bold; color: #1d4e6b; letter-spacing: 0.3px; }
+.letterhead .addr { font-family: Arial, Helvetica, sans-serif; font-size: 8.5pt; color: #444; }
+h1 { font-size: 14pt; text-align: center; margin: 6px 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+h2 { font-size: 12pt; margin: 18px 0 6px; }
+.subtitle { text-align: center; font-size: 10.5pt; margin-bottom: 16px; }
+.meta { width: 100%; border-collapse: collapse; margin: 6px 0 16px; font-size: 11pt; }
+.meta td { padding: 2px 0; vertical-align: top; }
+.meta td:first-child { width: 120px; font-weight: bold; }
+table.grid { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 10.5pt; }
+table.grid th, table.grid td { border: 1px solid #555; padding: 4px 7px; text-align: left; vertical-align: top; }
+table.grid th { background: #e9eef2; }
+td.num, th.num { text-align: right; }
+ol, ul { margin: 4px 0 10px; padding-left: 24px; }
+li { margin: 3px 0; }
+.signatures { display: flex; gap: 48px; margin-top: 34px; }
+.signatures div { flex: 1; border-top: 1px solid #111; padding-top: 4px; font-size: 10.5pt; }
+.sig { font-family: "Brush Script MT", "Snell Roundhand", cursive; font-size: 19pt; height: 28px; margin-bottom: 2px; }
+.stamp { display: inline-block; border: 2px solid #8a1f1f; color: #8a1f1f; padding: 3px 10px; font-family: Arial, sans-serif; font-weight: bold; font-size: 9.5pt; transform: rotate(-4deg); }
+.page-break { break-before: page; }
+.small { font-size: 9.5pt; }
