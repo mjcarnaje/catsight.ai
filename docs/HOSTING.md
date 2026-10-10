@@ -168,6 +168,13 @@ first) to avoid mixing old and new rows.
 
 ## Current deployment
 
+Since 10 October 2026, 15:30: the **general edition** (`master`). The library was
+migrated into the organization `default` (48 documents, 556 passages, 13 tags; its
+provider is the demo's OpenRouter key), `.env.prod` gained `FIELD_ENCRYPTION_KEY` and
+`DEMO_ORG=default`, and the backup taken just before the switch is
+`catsight-20261010-152243` (`deploy thesis` goes back). The notes below are from the
+thesis edition.
+
 Verified 7 October 2026:
 
 - Tunnel `catsight-macmini` (dashboard-managed, token in `.env.prod`) publishes
