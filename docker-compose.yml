@@ -1,10 +1,11 @@
 # Local development: Django runserver + Vite with live reload.
 #
-#   cp .env.example .env            # add OPENROUTER_API_KEY
+#   cp .env.example .env
 #   docker compose up --build       # http://localhost:3000
+#   Each organization adds its own OpenRouter or OpenAI key in Settings → AI provider.
 #
-# Fully local models instead of OpenRouter (slow on CPU, ~5 GB of models):
-#   LLM_PROVIDER=ollama LOCAL_OCR=1 docker compose --profile ollama up --build && ./pull-llms.sh
+# Fully local models for organizations the super admin allows (slow on CPU, ~5 GB of models):
+#   LOCAL_OCR=1 docker compose --profile ollama up --build && ./pull-llms.sh
 # NVIDIA GPU: add -f docker-compose.gpu.yml
 name: catsightai
 

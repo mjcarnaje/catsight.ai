@@ -1,5 +1,5 @@
 # NVIDIA GPU overrides for the fully local setup (Linux/WSL with the NVIDIA Container Toolkit):
-#   LLM_PROVIDER=ollama LOCAL_OCR=1 TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
+#   LOCAL_OCR=1 TORCH_INDEX_URL=https://download.pytorch.org/whl/cu124 \
 #     docker compose -f docker-compose.yml -f docker-compose.gpu.yml --profile ollama up --build
 x-gpu: &gpu
   deploy:

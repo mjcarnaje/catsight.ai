@@ -1,6 +1,8 @@
 # CATSight.AI — notes for coding agents
 
-RAG over scanned MSU-IIT documents. Django + DRF + Celery + LangGraph backend
+Multi-organization RAG over scanned documents (it began as an MSU-IIT thesis).
+Each organization has its own library, members, tags and AI provider (its own
+OpenRouter/OpenAI key, or the server's Ollama). Django + DRF + Celery + LangGraph backend
 (`backend/`), React + Vite + Tailwind v3 + shadcn/ui frontend (`frontend/`),
 Postgres + pgvector. See [README.md](README.md) for the architecture.
 
@@ -13,6 +15,9 @@ Postgres + pgvector. See [README.md](README.md) for the architecture.
 ## Working rules
 - Commit straight to `master` with conventional commits (`feat(chat): …`, `fix(security): …`); only when asked.
 - Never commit `.env`, `.env.prod`, `seed/`, `backend/media/` or model weights (`ollama/`).
+- Organization data is only ever read through the request's membership
+  (`request.membership` / `Document.objects.visible_to(membership)`); keep the
+  cross-organization tests in `backend/tests/test_organizations.py` passing.
 - Don't call paid models to "test": the backend suite fakes embeddings and chat.
   A real end-to-end run (ingest, ask) needs the owner's go-ahead.
 
