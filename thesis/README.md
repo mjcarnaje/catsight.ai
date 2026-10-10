@@ -16,11 +16,11 @@ Roman and STIX Two Math fonts that ship with macOS.
 
 ## What changed since the defense
 
-The commit before this one ("docs(thesis): defended edition in LaTeX") is the defended
-paper converted from the Google Docs export with the same files and conventions, so
+The tag `thesis-defended` (commit "docs(thesis): defended edition in LaTeX") is the
+defended paper converted from the Google Docs export with the same files and conventions, so
 
 ```sh
-git diff HEAD~1 -- thesis/chapters      # every change, chapter by chapter
+git diff thesis-defended -- thesis/chapters   # every change, chapter by chapter
 ./diff.sh                              # regenerate diff.pdf (needs latexdiff)
 ```
 
