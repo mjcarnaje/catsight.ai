@@ -4,7 +4,7 @@
 #   ./scripts/catsight-remote status          containers + local health
 #   ./scripts/catsight-remote logs [service]  follow logs (backend, worker, web, tunnel, db)
 #   ./scripts/catsight-remote backup          pg_dump + media archive into ~/catsight-backups
-#   ./scripts/catsight-remote deploy          backup, pull origin/master, rebuild, restart, health check
+#   ./scripts/catsight-remote deploy          backup, fast-forward to origin/$CATSIGHT_DEPLOY_REF, rebuild, restart, health check
 #   ./scripts/catsight-remote ingest          add every PDF in the mini's ~/catsight/seed to the library
 #
 # Where the mini is comes from the environment or, for unset variables, a gitignored
@@ -13,10 +13,15 @@
 #   CATSIGHT_SSH=user@host           required: the mini's SSH login (e.g. its Tailscale address)
 #   CATSIGHT_HOST_KEY_ALIAS=name     optional: verify the host key under this known_hosts name
 #   CATSIGHT_DIR=catsight            optional: the checkout, relative to the remote home
+#   CATSIGHT_DEPLOY_REF=branch       required by deploy: the branch the mini serves (thesis-revision)
+#
+# The mini serves the thesis demo, so deploy refuses master (the general, multi-organization
+# version) unless CATSIGHT_ALLOW_MASTER=1 is set in the environment (not in .env.remote).
 set -euo pipefail
 
 command_name="${1:-status}"
 service="${2:-}"
+allow_master="${CATSIGHT_ALLOW_MASTER:-}"  # environment only: read before .env.remote
 
 case "$command_name" in
   status|logs|backup|deploy|ingest) ;;
@@ -35,6 +40,22 @@ if [[ -f "$config" ]]; then
 fi
 : "${CATSIGHT_SSH:?set it to user@host in the environment or .env.remote (see docs/HOSTING.md)}"
 remote_dir="${CATSIGHT_DIR:-catsight}"
+deploy_ref="${CATSIGHT_DEPLOY_REF:-}"
+
+if [[ "$command_name" == deploy ]]; then
+  if [[ -z "$deploy_ref" ]]; then
+    echo "Set CATSIGHT_DEPLOY_REF in .env.remote to the branch the mini serves (thesis-revision)." >&2; exit 2
+  fi
+  if [[ ! "$deploy_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
+    echo "CATSIGHT_DEPLOY_REF is not a branch name: $deploy_ref" >&2; exit 2
+  fi
+  if [[ "$deploy_ref" == master && "$allow_master" != 1 ]]; then
+    echo "Refusing to deploy master: the mini serves the thesis demo (thesis-revision), and master" >&2
+    echo "is the general multi-organization version. Override with CATSIGHT_ALLOW_MASTER=1." >&2
+    exit 2
+  fi
+  echo "Deploying origin/$deploy_ref to the mini"
+fi
 ssh_options=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes)
 if [[ -n "${CATSIGHT_HOST_KEY_ALIAS:-}" ]]; then ssh_options+=(-o "HostKeyAlias=$CATSIGHT_HOST_KEY_ALIAS"); fi
 
@@ -56,7 +77,7 @@ backup() {
 }
 
 case "$command_name" in
-  status) git log -1 --format='%h %s (%cr)'; compose ps; health ;;
+  status) echo "Branch: \$(git branch --show-current)"; git log -1 --format='%h %s (%cr)'; compose ps; health ;;
   logs) compose logs -f --tail 200 $service ;;
   backup) backup ;;
   deploy)
@@ -64,8 +85,15 @@ case "$command_name" in
     if [ -n "\$(git status --porcelain --untracked-files=no)" ]; then
       echo "The mini's checkout has local changes; reconcile them first:"; git status --short; exit 1
     fi
+    if ! git rev-parse -q --verify "refs/remotes/origin/$deploy_ref" >/dev/null; then
+      echo "origin has no branch $deploy_ref"; exit 1
+    fi
     backup
-    git merge --ff-only origin/master
+    if [ "\$(git branch --show-current)" != "$deploy_ref" ]; then
+      if git show-ref -q --verify "refs/heads/$deploy_ref"; then git switch -q "$deploy_ref"
+      else git switch -q -c "$deploy_ref" --track "origin/$deploy_ref"; fi
+    fi
+    git merge --ff-only "origin/$deploy_ref"
     compose build
     compose up -d --remove-orphans
     sleep 8
