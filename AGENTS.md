@@ -10,9 +10,11 @@ Postgres + pgvector. See [README.md](README.md) for the architecture.
 - `master`: the general, multi-organization product.
 - `thesis-revision`: the thesis paper (`thesis/`) and the MSU-IIT system it describes.
   Tags `thesis-defended` and `thesis-snapshot-2026-10` mark the thesis editions.
-- The Mac mini (catsight.mjcarnaje.com) runs one of the two: `catsight-remote deploy`
-  updates the running edition, `deploy general|thesis` switches (and migrates the
-  database), only when the user asks for it.
+- The Mac mini (catsight.mjcarnaje.com) runs one of the two, each with its own database
+  and media volumes: `catsight-remote deploy` updates the running edition,
+  `deploy general|thesis` switches, only when the user asks for it.
+- MSU-IIT documents belong to the thesis edition only; the general demo's library is the
+  fictional `samples/demo` (rebuild with `python3 samples/demo/build.py`).
 
 ## Working rules
 - Commit straight to `master` with conventional commits (`feat(chat): …`, `fix(security): …`); only when asked.
