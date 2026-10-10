@@ -242,11 +242,13 @@ function RecentChats() {
   const { state } = useSidebar();
   const [renaming, setRenaming] = useState<Chat | null>(null);
   const [deleting, setDeleting] = useState<Chat | null>(null);
+  const { current } = useOrganization();
   const chats = useInfiniteQuery({
     queryKey: keys.chats(),
     queryFn: ({ pageParam }) => chatsApi.list({ page: pageParam, page_size: CHATS_PAGE }),
     initialPageParam: 1,
     getNextPageParam: (last, pages) => (last.next ? pages.length + 1 : undefined),
+    enabled: current !== null, // chats belong to an organization
   });
   const items = chats.data?.pages.flatMap((page) => page.results) ?? [];
 
