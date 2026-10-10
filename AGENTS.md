@@ -4,6 +4,12 @@ RAG over scanned MSU-IIT documents. Django + DRF + Celery + LangGraph backend
 (`backend/`), React + Vite + Tailwind v3 + shadcn/ui frontend (`frontend/`),
 Postgres + pgvector. See [README.md](README.md) for the architecture.
 
+## Branches
+- `master`: the general, multi-organization product.
+- `thesis-revision`: the thesis paper (`thesis/`) and the MSU-IIT system it describes.
+  The Mac mini (catsight.mjcarnaje.com) serves this branch; never deploy `master` there.
+  Tags `thesis-defended` and `thesis-snapshot-2026-10` mark the thesis editions.
+
 ## Working rules
 - Commit straight to `master` with conventional commits (`feat(chat): …`, `fix(security): …`); only when asked.
 - Never commit `.env`, `.env.prod`, `seed/`, `backend/media/` or model weights (`ollama/`).
