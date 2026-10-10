@@ -1,9 +1,11 @@
 from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import serializers
 
 from .models import Chat, Document, DocumentStatusHistory, Membership, Organization, Tag, User
+from .services import invitations as invites
 from .services.storage import signed_file_url
 from .utils.permissions import can_modify
 
@@ -61,12 +63,11 @@ class RegisterSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=255)
     last_name = serializers.CharField(max_length=255)
     password = serializers.CharField(write_only=True, min_length=8)
+    # The token from an invitation link: it joins that organization, and its address skips ALLOWED_EMAIL_DOMAINS
+    invite = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     def validate_email(self, email: str) -> str:
         email = email.lower()
-        domains = settings.ALLOWED_EMAIL_DOMAINS
-        if domains and email.rsplit("@", 1)[-1] not in domains:
-            raise serializers.ValidationError(f"Use an email address at {', '.join('@' + d for d in domains)}.")
         if email.endswith("@guest.catsight.local"):
             raise serializers.ValidationError("This address is reserved.")
         if User.objects.filter(email=email).exists():
@@ -74,6 +75,10 @@ class RegisterSerializer(serializers.Serializer):
         return email
 
     def validate(self, data):
+        data["invitation"] = self._check_invitation(data)
+        data.pop("invite", None)
+        if data["invitation"] is None:
+            self._check_domain(data["email"])
         # Django's validators (length, common passwords, too similar to the name/email)
         candidate = User(email=data["email"], first_name=data["first_name"], last_name=data["last_name"])
         try:
@@ -82,14 +87,45 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError({"password": list(e.messages)})
         return data
 
+    @staticmethod
+    def _check_domain(email: str) -> None:
+        domains = settings.ALLOWED_EMAIL_DOMAINS
+        if domains and email.rsplit("@", 1)[-1] not in domains:
+            message = f"Use an email address at {', '.join('@' + d for d in domains)}."
+            raise serializers.ValidationError({"email": [message]})
+
+    @staticmethod
+    def _check_invitation(data):
+        """The invitation the token names, if one was given; it must be pending and for this address."""
+        token = (data.get("invite") or "").strip()
+        if not token:
+            return None
+        invitation = invites.find(token)
+        if invitation is None or invitation.email != data["email"]:
+            raise serializers.ValidationError({"invite": "This invitation link isn't valid for this address."})
+        state = invites.status_of(invitation)
+        if state == "expired":
+            raise serializers.ValidationError({"invite": "This invitation has expired. Ask for a new one."})
+        if state != "pending":
+            raise serializers.ValidationError({"invite": "This invitation link isn't valid for this address."})
+        return invitation
+
+    @transaction.atomic
     def create(self, data):
-        return User.objects.create_user(
+        user = User.objects.create_user(
             email=data["email"],
             username=data["email"],
             password=data["password"],
             first_name=data["first_name"],
             last_name=data["last_name"],
         )
+        if data["invitation"] is not None:
+            try:
+                invites.accept(data["invitation"], user)
+            except invites.InvitationError as e:
+                # Raised inside the atomic block, so the new account is rolled back too
+                raise serializers.ValidationError({"invite": e.message})
+        return user
 
 
 class LoginSerializer(serializers.Serializer):
