@@ -27,14 +27,37 @@ class TextExtractor(Enum):
 
 
 class UserRole(Enum):
-    GUEST = "guest"
+    """Platform-wide role. What someone may do inside an organization is its OrgRole."""
+
+    GUEST = "guest"  # a temporary demo account
     USER = "user"
-    ADMIN = "admin"
-    SUPER_ADMIN = "super_admin"
+    SUPER_ADMIN = "super_admin"  # creates organizations; sees no organization's data without a membership
 
     @classmethod
     def choices(cls):
         return [(role.value, role.name) for role in cls]
+
+
+class OrgRole(Enum):
+    ADMIN = "admin"  # manages members, invitations, tags, the AI provider and every document
+    MEMBER = "member"  # uploads, edits own documents, searches and chats
+    GUEST = "guest"  # searches and chats only (demo visitors)
+
+    @classmethod
+    def choices(cls):
+        return [(role.value, role.name.title()) for role in cls]
+
+
+class Provider(Enum):
+    """Where an organization's model calls go (with its own key, or the server's Ollama)."""
+
+    OPENROUTER = "openrouter"
+    OPENAI = "openai"
+    OLLAMA = "ollama"
+
+    @classmethod
+    def choices(cls):
+        return [(provider.value, provider.name.title()) for provider in cls]
 
 
 class UsageKind(Enum):

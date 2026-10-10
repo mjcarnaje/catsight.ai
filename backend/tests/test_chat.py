@@ -53,12 +53,15 @@ def script(monkeypatch):
 
 
 @pytest.fixture
-def library(admin):
+def library(org, cfg, admin):
     document = Document.objects.create(
-        title="Renewal of the Designation of the MICeL Director", reference_number="Special Order No. 01176-IIT, s. 2022",
-        year=2022, uploaded_by=admin, status=DocumentStatus.READY.value, file="x.pdf",
+        organization=org, title="Renewal of the Designation of the MICeL Director",
+        reference_number="Special Order No. 01176-IIT, s. 2022", year=2022, uploaded_by=admin,
+        status=DocumentStatus.READY.value, file="x.pdf",
     )
-    indexing.index_document(document, join_pages([Page(1, "Prof. A is designated Director of the MSU-IIT Center for eLearning (MICeL).")]))
+    indexing.index_document(
+        document, join_pages([Page(1, "Prof. A is designated Director of the MSU-IIT Center for eLearning (MICeL).")]), cfg
+    )
     return document
 
 
@@ -118,9 +121,9 @@ def test_history_folds_searches_into_answers_and_regenerate_replaces_the_turn(ap
 
 
 @chat_db
-def test_citation_numbers_carry_across_searches_in_one_answer(api, admin, library, script):
-    other = Document.objects.create(title="Travel Order", uploaded_by=admin, status="ready", file="y.pdf")
-    indexing.index_document(other, join_pages([Page(1, "Travel to Zamboanga for MICeL training.")]))
+def test_citation_numbers_carry_across_searches_in_one_answer(api, org, cfg, admin, library, script):
+    other = Document.objects.create(organization=org, title="Travel Order", uploaded_by=admin, status="ready", file="y.pdf")
+    indexing.index_document(other, join_pages([Page(1, "Travel to Zamboanga for MICeL training.")]), cfg)
     script += [search_call("MICeL director", "c1"), search_call("MICeL training travel", "c2"), AIMessage("Done [1][2]."), AIMessage("T")]
     data = dict(events(ask(api(admin), question="Tell me about MICeL")))
     numbers = {s["id"]: s["n"] for s in data["answer"]["message"]["sources"]}
@@ -128,7 +131,7 @@ def test_citation_numbers_carry_across_searches_in_one_answer(api, admin, librar
 
 
 @chat_db
-def test_chats_are_private_and_limits_return_429(api, admin, member, library, script, settings):
+def test_chats_are_private_and_limits_return_429(api, org, admin, member, library, script, settings):
     script += [AIMessage("Hi!"), AIMessage("Greeting")]
     chat_id = dict(events(ask(api(admin), question="Hello")))["start"]["chat"]["id"]
     assert api(member).get(f"/api/chats/{chat_id}/messages/").status_code == 404
@@ -136,14 +139,14 @@ def test_chats_are_private_and_limits_return_429(api, admin, member, library, sc
 
     settings.DEMO_MODE = True
     settings.DEMO_DAILY_MESSAGES = 0  # 0 disables the limit
-    UsageEvent.objects.create(user=member, kind="message")
+    UsageEvent.objects.create(user=member, organization=org, kind="message")
     settings.DEMO_DAILY_MESSAGES = 1
     response = ask(api(member), question="One more?")
     assert response.status_code == 429 and response.json()["code"] == "message_limit"
 
 
 @pytest.mark.django_db
-def test_deleting_a_chat_removes_its_checkpoints(api, admin, monkeypatch):
+def test_deleting_a_chat_removes_its_checkpoints(api, org, admin, monkeypatch):
     deleted = []
 
     class Saver:
@@ -151,7 +154,7 @@ def test_deleting_a_chat_removes_its_checkpoints(api, admin, monkeypatch):
             deleted.append(thread_id)
 
     monkeypatch.setattr(chats, "get_checkpointer", lambda: Saver())
-    chat = Chat.objects.create(user=admin)
+    chat = Chat.objects.create(user=admin, organization=org)
     assert api(admin).delete(f"/api/chats/{chat.id}/").status_code == 204
     assert deleted == [chat.thread_id] and not Chat.objects.exists()
 
@@ -215,12 +218,14 @@ def test_every_question_starts_with_a_forced_search(api, admin, library, script)
 
 
 @chat_db
-def test_a_short_scoped_document_is_read_whole(api, admin, script):
-    document = Document.objects.create(title="Grants-in-Aid", year=2003, uploaded_by=admin, status=DocumentStatus.READY.value, file="y.pdf")
+def test_a_short_scoped_document_is_read_whole(api, org, cfg, admin, script):
+    document = Document.objects.create(
+        organization=org, title="Grants-in-Aid", year=2003, uploaded_by=admin, status=DocumentStatus.READY.value, file="y.pdf"
+    )
     filler = "The committee reviewed the grants for each college and the buying power of the peso. " * 12
     pages = [Page(1, f"Rationale. The current maximum stipend is PhP 800. {filler}"),
              Page(2, f"## Proposed rates\n\n| GPA | Stipend |\n|---|---|\n| 1.000 | 1200.00 |\n\n{filler}")]
-    indexing.index_document(document, join_pages(pages))
+    indexing.index_document(document, join_pages(pages), cfg)
     script += [search_call("new maximum stipend"), AIMessage("PhP 1,200 [1]."), AIMessage("Stipend")]
     sources = next(d for e, d in events(ask(api(admin), question="What is the new maximum stipend?", document_ids=[document.id])) if e == "sources")
     passages = sources["sources"][0]["passages"]

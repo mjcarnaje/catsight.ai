@@ -8,8 +8,13 @@
                  ▼  relevance gate + at most MAX_PER_DOCUMENT passages per document
 
 Dense embeddings blur exact identifiers and names, which is most of what people
-type when looking for a special order; full-text alone misses paraphrases.
+type when looking for a specific record; full-text alone misses paraphrases.
 Each leg covers the other's blind spot.
+
+Everything is scoped to one organization (the caller's membership), and the
+vector leg compares only chunks embedded by the organization's current embedding
+model: vectors from another model live in a different space, so while a library
+is being re-embedded the keyword leg alone finds the documents not yet redone.
 """
 from __future__ import annotations
 
@@ -26,8 +31,9 @@ from django.db.models import F, QuerySet
 from pgvector.django import CosineDistance
 
 from ..constant import DocumentStatus
-from ..models import Document, DocumentChunk
+from ..models import Document, DocumentChunk, Membership
 from . import llm
+from .llm import ModelSettings
 
 logger = logging.getLogger(__name__)
 
@@ -90,17 +96,17 @@ def update_search_vectors(chunks: Iterable[DocumentChunk]) -> None:
 
 # --- Scope ----------------------------------------------------------------------------
 def searchable_documents(
-    user,
+    membership: Membership,
     document_ids: Optional[list[int]] = None,
     years: Optional[list[int]] = None,
     tag_ids: Optional[list[int]] = None,
 ) -> QuerySet[Document]:
-    """Ready documents the user may see, narrowed by the optional filters.
+    """Ready documents of the member's organization they may see, narrowed by the optional filters.
 
     A document matches if it has any selected year and any selected tag. Filters
     read the Document row, so edits to its year or tags apply immediately.
     """
-    docs = Document.objects.visible_to(user).filter(status=DocumentStatus.READY.value, is_failed=False)
+    docs = Document.objects.visible_to(membership).filter(status=DocumentStatus.READY.value, is_failed=False)
     if document_ids:
         docs = docs.filter(id__in=document_ids)
     if years:
@@ -152,12 +158,12 @@ def fuse(legs: dict[str, list[tuple[int, float]]], k: int = RRF_K) -> list[tuple
 
 
 # --- Reranking ------------------------------------------------------------------------
-def _rerank(query: str, hits: list[Hit]) -> list[Hit]:
+def _rerank(cfg: ModelSettings, query: str, hits: list[Hit]) -> list[Hit]:
     """Reorder by a cross-encoder's relevance; on any failure keep the fused order."""
-    if not hits or not settings.RERANKER_MODEL or not llm.is_openrouter():
+    if not hits or not cfg.supports_rerank:
         return hits
     try:
-        scores = llm.rerank(query, [f"{h.chunk.context}\n{h.chunk.text}" for h in hits])
+        scores = llm.rerank(cfg, query, [f"{h.chunk.context}\n{h.chunk.text}" for h in hits])
     except Exception:
         logger.warning("Reranking failed; keeping the fused order", exc_info=True)
         return hits
@@ -171,21 +177,26 @@ def _rerank(query: str, hits: list[Hit]) -> list[Hit]:
 # --- Public API -----------------------------------------------------------------------
 def search(
     query: str,
-    user,
+    membership: Membership,
+    cfg: ModelSettings,
     k: int = 6,
     document_ids: Optional[list[int]] = None,
     years: Optional[list[int]] = None,
     tag_ids: Optional[list[int]] = None,
     per_document: int = MAX_PER_DOCUMENT,
 ) -> list[Hit]:
-    """The k most relevant passages for `query` that `user` may read, at most `per_document` from one document."""
+    """The k most relevant passages for `query` that the member may read, at most `per_document` from one document.
+
+    `cfg` must be the member's organization's settings (llm.settings_for).
+    """
     query = query.strip()
     if not query:
         return []
-    docs = searchable_documents(user, document_ids, years, tag_ids)
+    docs = searchable_documents(membership, document_ids, years, tag_ids)
     chunks = DocumentChunk.objects.filter(document__in=docs)
+    comparable = chunks.filter(document__embedding_model=cfg.embedding_signature)
 
-    vector = _vector_leg(chunks, llm.embed_query(query))
+    vector = _vector_leg(comparable, llm.embed_query(cfg, query))
     keyword = _keyword_leg(chunks, query)
     similarity = dict(vector)
     keyword_rank = dict(keyword)
@@ -201,7 +212,7 @@ def search(
         for cid, score, ranks in fused[:RERANK_TOP]
         if cid in by_id
     ]
-    hits = _rerank(query, hits)
+    hits = _rerank(cfg, query, hits)
 
     taken: dict[int, int] = defaultdict(int)
     results = []

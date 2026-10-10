@@ -9,6 +9,7 @@ from django.db import transaction
 from ..models import Document, DocumentChunk
 from ..utils.chunking import split_markdown
 from . import llm
+from .llm import ModelSettings
 from .search import update_search_vectors
 
 logger = logging.getLogger(__name__)
@@ -29,12 +30,15 @@ def chunk_context(document: Document) -> str:
 def index_document(
     document: Document,
     markdown: str,
+    cfg: ModelSettings,
     on_progress: Optional[Callable[[int, int], None]] = None,
 ) -> int:
-    """Replace the document's chunks with fresh ones; returns how many were stored.
+    """Replace the document's chunks with fresh ones embedded by `cfg`; returns how many were stored.
 
     Embeddings are computed before anything is deleted, so a failed embedding
-    request leaves the previous index searchable.
+    request leaves the previous index searchable. The document records which
+    embedding model made its vectors (Document.embedding_model), in the same
+    transaction as the new chunks.
     """
     pieces = split_markdown(markdown)
     if not pieces:
@@ -44,7 +48,7 @@ def index_document(
     texts = [f"{context}\n{piece.text}" for piece in pieces]
     vectors: list[list[float]] = []
     for start in range(0, len(texts), EMBED_BATCH):
-        vectors.extend(llm.embed_documents(texts[start:start + EMBED_BATCH]))
+        vectors.extend(llm.embed_documents(cfg, texts[start:start + EMBED_BATCH]))
         if on_progress:
             on_progress(len(vectors), len(texts))
 
@@ -64,5 +68,7 @@ def index_document(
         DocumentChunk.objects.filter(document=document).delete()
         created = DocumentChunk.objects.bulk_create(chunks)
         update_search_vectors(created)
+        document.embedding_model = cfg.embedding_signature
+        document.save(update_fields=["embedding_model"])
     logger.info(f"Indexed document {document.id}: {len(created)} chunks")
     return len(created)

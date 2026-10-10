@@ -2,19 +2,29 @@ import pytest
 
 from app.constant import DocumentStatus
 from app.models import Document, Tag
-from app.services import indexing, search
+from app.services import indexing, llm, search
 from app.services.extraction import Page, join_pages
+
+from .conftest import membership
 
 
 def ready_document(user, title, text, year=None, reference="", private=False, tags=()):
+    """A ready document uploaded by `user` in their organization, indexed with its provider."""
+    organization = membership(user).organization
     document = Document.objects.create(
-        title=title, reference_number=reference, year=year, uploaded_by=user, is_private=private,
-        status=DocumentStatus.READY.value, file="x.pdf", page_count=1,
+        organization=organization, title=title, reference_number=reference, year=year, uploaded_by=user,
+        is_private=private, status=DocumentStatus.READY.value, file="x.pdf", page_count=1,
     )
     document.tags.set(tags)
-    document.chunk_count = indexing.index_document(document, join_pages([Page(1, text)]))
+    document.chunk_count = indexing.index_document(document, join_pages([Page(1, text)]), llm.settings_for(organization))
     document.save()
     return document
+
+
+def find(query, user, **options):
+    """search.search as `user`, in their organization."""
+    member = membership(user)
+    return search.search(query, member, llm.settings_for(member.organization), **options)
 
 
 def test_keyword_terms_split_identifiers_and_drop_leading_zeros():
@@ -36,7 +46,7 @@ def test_exact_reference_number_is_found_with_or_without_leading_zeros(admin):
     ready_document(admin, "Travel to Zamboanga", "Faculty members may travel to Zamboanga del Norte for research.", year=2022)
 
     for query in ("SO 01592-2023", "special order 1592"):
-        hits = search.search(query, admin, k=3)
+        hits = find(query, admin, k=3)
         assert hits[0].document == target, query
         assert "keyword" in hits[0].ranks
 
@@ -46,28 +56,28 @@ def test_private_documents_are_only_searchable_by_their_owner(admin, member, gue
     private = ready_document(guest, "My Notes", "zamboanga field trip permission notes", private=True)
     ready_document(admin, "Library Doc", "library document about enrollment")
 
-    assert private not in [h.document for h in search.search("zamboanga field trip", member)]
-    assert private in [h.document for h in search.search("zamboanga field trip", guest)]
-    assert private in [h.document for h in search.search("zamboanga field trip", admin)]
+    assert private not in [h.document for h in find("zamboanga field trip", member)]
+    assert private in [h.document for h in find("zamboanga field trip", guest)]
+    assert private in [h.document for h in find("zamboanga field trip", admin)]
 
 
 @pytest.mark.django_db
-def test_filters_and_per_document_cap(admin):
-    tag = Tag.objects.create(name="Incentive-test")
+def test_filters_and_per_document_cap(admin, org):
+    tag = Tag.objects.create(organization=org, name="Incentive-test")
     long_text = "\n\n".join(f"## Part {i}\n\ncash incentive for paper presentation number {i}" for i in range(8))
     incentive = ready_document(admin, "Incentives", long_text, year=2017, tags=[tag])
     ready_document(admin, "Other incentive", "cash incentive for a poster", year=2023)
 
-    hits = search.search("cash incentive paper presentation", admin, k=10)
+    hits = find("cash incentive paper presentation", admin, k=10)
     assert sum(1 for h in hits if h.document == incentive) <= search.MAX_PER_DOCUMENT
 
-    only_2017 = search.search("cash incentive", admin, years=[2017])
+    only_2017 = find("cash incentive", admin, years=[2017])
     assert {h.document for h in only_2017} == {incentive}
-    assert {h.document for h in search.search("cash incentive", admin, tag_ids=[tag.id])} == {incentive}
+    assert {h.document for h in find("cash incentive", admin, tag_ids=[tag.id])} == {incentive}
 
 
 @pytest.mark.django_db
 def test_unrelated_query_returns_nothing(admin, settings):
     settings.RETRIEVAL_MIN_SIMILARITY = 0.3
     ready_document(admin, "Designation", "Prof. A is designated Director of the Center for eLearning.")
-    assert search.search("basketball tournament schedule", admin) == []
+    assert find("basketball tournament schedule", admin) == []

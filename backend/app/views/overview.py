@@ -14,8 +14,8 @@ from rest_framework.response import Response
 from ..constant import DocumentStatus, UsageKind
 from ..models import Chat, Document, Tag, UsageEvent
 from ..serializers import DocumentSerializer
-from ..services import extraction, quotas
-from ..utils.permissions import AllowAny, IsAuthenticated
+from ..services import extraction, llm, organizations, quotas
+from ..utils.permissions import AllowAny, InOrganization
 
 
 @api_view(["GET"])
@@ -31,42 +31,72 @@ def health(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def app_config(request):
-    """What the frontend needs before rendering: modes, sign-in options, limits, models."""
+    """What the frontend needs before rendering: modes, sign-in options, and, for a member,
+    their organization (role, whether its AI provider works), limits and models."""
+    membership = None
+    if request.user.is_authenticated:
+        try:
+            membership = organizations.resolve(request)
+        except organizations.OrganizationRequired:
+            membership = None
+    cfg, ai_error = None, ""
+    if membership is not None:
+        try:
+            cfg = llm.settings_for(membership.organization)
+        except llm.AINotConfigured as e:
+            ai_error = str(e)
+
     data = {
         "demo_mode": settings.DEMO_MODE,
-        # For this visitor: admins can always upload
-        "uploads_enabled": settings.UPLOADS_ENABLED or (request.user.is_authenticated and request.user.is_admin),
         "guest_access": settings.GUEST_ACCESS,
         "allowed_email_domains": settings.ALLOWED_EMAIL_DOMAINS,
-        "provider": settings.LLM_PROVIDER,
+        # For this member: guests never, members when uploads are on, admins always,
+        # and only while the organization's provider works
+        "uploads_enabled": bool(
+            membership is not None
+            and not membership.is_guest
+            and cfg is not None
+            and (settings.UPLOADS_ENABLED or membership.is_admin)
+        ),
+        "organization": None,
+        "provider": cfg.provider if cfg else "",
         "models": {
-            "chat": settings.CHAT_MODEL,
-            "ocr": settings.OCR_MODEL,
-            "embedding": settings.EMBEDDING_MODEL,
-            "reranker": settings.RERANKER_MODEL,
-        },
+            "chat": cfg.chat_model,
+            "ocr": cfg.ocr_model,
+            "embedding": cfg.embedding_model,
+            "reranker": cfg.reranker_model if cfg.supports_rerank else "",
+        } if cfg else None,
         # How PDFs become text, so the UI can name the OCR engine
         "extraction": {
-            "default": settings.DEFAULT_TEXT_EXTRACTOR,
-            "marker_llm": settings.MARKER_USE_LLM and bool(settings.OCR_MODEL),
+            "default": extraction.default_extractor(cfg),
+            "marker_llm": settings.MARKER_USE_LLM and bool(cfg and cfg.ocr_model),
         },
-        "limits": asdict(quotas.limits(request.user if request.user.is_authenticated else None)),
+        "limits": asdict(quotas.limits(membership)),
         "guest_ttl_hours": settings.GUEST_TTL_HOURS,
     }
-    if request.user.is_authenticated:
-        data["usage"] = quotas.usage(request.user)
+    if membership is not None:
+        organization = membership.organization
+        data["organization"] = {
+            "id": organization.id,
+            "slug": organization.slug,
+            "name": organization.name,
+            "role": membership.role,
+            "ai_configured": cfg is not None,
+            "ai_error": ai_error,
+        }
+        data["usage"] = quotas.usage(membership)
         data["extractors"] = {
-            "default": settings.DEFAULT_TEXT_EXTRACTOR,
-            "options": extraction.available_extractors(),
+            "default": extraction.default_extractor(cfg),
+            "options": extraction.available_extractors(cfg),
         }
     return Response(data)
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def dashboard(request):
     user = request.user
-    docs = Document.objects.visible_to(user)
+    docs = Document.objects.visible_to(request.membership)
     ready = docs.filter(status=DocumentStatus.READY.value, is_failed=False)
 
     totals = ready.aggregate(pages=Sum("page_count"), passages=Sum("chunk_count"))
@@ -86,7 +116,8 @@ def dashboard(request):
 
     by_year = list(ready.exclude(year=None).values("year").annotate(count=Count("id")).order_by("year"))
     by_tag = list(
-        Tag.objects.annotate(count=Count("documents", filter=Q(documents__in=ready)))
+        Tag.objects.filter(organization=request.organization)
+        .annotate(count=Count("documents", filter=Q(documents__in=ready)))
         .filter(count__gt=0)
         .order_by("-count", "name")
         .values("id", "name", "count")[:10]
@@ -122,9 +153,9 @@ def dashboard(request):
         "timeline": timeline,
         "questions": questions,
         "activity": {
-            "chats": Chat.objects.filter(user=user).count(),
+            "chats": Chat.objects.filter(user=user, organization=request.organization).count(),
             "questions_30d": UsageEvent.objects.filter(
-                user=user, kind=UsageKind.MESSAGE.value, created_at__gte=month_ago
+                user=user, organization=request.organization, kind=UsageKind.MESSAGE.value, created_at__gte=month_ago
             ).count(),
         },
     })

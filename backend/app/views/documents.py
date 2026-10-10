@@ -14,11 +14,11 @@ from rest_framework.response import Response
 from ..constant import DocumentStatus, UsageKind
 from ..models import Document, DocumentChunk, DocumentFullText
 from ..serializers import DocumentDetailSerializer, DocumentSerializer, DocumentUpdateSerializer
-from ..services import extraction, library, quotas, storage
+from ..services import extraction, library, llm, quotas, storage
 from ..services.indexing import chunk_context
 from ..services.search import update_search_vectors
 from ..tasks.tasks import reprocess
-from ..utils.permissions import AllowAny, IsAuthenticated, can_modify
+from ..utils.permissions import AllowAny, InOrganization, can_modify
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 MAX_TEXT_CHARS = 300_000  # an edited text is re-summarized and re-embedded: bound the cost
 
 
-def _charge_processing_run(user) -> Response | None:
+def _charge_processing_run(membership) -> Response | None:
     """Re-running paid model calls counts as one of a visitor's daily uploads."""
     try:
-        quotas.consume(user, UsageKind.UPLOAD, amount=0)
+        quotas.consume(membership, UsageKind.UPLOAD, amount=0)
     except quotas.QuotaExceeded as e:
         return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
     return None
@@ -49,7 +49,7 @@ def _csv_ints(value: str) -> list[int]:
 
 
 def _get_visible(request, document_id: int) -> Document:
-    document = Document.objects.visible_to(request.user).filter(pk=document_id).first()
+    document = Document.objects.visible_to(request.membership).filter(pk=document_id).first()
     if document is None:
         raise Http404("Document not found")
     return document
@@ -57,19 +57,27 @@ def _get_visible(request, document_id: int) -> Document:
 
 def _forbidden() -> Response:
     return Response(
-        {"detail": "Only the uploader or an admin can change this document."},
+        {"detail": "Only the uploader or an organization admin can change this document."},
         status=status.HTTP_403_FORBIDDEN,
     )
 
 
+def model_settings_or_response(organization) -> tuple[llm.ModelSettings | None, Response | None]:
+    """The organization's provider, or a 409 the client shows as "ask your admin to add a key"."""
+    try:
+        return llm.settings_for(organization), None
+    except llm.AINotConfigured as e:
+        return None, Response({"detail": str(e), "code": "ai_not_configured"}, status=status.HTTP_409_CONFLICT)
+
+
 @api_view(["GET", "POST"])
 @parser_classes([MultiPartParser, FormParser, JSONParser])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def documents(request):
     if request.method == "POST":
         return _upload(request)
 
-    docs = Document.objects.visible_to(request.user).select_related("uploaded_by").prefetch_related("tags")
+    docs = Document.objects.visible_to(request.membership).select_related("uploaded_by").prefetch_related("tags")
     params = request.query_params
     if q := params.get("q", "").strip():
         docs = docs.filter(
@@ -99,34 +107,42 @@ def documents(request):
 
 def _upload(request):
     """Accept PDFs, skip duplicates, enforce limits and queue each for processing."""
-    if not settings.UPLOADS_ENABLED and not request.user.is_admin:
+    membership = request.membership
+    if membership.is_guest:
         return Response(
-            {"detail": "Uploading is turned off in this demo. You can search and ask about the documents in the library.",
+            {"detail": "Guests can search and ask about the library, but not add to it.", "code": "read_only"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    if not settings.UPLOADS_ENABLED and not membership.is_admin:
+        return Response(
+            {"detail": "Uploading is turned off here. You can search and ask about the documents in the library.",
              "code": "uploads_disabled"},
             status=status.HTTP_403_FORBIDDEN,
         )
+    cfg, refusal = model_settings_or_response(request.organization)
+    if refusal:
+        return refusal
     files = request.FILES.getlist("files")
     if not files:
         return Response({"detail": "Choose at least one PDF."}, status=status.HTTP_400_BAD_REQUEST)
 
-    available = extraction.available_extractors()
-    extractor = request.data.get("extractor") or settings.DEFAULT_TEXT_EXTRACTOR
+    available = extraction.available_extractors(cfg)
+    extractor = request.data.get("extractor") or extraction.default_extractor(cfg)
     if extractor not in available:
         return Response(
-            {"detail": f"The {extractor} extractor isn't available here. Options: {', '.join(available) or 'none'}."},
+            {"detail": f"The {extractor or 'default'} extractor isn't available here. Options: {', '.join(available) or 'none'}."},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    user = request.user
     # Public-demo uploads by visitors stay private so the shared library can't be changed
-    private = quotas.applies_to(user) or str(request.data.get("private", "")).lower() in {"1", "true"}
+    private = quotas.applies_to(membership) or str(request.data.get("private", "")).lower() in {"1", "true"}
 
-    results = [library.add_document(user, upload, upload.name, extractor, private) for upload in files]
+    results = [library.add_document(membership, upload, upload.name, extractor, private) for upload in files]
     accepted = any(r["status"] == "queued" for r in results)
     return Response({"results": results}, status=status.HTTP_201_CREATED if accepted else status.HTTP_200_OK)
 
 
 @api_view(["GET", "PATCH", "DELETE"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def document_detail(request, document_id: int):
     document = _get_visible(request, document_id)
 
@@ -134,7 +150,7 @@ def document_detail(request, document_id: int):
         document = Document.objects.prefetch_related("tags", "status_history").select_related("uploaded_by").get(pk=document.pk)
         return Response(DocumentDetailSerializer(document, context={"request": request}).data)
 
-    if not can_modify(request.user, document):
+    if not can_modify(request.membership, document):
         return _forbidden()
 
     if request.method == "DELETE":
@@ -144,7 +160,9 @@ def document_detail(request, document_id: int):
         document.delete()  # chunks, text and history cascade
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    serializer = DocumentUpdateSerializer(document, data=request.data, partial=True)
+    serializer = DocumentUpdateSerializer(
+        document, data=request.data, partial=True, context={"organization": request.organization}
+    )
     serializer.is_valid(raise_exception=True)
     serializer.save()
     if {"title", "reference_number", "year"} & set(request.data):
@@ -159,7 +177,7 @@ def document_detail(request, document_id: int):
 
 
 @api_view(["GET", "PUT"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def document_text(request, document_id: int):
     """The extracted Markdown; saving an edit re-summarizes and re-indexes."""
     document = _get_visible(request, document_id)
@@ -167,14 +185,17 @@ def document_text(request, document_id: int):
         fulltext = DocumentFullText.objects.filter(document=document).first()
         return Response({"markdown": fulltext.text if fulltext else ""})
 
-    if not can_modify(request.user, document):
+    if not can_modify(request.membership, document):
         return _forbidden()
     markdown = request.data.get("markdown")
     if not isinstance(markdown, str) or not markdown.strip():
         return Response({"detail": "The text can't be empty."}, status=status.HTTP_400_BAD_REQUEST)
     if len(markdown) > MAX_TEXT_CHARS:
         return Response({"detail": f"The text can be up to {MAX_TEXT_CHARS:,} characters."}, status=status.HTTP_400_BAD_REQUEST)
-    if denied := _charge_processing_run(request.user):
+    _, refusal = model_settings_or_response(request.organization)
+    if refusal:
+        return refusal
+    if denied := _charge_processing_run(request.membership):
         return denied
     DocumentFullText.objects.update_or_create(document=document, defaults={"text": markdown})
     reprocess(document, DocumentStatus.SUMMARIZING)
@@ -182,7 +203,7 @@ def document_text(request, document_id: int):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def document_chunks(request, document_id: int):
     document = _get_visible(request, document_id)
     chunks = document.chunks.values("id", "index", "page", "section", "text")
@@ -190,12 +211,15 @@ def document_chunks(request, document_id: int):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def document_reprocess(request, document_id: int):
     """Retry a failed document, or redo a stage: {"from": "extracting"|"summarizing"|"indexing"}."""
     document = _get_visible(request, document_id)
-    if not can_modify(request.user, document):
+    if not can_modify(request.membership, document):
         return _forbidden()
+    cfg, refusal = model_settings_or_response(request.organization)
+    if refusal:
+        return refusal
 
     stage_name = request.data.get("from") or (document.status if document.is_failed else "extracting")
     try:
@@ -206,17 +230,17 @@ def document_reprocess(request, document_id: int):
         stage = DocumentStatus.EXTRACTING
 
     if extractor := request.data.get("extractor"):
-        if extractor not in extraction.available_extractors():
+        if extractor not in extraction.available_extractors(cfg):
             return Response({"detail": f"The {extractor} extractor isn't available here."}, status=status.HTTP_400_BAD_REQUEST)
         document.extractor = extractor
         document.save(update_fields=["extractor"])
         stage = DocumentStatus.EXTRACTING
-    if quotas.applies_to(request.user):
+    if quotas.applies_to(request.membership):
         # Visitors may retry a failed document; re-running finished stages is admin-only
         if not document.is_failed or stage.value != document.status:
             return Response({"detail": "In the demo you can retry a failed document, not re-run it."},
                             status=status.HTTP_403_FORBIDDEN)
-        if denied := _charge_processing_run(request.user):
+        if denied := _charge_processing_run(request.membership):
             return denied
 
     reprocess(document, stage)

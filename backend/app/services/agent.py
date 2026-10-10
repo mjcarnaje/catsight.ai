@@ -5,6 +5,8 @@
                         └─► END
 
 Only the assistant node's tokens are streamed to the user (views/chat.py).
+Every run carries `membership_id` in its config: the search tool and every model
+call use that member's organization (its library, its provider and key).
 Sources are numbered per answer: a document keeps its number across the
 searches of one turn, so the model's [n] citations always point at the same
 document in the UI.
@@ -31,7 +33,7 @@ from psycopg_pool import ConnectionPool
 from typing_extensions import TypedDict
 
 from ..constant.prompts import AGENT_PROMPT, AGENT_SCOPE_PROMPT, TITLE_PROMPT
-from ..models import Document, DocumentChunk, User
+from ..models import Document, DocumentChunk, Membership
 from . import llm, search
 
 logger = logging.getLogger(__name__)
@@ -117,6 +119,15 @@ def _format_for_model(sources: list[dict[str, Any]]) -> str:
     return "\n\n".join(blocks) + f"\n\nCite these results as {numbers} right after each claim they support."
 
 
+# --- Organization of a run --------------------------------------------------------------
+def membership_of(config: RunnableConfig) -> Membership:
+    """The member a run acts for (set by views/chat.py); their organization scopes everything."""
+    membership_id = (config.get("configurable") or {}).get("membership_id")
+    if membership_id is None:
+        raise RuntimeError("The chat agent needs membership_id in its config.")
+    return Membership.objects.select_related("organization", "user").get(pk=membership_id)
+
+
 # --- Tool ---------------------------------------------------------------------------------
 @tool(response_format="content_and_artifact")
 def search_documents(
@@ -124,19 +135,22 @@ def search_documents(
     state: Annotated[dict, InjectedState],
     config: RunnableConfig,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Search MSU-IIT's administrative documents for passages relevant to a question.
+    """Search the organization's documents for passages relevant to a question.
 
     Args:
-        query: What to look for: names, reference numbers, topics, e.g. "travel order Zamboanga 2022".
+        query: What to look for: names, reference numbers, topics, places, dates, e.g. "supplier contract renewal 2022".
     """
     try:
-        user = User.objects.get(pk=config["configurable"]["user_id"])
+        membership = membership_of(config)
+        cfg = llm.settings_for(membership.organization)
         scope = state.get("document_ids") or None
-        hits = _whole_document(user, scope) if scope and len(scope) == 1 else None
+        hits = _whole_document(membership, scope) if scope and len(scope) == 1 else None
         if hits is None:
             # Within a chosen scope, don't cap a document at the usual three passages
             per_document = RETRIEVE_K if scope else search.MAX_PER_DOCUMENT
-            hits = search.search(query, user, k=RETRIEVE_K, document_ids=scope, per_document=per_document)
+            hits = search.search(
+                query, membership, cfg, k=RETRIEVE_K, document_ids=scope, per_document=per_document
+            )
 
         earlier = merge_sources([m for m in current_turn(state["messages"]) if isinstance(m, ToolMessage)])
         numbers = {s["id"]: s["n"] for s in earlier}
@@ -165,9 +179,9 @@ def search_documents(
     return _format_for_model(ordered), ordered
 
 
-def _whole_document(user: User, document_ids: list[int]) -> list[search.Hit] | None:
+def _whole_document(membership: Membership, document_ids: list[int]) -> list[search.Hit] | None:
     """Every passage of the one scoped document, in reading order, if it's short enough."""
-    documents = search.searchable_documents(user, document_ids)
+    documents = search.searchable_documents(membership, document_ids)
     chunks = list(DocumentChunk.objects.filter(document__in=documents).select_related("document").order_by("index"))
     if not chunks or sum(len(c.text) for c in chunks) > FULL_DOCUMENT_CHARS:
         return None
@@ -191,10 +205,10 @@ def _model_context(messages: list[AnyMessage]) -> list[AnyMessage]:
     return history + messages[last_question:]
 
 
-def _scope_prompt(document_ids: list[int]) -> str:
+def _scope_prompt(membership: Membership, document_ids: list[int]) -> str:
     if not document_ids:
         return ""
-    titles = Document.objects.filter(id__in=document_ids).values_list("title", "file_name")
+    titles = Document.objects.visible_to(membership).filter(id__in=document_ids).values_list("title", "file_name")
     return AGENT_SCOPE_PROMPT.format(documents="\n".join(f"  - {t or f}" for t, f in titles))
 
 
@@ -214,12 +228,19 @@ def needs_search(question: str) -> bool:
 
 def assistant(state: State, config: RunnableConfig) -> dict:
     configurable = config.get("configurable", {})
+    try:
+        membership = membership_of(config)
+        cfg = llm.settings_for(membership.organization)
+        scope = _scope_prompt(membership, state.get("document_ids") or [])
+    finally:
+        close_old_connections()  # nodes run on worker threads with their own DB connections
     turn = current_turn(state["messages"])
     searches = sum(len(m.tool_calls) for m in turn if isinstance(m, AIMessage))
     question = next((text_of(m) for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
 
     model = llm.get_chat_model(
-        configurable.get("model") or settings.CHAT_MODEL,
+        cfg,
+        configurable.get("model") or cfg.chat_model,
         temperature=ANSWER_TEMPERATURE,
         max_tokens=ANSWER_MAX_TOKENS,
     )
@@ -230,7 +251,8 @@ def assistant(state: State, config: RunnableConfig) -> dict:
         model = model.bind_tools([search_documents], tool_choice="search_documents" if force else None)
 
     system = SystemMessage(AGENT_PROMPT.format(
-        scope=_scope_prompt(state.get("document_ids") or []),
+        organization=membership.organization.name,
+        scope=scope,
         today=date.today().isoformat(),
     ))
     messages = [system, *_model_context(state["messages"])]
@@ -244,12 +266,16 @@ def assistant(state: State, config: RunnableConfig) -> dict:
     return {"messages": [AIMessage("Sorry, I couldn't put an answer together just now. Please try again.")]}
 
 
-def generate_title(state: State) -> dict:
+def generate_title(state: State, config: RunnableConfig) -> dict:
     """Name the chat after its first question; falls back to the question itself."""
     question = next((text_of(m) for m in state["messages"] if isinstance(m, HumanMessage)), "")
     title = ""
     try:
-        reply = llm.get_fast_model().invoke([SystemMessage(TITLE_PROMPT), HumanMessage(question)])
+        try:
+            cfg = llm.settings_for(membership_of(config).organization)
+        finally:
+            close_old_connections()
+        reply = llm.get_fast_model(cfg).invoke([SystemMessage(TITLE_PROMPT), HumanMessage(question)])
         title = text_of(reply).strip().strip('"').strip()
     except Exception:
         logger.warning("Chat title generation failed; using the question instead", exc_info=True)

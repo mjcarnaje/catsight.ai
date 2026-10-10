@@ -33,7 +33,8 @@ from ..services import quotas
 from ..services.agent import get_agent, merge_sources
 from ..services.chats import config_for, delete_chat, saved_messages, serialize_answer, serialize_conversation, truncate_from
 from ..services.errors import describe_error
-from ..utils.permissions import IsAuthenticated
+from ..utils.permissions import InOrganization
+from .documents import model_settings_or_response
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +53,9 @@ class ChatPagination(PageNumberPagination):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def chats(request):
-    queryset = Chat.objects.filter(user=request.user)
+    queryset = Chat.objects.filter(user=request.user, organization=request.organization)
     if q := request.query_params.get("q", "").strip():
         queryset = queryset.filter(Q(title__icontains=q))
     paginator = ChatPagination()
@@ -63,9 +64,9 @@ def chats(request):
 
 
 @api_view(["GET", "PATCH", "DELETE"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def chat_detail(request, chat_id: int):
-    chat = get_object_or_404(Chat, pk=chat_id, user=request.user)
+    chat = get_object_or_404(Chat, pk=chat_id, user=request.user, organization=request.organization)
     if request.method == "DELETE":
         delete_chat(chat)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -77,14 +78,14 @@ def chat_detail(request, chat_id: int):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def chat_messages(request, chat_id: int):
-    chat = get_object_or_404(Chat, pk=chat_id, user=request.user)
+    chat = get_object_or_404(Chat, pk=chat_id, user=request.user, organization=request.organization)
     messages = saved_messages(chat)
     state = get_agent().get_state(config_for(chat))
     document_ids = (state.values or {}).get("document_ids") or []
     scope = list(
-        Document.objects.visible_to(request.user).filter(id__in=document_ids).values("id", "title", "file_name")
+        Document.objects.visible_to(request.membership).filter(id__in=document_ids).values("id", "title", "file_name")
     )
     return Response({
         "chat": ChatSerializer(chat).data,
@@ -94,7 +95,7 @@ def chat_messages(request, chat_id: int):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def chat_stream(request):
     """Ask a question in a new or existing chat and stream the answer.
 
@@ -103,6 +104,7 @@ def chat_stream(request):
     it first: regenerate sends the same question, edit sends a new one.
     """
     user = request.user
+    membership = request.membership
     question = str(request.data.get("question") or "").strip()
     chat_id = request.data.get("chat_id")
     replace_from = request.data.get("replace_from")
@@ -110,7 +112,10 @@ def chat_stream(request):
 
     if len(question) > MAX_QUESTION_CHARS:
         return Response({"detail": f"Questions can be up to {MAX_QUESTION_CHARS} characters."}, status=400)
-    chat = get_object_or_404(Chat, pk=chat_id, user=user) if chat_id else None
+    _, refusal = model_settings_or_response(request.organization)
+    if refusal:
+        return refusal
+    chat = get_object_or_404(Chat, pk=chat_id, user=user, organization=request.organization) if chat_id else None
     if chat and replace_from:
         original = truncate_from(chat, str(replace_from))
         if original is None:
@@ -119,17 +124,17 @@ def chat_stream(request):
     if not question:
         return Response({"detail": "Ask a question."}, status=status.HTTP_400_BAD_REQUEST)
     if chat is None:
-        chat = Chat.objects.create(user=user)
+        chat = Chat.objects.create(user=user, organization=request.organization)
 
     try:
-        usage = quotas.consume(user, UsageKind.MESSAGE)
+        usage = quotas.consume(membership, UsageKind.MESSAGE)
     except quotas.QuotaExceeded as e:
         return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
     # Only documents the user may read can scope the conversation
-    document_ids = list(Document.objects.visible_to(user).filter(id__in=document_ids).values_list("id", flat=True))
+    document_ids = list(Document.objects.visible_to(membership).filter(id__in=document_ids).values_list("id", flat=True))
 
     human = HumanMessage(content=question, id=str(uuid.uuid4()))
-    config = config_for(chat, user_id=user.id)
+    config = config_for(chat, membership_id=membership.id)
     agent_input = {"messages": [human]}
     if chat_id is None or "document_ids" in request.data:  # otherwise the chat keeps its scope
         agent_input["document_ids"] = document_ids

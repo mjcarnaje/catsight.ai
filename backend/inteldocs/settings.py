@@ -40,6 +40,13 @@ if not SECRET_KEY:
         raise ImproperlyConfigured("Set DJANGO_SECRET_KEY (or DJANGO_DEBUG=1 for local development).")
     SECRET_KEY = "dev-only-insecure-key-never-use-in-production"
 
+# Encrypts organizations' API keys at rest (Fernet: 32 url-safe base64-encoded bytes).
+# Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Changing it makes the stored keys unreadable: admins then have to enter them again.
+FIELD_ENCRYPTION_KEY = os.getenv("FIELD_ENCRYPTION_KEY", "")
+if not FIELD_ENCRYPTION_KEY and not DEBUG:
+    raise ImproperlyConfigured("Set FIELD_ENCRYPTION_KEY (or DJANGO_DEBUG=1 for local development).")
+
 # Public origin of the app, e.g. https://catsight.mjcarnaje.com. Used for absolute
 # URLs (Open Graph tags, attribution headers) and as the trusted CSRF origin.
 PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:3000").rstrip("/")
@@ -147,15 +154,36 @@ SIMPLE_JWT = {
 
 # --- Accounts -----------------------------------------------------------------
 # Comma-separated email domains allowed to register; empty allows any domain.
+# An invitation lets its recipient register with any address.
 ALLOWED_EMAIL_DOMAINS = env_list("ALLOWED_EMAIL_DOMAINS")
+INVITATION_TTL_DAYS = env_int("INVITATION_TTL_DAYS", 7)
+
+# --- Email (invitations) ------------------------------------------------------
+# With EMAIL_HOST set, mail goes out over SMTP; without it, development prints it
+# to the console. Admins can always copy an invitation's link instead.
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = env_int("EMAIL_PORT", 587)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+EMAIL_TIMEOUT = 15
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend" if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "CATSight <no-reply@localhost>")
 
 
 # --- Public demo limits -------------------------------------------------------
-# DEMO_MODE turns on one-click guest accounts and the per-user limits below.
-# Admins are never limited. 0 disables an individual limit.
+# DEMO_MODE turns on one-click guest accounts and the per-user limits below. Guests
+# join the organization DEMO_ORG (its slug), and the limits apply to its non-admin
+# members only: every other organization pays with its own key and isn't limited.
+# 0 disables an individual limit.
 DEMO_MODE = env_bool("DEMO_MODE", False)
-# Off: only admins can upload (the library is curated, e.g. with `manage.py ingest`);
-# everyone else can still search and chat with what's there.
+DEMO_ORG = os.getenv("DEMO_ORG", "demo")
+# Off: only organization admins can upload (the library is curated, e.g. with
+# `manage.py ingest`); everyone else can still search and chat with what's there.
 UPLOADS_ENABLED = env_bool("UPLOADS_ENABLED", True)
 GUEST_ACCESS = env_bool("GUEST_ACCESS", DEMO_MODE)
 GUEST_TTL_HOURS = env_int("GUEST_TTL_HOURS", 24)  # guests and their uploads are removed after this
@@ -171,67 +199,69 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # larger uploads stream to a temp
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024
 
 # --- Models -------------------------------------------------------------------
-# LLM_PROVIDER picks where every model call goes:
-#   openrouter - hosted models through OpenRouter (the public demo)
-#   ollama     - fully local models through Ollama (opt-in, needs ./pull-llms.sh)
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openrouter").strip().lower()
-if LLM_PROVIDER not in {"openrouter", "ollama"}:
-    raise ImproperlyConfigured(f"LLM_PROVIDER must be 'openrouter' or 'ollama', not {LLM_PROVIDER!r}")
-
-_DEFAULT_MODELS = {
-    # Open-weight models served through OpenRouter (verified against its model list on
-    # 2026-10-07), so the same weights can later run on the institution's own GPUs.
+# Each organization picks its provider and pastes its own key (Settings → AI provider):
+#   openrouter - hosted models through OpenRouter
+#   openai     - OpenAI's API
+#   ollama     - this server's Ollama (no key; the super admin enables it per organization)
+# A model left blank in an organization's settings uses these defaults.
+PROVIDER_DEFAULTS = {
+    # Open-weight models through OpenRouter (verified against its model list on
+    # 2026-10-07), so the same weights can run on an institution's own GPUs.
     # Qwen3-VL-30B-A3B-Instruct (Apache-2.0) reads page images, calls tools and
-    # supports strict JSON schemas, at $0.15/$0.60 per million tokens; BGE-M3 (MIT)
-    # is the same multilingual embedder as the Ollama setup.
+    # supports strict JSON schemas; BGE-M3 (MIT) is the same multilingual embedder
+    # as the Ollama setup; Qwen3-Reranker-8B (Apache-2.0) reorders search results.
     "openrouter": {
-        "CHAT_MODEL": "qwen/qwen3-vl-30b-a3b-instruct",
-        "FAST_MODEL": "qwen/qwen3-vl-30b-a3b-instruct",
-        "OCR_MODEL": "qwen/qwen3-vl-30b-a3b-instruct",
-        "EMBEDDING_MODEL": "baai/bge-m3",
+        "chat_model": "qwen/qwen3-vl-30b-a3b-instruct",
+        "fast_model": "qwen/qwen3-vl-30b-a3b-instruct",
+        "ocr_model": "qwen/qwen3-vl-30b-a3b-instruct",
+        "embedding_model": "baai/bge-m3",
+        "reranker_model": "qwen/qwen3-reranker-8b",
+    },
+    # gpt-4.1-mini reads images, calls tools, follows strict JSON schemas and accepts a
+    # temperature; text-embedding-3 models shorten their vectors to EMBEDDING_DIMENSIONS.
+    # OpenAI has no rerank endpoint, so results keep their fused order.
+    "openai": {
+        "chat_model": "gpt-4.1-mini",
+        "fast_model": "gpt-4.1-mini",
+        "ocr_model": "gpt-4.1-mini",
+        "embedding_model": "text-embedding-3-small",
+        "reranker_model": "",
     },
     "ollama": {
         # Pinned tag: the bare `qwen3:4b` alias points to the thinking-only release,
         # which reasons for minutes per reply on CPU.
-        "CHAT_MODEL": "qwen3:4b-instruct-2507-q4_K_M",
-        "FAST_MODEL": "qwen3:1.7b",
+        "chat_model": "qwen3:4b-instruct-2507-q4_K_M",
+        "fast_model": "qwen3:1.7b",
         # Optional local vision model for marker's LLM mode (e.g. "qwen3-vl:8b"); empty = off
-        "OCR_MODEL": "",
-        "EMBEDDING_MODEL": "bge-m3",
+        "ocr_model": "",
+        "embedding_model": "bge-m3",
+        "reranker_model": "",
     },
-}[LLM_PROVIDER]
+}
 
-CHAT_MODEL = os.getenv("CHAT_MODEL") or _DEFAULT_MODELS["CHAT_MODEL"]  # answers + summaries
-FAST_MODEL = os.getenv("FAST_MODEL") or _DEFAULT_MODELS["FAST_MODEL"]  # chat titles
-OCR_MODEL = os.getenv("OCR_MODEL") or _DEFAULT_MODELS["OCR_MODEL"]  # page transcription
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL") or _DEFAULT_MODELS["EMBEDDING_MODEL"]
-# Every stored vector has this many dimensions (bge-m3's native size). Changing the
-# embedding model means re-indexing: `manage.py reindex --all`.
+# Every stored vector has this many dimensions (bge-m3's native size; OpenAI's
+# text-embedding-3 models are asked for it). An organization can only choose an
+# embedding model that returns this many values.
 EMBEDDING_DIMENSIONS = env_int("EMBEDDING_DIMENSIONS", 1024)
 # Vector-only matches below this cosine similarity are treated as unrelated. Measured
 # with bge-m3: on-topic passages score ~0.55-0.75, off-topic ones ~0.30-0.40.
 RETRIEVAL_MIN_SIMILARITY = float(os.getenv("RETRIEVAL_MIN_SIMILARITY", "0.42"))
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 # Context window requested from Ollama; its default (2-4k) silently truncates long prompts.
 OLLAMA_NUM_CTX = env_int("OLLAMA_NUM_CTX", 8192)
 
 # How PDFs become text: "marker" (Marker 2 with Surya OCR 2; the default wherever the
-# local-ocr image installed it), "vision" (page images to OCR_MODEL, needs openrouter),
-# or "docling" / "markitdown" (local-ocr image).
+# local-ocr image installed it), "vision" (page images to the organization's OCR model,
+# OpenRouter or OpenAI), or "docling" / "markitdown" (local-ocr image). An organization
+# whose provider can't run the default gets the first extractor it can run.
 DEFAULT_TEXT_EXTRACTOR = os.getenv(
-    "DEFAULT_TEXT_EXTRACTOR",
-    "marker" if importlib.util.find_spec("marker") or LLM_PROVIDER == "ollama" else "vision",
+    "DEFAULT_TEXT_EXTRACTOR", "marker" if importlib.util.find_spec("marker") else "vision"
 )
-# Marker's LLM mode: tables, forms and handwriting are refined by OCR_MODEL
+# Marker's LLM mode: tables, forms and handwriting are refined by the organization's OCR model
 MARKER_USE_LLM = env_bool("MARKER_USE_LLM", True)
-
-# Optional reranking of hybrid search results with a cross-encoder through
-# OpenRouter's /rerank endpoint; Qwen3-Reranker-8B is open-weight (Apache-2.0). Empty disables it.
-RERANKER_MODEL = os.getenv("RERANKER_MODEL", "qwen/qwen3-reranker-8b" if LLM_PROVIDER == "openrouter" else "")
 
 # --- i18n / static / media ----------------------------------------------------
 LANGUAGE_CODE = "en-us"

@@ -20,8 +20,8 @@ from ..serializers import DocumentSerializer
 from ..services import llm, quotas, search
 from ..services.agent import text_of
 from ..services.errors import describe_error
-from ..utils.permissions import IsAuthenticated
-from .documents import _csv_ints
+from ..utils.permissions import InOrganization
+from .documents import _csv_ints, model_settings_or_response
 
 logger = logging.getLogger(__name__)
 
@@ -47,15 +47,18 @@ def _filters(request) -> dict:
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def search_documents(request):
     query = request.query_params.get("q", "").strip()
     if not query:
         return Response({"detail": "Type something to search for."}, status=status.HTTP_400_BAD_REQUEST)
 
+    cfg, refusal = model_settings_or_response(request.organization)
+    if refusal:
+        return refusal
     started = time.perf_counter()
     try:
-        hits = search.search(query, request.user, k=SEARCH_K, **_filters(request))
+        hits = search.search(query, request.membership, cfg, k=SEARCH_K, **_filters(request))
     except Exception as error:
         logger.exception("Search failed")
         return Response({"detail": describe_error(error)}, status=status.HTTP_502_BAD_GATEWAY)
@@ -85,18 +88,21 @@ def search_documents(request):
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([InOrganization])
 def search_answer(request):
     query = str(request.data.get("q", "")).strip()
     if not query:
         return Response({"detail": "Ask a question."}, status=status.HTTP_400_BAD_REQUEST)
+    cfg, refusal = model_settings_or_response(request.organization)
+    if refusal:
+        return refusal
     try:
-        usage = quotas.consume(request.user, UsageKind.MESSAGE)
+        usage = quotas.consume(request.membership, UsageKind.MESSAGE)
     except quotas.QuotaExceeded as e:
         return Response({"detail": e.message, "code": e.code}, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
     try:
-        hits = search.search(query, request.user, k=ANSWER_K, **_filters(request))
+        hits = search.search(query, request.membership, cfg, k=ANSWER_K, **_filters(request))
         if not hits:
             quotas.refund(usage)  # nothing to answer from: no model call was made
             return Response({"answer": "", "citations": []})
@@ -104,8 +110,8 @@ def search_answer(request):
             f"[{i}] {hit.document.title}" + (f", p. {hit.chunk.page}" if hit.chunk.page else "") + f"\n{hit.chunk.text}"
             for i, hit in enumerate(hits, start=1)
         )
-        reply = llm.get_chat_model(temperature=0.1, max_tokens=500).invoke([
-            SystemMessage(SEARCH_ANSWER_PROMPT.format(passages=passages)),
+        reply = llm.get_chat_model(cfg, temperature=0.1, max_tokens=500).invoke([
+            SystemMessage(SEARCH_ANSWER_PROMPT.format(organization=request.organization.name, passages=passages)),
             HumanMessage(query),
         ])
     except Exception as error:

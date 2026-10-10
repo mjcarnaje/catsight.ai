@@ -3,6 +3,8 @@
 process_document runs the pipeline   queued → extracting → summarizing → indexing → ready
 resuming from the document's current stage, so a retry after a failure only
 re-runs what didn't finish, and editing the text restarts from summarizing.
+Every stage runs with the document's organization's provider (llm.settings_for);
+an organization without one fails the document with a message saying so.
 """
 import logging
 from datetime import timedelta
@@ -14,8 +16,9 @@ from django.utils import timezone
 
 from ..constant import STATUS_ORDER, DocumentStatus, UserRole
 from ..models import Document, DocumentFullText, DocumentStatusHistory, User
-from ..services import extraction, indexing, storage, summarization
+from ..services import extraction, indexing, llm, storage, summarization
 from ..services.errors import describe_error
+from ..services.llm import ModelSettings
 
 logger = logging.getLogger(__name__)
 
@@ -44,18 +47,19 @@ def _progress(document_id: int):
 
 
 # --- Stages -------------------------------------------------------------------------------
-def _extract(document: Document) -> None:
+def _extract(document: Document, cfg: ModelSettings) -> None:
     pages = extraction.extract(
         storage.absolute_path(document.file),
-        document.extractor or settings.DEFAULT_TEXT_EXTRACTOR,
+        document.extractor or extraction.default_extractor(cfg),
+        cfg,
         on_progress=_progress(document.id),
     )
     DocumentFullText.objects.update_or_create(document=document, defaults={"text": extraction.join_pages(pages)})
 
 
-def _summarize(document: Document) -> None:
-    # Always the current CHAT_MODEL; the field only records which model wrote the catalogue
-    analysis = summarization.analyze(document.fulltext.text, settings.CHAT_MODEL)
+def _summarize(document: Document, cfg: ModelSettings) -> None:
+    # Always the organization's current chat model; the field records which model wrote the catalogue
+    analysis = summarization.analyze(document.fulltext.text, cfg, document.organization)
     with transaction.atomic():
         document.title = analysis["title"]
         document.summary = analysis["summary"]
@@ -63,15 +67,17 @@ def _summarize(document: Document) -> None:
         document.issued_on = analysis["issued_on"]
         document.year = analysis["year"]
         document.questions = analysis["questions"]
-        document.summarization_model = settings.CHAT_MODEL
+        document.summarization_model = cfg.chat_model[:100]
         document.save(update_fields=[
             "title", "summary", "reference_number", "issued_on", "year", "questions", "summarization_model", "updated_at",
         ])
         document.tags.set(analysis["tag_ids"])
 
 
-def _index(document: Document) -> None:
-    document.chunk_count = indexing.index_document(document, document.fulltext.text, on_progress=_progress(document.id))
+def _index(document: Document, cfg: ModelSettings) -> None:
+    document.chunk_count = indexing.index_document(
+        document, document.fulltext.text, cfg, on_progress=_progress(document.id)
+    )
     document.save(update_fields=["chunk_count", "updated_at"])
 
 
@@ -86,7 +92,7 @@ RUNNERS = {
 @shared_task(acks_late=True)
 def process_document(document_id: int) -> None:
     try:
-        document = Document.objects.get(pk=document_id)
+        document = Document.objects.select_related("organization").get(pk=document_id)
     except Document.DoesNotExist:
         logger.info(f"Document {document_id} was deleted before processing")
         return
@@ -95,13 +101,18 @@ def process_document(document_id: int) -> None:
     if current is DocumentStatus.READY and not document.is_failed:
         return
     start = max(STATUS_ORDER[current], STATUS_ORDER[DocumentStatus.EXTRACTING])
+    try:
+        cfg = llm.settings_for(document.organization)
+    except llm.AINotConfigured as error:
+        set_status(document, next(s for s in STAGES if STATUS_ORDER[s] >= start), failed=True, error=str(error))
+        return
 
     for stage in STAGES:
         if STATUS_ORDER[stage] < start:
             continue
         set_status(document, stage)
         try:
-            RUNNERS[stage](document)
+            RUNNERS[stage](document, cfg)
         except Exception as error:
             logger.exception(f"Document {document_id} failed while {stage.value}")
             set_status(document, stage, failed=True, error=describe_error(error))

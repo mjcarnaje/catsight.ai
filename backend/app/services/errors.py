@@ -3,14 +3,14 @@ import httpx
 import openai
 
 from .extraction import ExtractorUnavailable
-from .llm import ProviderNotConfigured
+from .llm import AINotConfigured
 
 
 def describe_error(error: Exception) -> str:
-    if isinstance(error, (ProviderNotConfigured, ExtractorUnavailable, ValueError)):
+    if isinstance(error, (AINotConfigured, ExtractorUnavailable, ValueError)):
         return str(error)
     if isinstance(error, openai.AuthenticationError):
-        return "The AI provider rejected the API key. Check OPENROUTER_API_KEY."
+        return "The AI provider rejected the API key. An organization admin can update it in Settings."
     if getattr(error, "status_code", None) == 402:
         return "The AI provider's credit limit was reached. Try again later."
     if isinstance(error, openai.RateLimitError):

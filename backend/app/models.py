@@ -6,7 +6,7 @@ from django.db.models import Q
 from django.utils import timezone
 from pgvector.django import VectorField
 
-from .constant import DocumentStatus, UsageKind, UserRole
+from .constant import DocumentStatus, OrgRole, Provider, UsageKind, UserRole
 
 
 class UserManager(BaseUserManager):
@@ -42,10 +42,6 @@ class User(AbstractUser):
         return self.email
 
     @property
-    def is_admin(self) -> bool:
-        return self.role in {UserRole.ADMIN.value, UserRole.SUPER_ADMIN.value}
-
-    @property
     def is_super_admin(self) -> bool:
         return self.role == UserRole.SUPER_ADMIN.value
 
@@ -54,8 +50,91 @@ class User(AbstractUser):
         return self.role == UserRole.GUEST.value
 
 
+class Organization(models.Model):
+    """A tenant: its own library, members, tags and model provider.
+
+    The provider settings live here. `ai_api_key` is Fernet ciphertext (see
+    services/secrets.py) and is never serialized; blank model names mean the
+    provider's default (settings.PROVIDER_DEFAULTS). No provider means the
+    organization is read-only: nothing can be processed, searched or asked.
+    """
+
+    name = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=60, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    ai_provider = models.CharField(max_length=20, choices=Provider.choices(), blank=True, default="")
+    ai_api_key = models.TextField(blank=True, default="")
+    ai_api_key_last4 = models.CharField(max_length=4, blank=True, default="")
+    chat_model = models.CharField(max_length=200, blank=True, default="")
+    fast_model = models.CharField(max_length=200, blank=True, default="")
+    ocr_model = models.CharField(max_length=200, blank=True, default="")
+    embedding_model = models.CharField(max_length=200, blank=True, default="")
+    reranker_model = models.CharField(max_length=200, blank=True, default="")
+    # The server's own Ollama is a shared resource: only the super admin can open it to an org
+    ollama_allowed = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["name", "id"]
+
+    def __str__(self):
+        return self.name
+
+
+class Membership(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="memberships")
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="memberships")
+    role = models.CharField(max_length=20, choices=OrgRole.choices(), default=OrgRole.MEMBER.value)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [models.UniqueConstraint(fields=["user", "organization"], name="unique_membership")]
+
+    def __str__(self):
+        return f"{self.user} in {self.organization} ({self.role})"
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == OrgRole.ADMIN.value
+
+    @property
+    def is_guest(self) -> bool:
+        return self.role == OrgRole.GUEST.value
+
+
+class Invitation(models.Model):
+    """An emailed, one-time link to join an organization.
+
+    Only the SHA-256 of the token is stored; the token itself exists in the
+    email (and the link shown once to the admin who created it).
+    """
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="invitations")
+    email = models.EmailField()
+    role = models.CharField(max_length=20, choices=OrgRole.choices(), default=OrgRole.MEMBER.value)
+    token_hash = models.CharField(max_length=64, unique=True)
+    invited_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    accepted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.email} -> {self.organization} ({self.role})"
+
+    @property
+    def is_pending(self) -> bool:
+        return self.accepted_at is None and self.expires_at > timezone.now()
+
+
 class Tag(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="tags")
+    name = models.CharField(max_length=100)
     description = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -63,26 +142,30 @@ class Tag(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [models.UniqueConstraint(fields=["organization", "name"], name="unique_tag_name_per_org")]
 
     def __str__(self):
         return self.name
 
 
 class DocumentQuerySet(models.QuerySet):
-    def visible_to(self, user):
-        """Library documents plus the user's own private uploads (admins see everything)."""
-        if user.is_admin:
-            return self
-        return self.filter(Q(is_private=False) | Q(uploaded_by=user))
+    def visible_to(self, membership: "Membership"):
+        """The organization's library plus the member's own private uploads (org admins see everything)."""
+        docs = self.filter(organization_id=membership.organization_id)
+        if membership.is_admin:
+            return docs
+        return docs.filter(Q(is_private=False) | Q(uploaded_by_id=membership.user_id))
 
 
 class Document(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="documents")
+
     # --- Catalogue (filled by the summarizer, editable) ---
     title = models.TextField(blank=True, default="")
     summary = models.TextField(blank=True, default="")
     year = models.IntegerField(null=True, blank=True)
     issued_on = models.DateField(null=True, blank=True)
-    reference_number = models.CharField(max_length=255, blank=True, default="")  # "Special Order No. 01592-IIT, s. 2023"
+    reference_number = models.CharField(max_length=255, blank=True, default="")  # the document's own number, if it has one
     tags = models.ManyToManyField(Tag, related_name="documents", blank=True)
     questions = models.JSONField(default=list, blank=True)  # suggested questions this document answers
 
@@ -104,6 +187,9 @@ class Document(models.Model):
     extractor = models.CharField(max_length=20, blank=True, default="")
     summarization_model = models.CharField(max_length=100, blank=True, default="")
     chunk_count = models.PositiveIntegerField(default=0)
+    # "<provider>:<model>" that embedded this document's chunks. Search compares only
+    # vectors from the organization's current embedding model (see services/search.py).
+    embedding_model = models.CharField(max_length=250, blank=True, default="")
     task_id = models.CharField(max_length=255, blank=True, default="")
     processed_at = models.DateTimeField(null=True, blank=True)
 
@@ -122,6 +208,7 @@ class Document(models.Model):
             models.Index(fields=["status"]),
             models.Index(fields=["created_at"]),
             models.Index(fields=["year"]),
+            models.Index(fields=["organization", "file_hash"]),
         ]
 
     def __str__(self):
@@ -195,10 +282,11 @@ class Chat(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chats")
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="chats")
 
     class Meta:
         ordering = ["-updated_at"]
-        indexes = [models.Index(fields=["user", "-updated_at"])]
+        indexes = [models.Index(fields=["user", "organization", "-updated_at"])]
 
     def __str__(self):
         return self.title or f"Chat {self.id}"
@@ -216,6 +304,8 @@ class UsageEvent(models.Model):
     """
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="usage_events")
+    # The organization whose limits the use counts against (kept if the org is deleted)
+    organization = models.ForeignKey(Organization, on_delete=models.SET_NULL, null=True, related_name="+")
     kind = models.CharField(max_length=20, choices=[(k.value, k.name.title()) for k in UsageKind])
     amount = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(default=timezone.now)

@@ -7,27 +7,27 @@ from typing import Any
 from django.core.files import File
 
 from ..constant import UsageKind
-from ..models import Document
+from ..models import Document, Membership
 from . import quotas, storage
 
 logger = logging.getLogger(__name__)
 
 
-def add_document(user, upload: File, file_name: str, extractor: str, private: bool) -> dict[str, Any]:
-    """Validate, dedupe, store and queue one PDF.
+def add_document(membership: Membership, upload: File, file_name: str, extractor: str, private: bool) -> dict[str, Any]:
+    """Validate, dedupe, store and queue one PDF in the member's organization.
 
     Returns {"file_name", "status": "queued" | "duplicate" | "rejected", "document_id"?, "detail"?, "code"?}.
     """
     from ..tasks.tasks import process_document  # tasks imports services; avoid a cycle
 
     file_name = file_name[:1000]
-    limits = quotas.limits(user)
+    limits = quotas.limits(membership)
     try:
         info = storage.inspect_upload(upload, limits.max_file_mb, limits.max_pages_per_file)
     except storage.UploadRejected as e:
         return {"file_name": file_name, "status": "rejected", "detail": str(e)}
 
-    duplicate = Document.objects.visible_to(user).filter(file_hash=info.sha256).first()
+    duplicate = Document.objects.visible_to(membership).filter(file_hash=info.sha256).first()
     if duplicate:
         return {
             "file_name": file_name, "status": "duplicate", "document_id": duplicate.id,
@@ -35,13 +35,14 @@ def add_document(user, upload: File, file_name: str, extractor: str, private: bo
         }
 
     try:
-        usage = quotas.consume(user, UsageKind.UPLOAD, amount=info.page_count)
+        usage = quotas.consume(membership, UsageKind.UPLOAD, amount=info.page_count)
     except quotas.QuotaExceeded as e:
         return {"file_name": file_name, "status": "rejected", "detail": e.message, "code": e.code}
 
     document = Document.objects.create(
+        organization_id=membership.organization_id,
         file_name=file_name, file_size=info.size, file_hash=info.sha256, page_count=info.page_count,
-        extractor=extractor, uploaded_by=user, is_private=private,
+        extractor=extractor, uploaded_by_id=membership.user_id, is_private=private,
     )
     try:
         document.file = storage.save_upload(upload, document.id)

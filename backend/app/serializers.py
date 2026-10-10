@@ -3,7 +3,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import Chat, Document, DocumentStatusHistory, Tag, User
+from .models import Chat, Document, DocumentStatusHistory, Membership, Organization, Tag, User
 from .services.storage import signed_file_url
 from .utils.permissions import can_modify
 
@@ -14,16 +14,40 @@ def _absolute_media(path: str) -> str:
     return f"{settings.MEDIA_URL}{path.lstrip('/')}"
 
 
+class OrganizationRefSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ["id", "slug", "name"]
+
+
+class MembershipSerializer(serializers.ModelSerializer):
+    organization = OrganizationRefSerializer(read_only=True)
+
+    class Meta:
+        model = Membership
+        fields = ["organization", "role"]
+
+
 class UserSerializer(serializers.ModelSerializer):
+    """The signed-in user, with the organizations they belong to (oldest first)."""
+
     avatar = serializers.SerializerMethodField()
+    memberships = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "last_name", "role", "avatar", "is_guest", "is_admin", "date_joined"]
+        fields = [
+            "id", "email", "first_name", "last_name", "role", "avatar", "is_guest", "is_super_admin",
+            "memberships", "date_joined",
+        ]
         read_only_fields = fields
 
     def get_avatar(self, user: User) -> str:
         return _absolute_media(user.avatar)
+
+    def get_memberships(self, user: User) -> list[dict]:
+        memberships = user.memberships.select_related("organization").order_by("created_at", "id")
+        return MembershipSerializer(memberships, many=True).data
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
@@ -74,12 +98,25 @@ class LoginSerializer(serializers.Serializer):
 
 
 class TagSerializer(serializers.ModelSerializer):
+    """Writes need context["organization"]: names are unique within an organization."""
+
     document_count = serializers.IntegerField(read_only=True, default=0)
 
     class Meta:
         model = Tag
         fields = ["id", "name", "description", "document_count", "created_at", "updated_at"]
         read_only_fields = ["id", "document_count", "created_at", "updated_at"]
+
+    def validate_name(self, name: str) -> str:
+        name = name.strip()
+        if not name:
+            raise serializers.ValidationError("A tag needs a name.")
+        taken = Tag.objects.filter(organization=self.context["organization"], name__iexact=name)
+        if self.instance is not None:
+            taken = taken.exclude(pk=self.instance.pk)
+        if taken.exists():
+            raise serializers.ValidationError("A tag with this name already exists.")
+        return name
 
 
 class TagRefSerializer(serializers.ModelSerializer):
@@ -123,7 +160,7 @@ class DocumentSerializer(serializers.ModelSerializer):
 
     def get_can_edit(self, document: Document) -> bool:
         request = self.context.get("request")
-        return bool(request and can_modify(request.user, document))
+        return bool(request and can_modify(getattr(request, "membership", None), document))
 
 
 class DocumentDetailSerializer(DocumentSerializer):
@@ -140,13 +177,21 @@ class DocumentDetailSerializer(DocumentSerializer):
 
 
 class DocumentUpdateSerializer(serializers.ModelSerializer):
-    """Fields a person may correct after the summarizer filled them."""
+    """Fields a person may correct after the summarizer filled them.
 
-    tag_ids = serializers.PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True, source="tags", required=False)
+    Needs context["organization"]: only that organization's tags can be attached.
+    """
+
+    tag_ids = serializers.PrimaryKeyRelatedField(queryset=Tag.objects.none(), many=True, source="tags", required=False)
 
     class Meta:
         model = Document
         fields = ["title", "summary", "reference_number", "year", "issued_on", "tag_ids"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        organization = self.context["organization"]
+        self.fields["tag_ids"].child_relation.queryset = Tag.objects.filter(organization=organization)
 
 
 class ChatSerializer(serializers.ModelSerializer):

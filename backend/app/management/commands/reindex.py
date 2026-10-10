@@ -1,6 +1,6 @@
 """Re-run part of the pipeline for existing documents.
 
-    python manage.py reindex --all                       # re-embed everything (after changing EMBEDDING_MODEL)
+    python manage.py reindex --all [--org acme]          # re-embed everything (or one organization's library)
     python manage.py reindex 4 7 --from summarizing      # re-summarize and re-index two documents
     python manage.py reindex --unfinished                # requeue documents stuck mid-pipeline or failed,
                                                          # each from the stage it stopped at
@@ -20,10 +20,12 @@ class Command(BaseCommand):
         parser.add_argument("--all", action="store_true")
         parser.add_argument("--unfinished", action="store_true", help="Documents that aren't ready, from their own stage")
         parser.add_argument("--from", dest="stage", default="indexing", choices=["extracting", "summarizing", "indexing"])
+        parser.add_argument("--org", help="Only this organization's documents (its slug)")
 
-    def handle(self, ids, all, unfinished, stage, **options):
+    def handle(self, ids, all, unfinished, stage, org, **options):
+        scope = Document.objects.filter(organization__slug=org) if org else Document.objects.all()
         if unfinished:
-            documents = Document.objects.exclude(file="").exclude(status=DocumentStatus.READY.value, is_failed=False)
+            documents = scope.exclude(file="").exclude(status=DocumentStatus.READY.value, is_failed=False)
             for document in documents:
                 current = DocumentStatus(document.status)
                 reprocess(document, DocumentStatus.EXTRACTING if current is DocumentStatus.QUEUED else current)
@@ -31,7 +33,7 @@ class Command(BaseCommand):
             return
         if not ids and not all:
             raise CommandError("Pass document ids, --all or --unfinished")
-        documents = Document.objects.all() if all else Document.objects.filter(id__in=ids)
+        documents = scope if all else scope.filter(id__in=ids)
         documents = documents.exclude(file="")
         for document in documents:
             reprocess(document, DocumentStatus(stage))

@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import transaction
 from PIL import Image
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
@@ -15,8 +16,8 @@ from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from ..constant import UserRole
-from ..models import User
+from ..constant import OrgRole, UserRole
+from ..models import Membership, Organization, User
 from ..serializers import LoginSerializer, ProfileUpdateSerializer, RegisterSerializer, UserSerializer
 from ..tasks.tasks import delete_expired_guests
 from ..utils.permissions import AllowAny, IsAuthenticated
@@ -79,17 +80,26 @@ def login(request):
 @permission_classes([AllowAny])
 @throttle_classes([GuestThrottle])
 def guest(request):
-    """One-click demo access: a temporary account with the demo's limits."""
+    """One-click demo access: a temporary account in the demo organization, with the demo's limits."""
     if not settings.GUEST_ACCESS:
         return Response({"detail": "Guest access is turned off."}, status=status.HTTP_403_FORBIDDEN)
+    organization = Organization.objects.filter(slug=settings.DEMO_ORG).first()
+    if organization is None:
+        logger.warning(f"Guest sign-in refused: no organization with the slug DEMO_ORG={settings.DEMO_ORG!r}")
+        return Response(
+            {"detail": "The demo isn't set up yet. Try again later.", "code": "demo_unavailable"},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
     handle = uuid.uuid4().hex[:10]
-    user = User.objects.create_user(
-        email=f"guest-{handle}@guest.catsight.local",
-        username=f"guest-{handle}",
-        password=None,  # unusable: guests only ever hold the tokens issued here
-        first_name="Guest",
-        role=UserRole.GUEST.value,
-    )
+    with transaction.atomic():
+        user = User.objects.create_user(
+            email=f"guest-{handle}@guest.catsight.local",
+            username=f"guest-{handle}",
+            password=None,  # unusable: guests only ever hold the tokens issued here
+            first_name="Guest",
+            role=UserRole.GUEST.value,
+        )
+        Membership.objects.create(user=user, organization=organization, role=OrgRole.GUEST.value)
     delete_expired_guests.delay()
     return session_for(user, status.HTTP_201_CREATED)
 
