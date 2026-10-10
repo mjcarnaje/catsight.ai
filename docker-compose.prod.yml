@@ -3,6 +3,10 @@
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 #
 # See docs/HOSTING.md. Nothing here listens beyond 127.0.0.1.
+#
+# This is the general edition: its database cluster (pgdata-general) and media
+# (media-general) are its own. The thesis edition (branch thesis-revision) uses the
+# volumes pgdata and media of the same project, so switching editions never mixes data.
 name: catsight
 
 x-backend: &backend
@@ -29,7 +33,7 @@ x-backend: &backend
   extra_hosts:
     - "host.docker.internal:host-gateway"
   volumes:
-    - media:/usr/src/app/media
+    - media-general:/usr/src/app/media
     - models:/usr/src/app/.cache
   depends_on:
     db:
@@ -43,7 +47,7 @@ services:
     image: pgvector/pgvector:pg17
     env_file: .env.prod
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata-general:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -71,10 +75,10 @@ services:
       backend:
         condition: service_started
     volumes:
-      - media:/usr/src/app/media
+      - media-general:/usr/src/app/media
       - models:/usr/src/app/.cache
-      # PDFs to add with `manage.py ingest /seed` (read-only; see docs/HOSTING.md)
-      - ${SEED_DIR:-./seed}:/seed:ro
+      # The demo library's sample documents (samples/demo), added with `manage.py ingest /seed`
+      - ./samples/demo:/seed:ro
     command: ["celery", "-A", "inteldocs", "worker", "--loglevel=info", "--pool=threads", "--concurrency=4"]
 
   # Surya OCR 2, the open vision-language OCR model inside Marker 2, served by llama.cpp
@@ -120,8 +124,8 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  pgdata-general:
   # Mounted only by the backend image, so Docker creates them owned by the app user
-  media:
+  media-general:
   models:
   ocr-models:
