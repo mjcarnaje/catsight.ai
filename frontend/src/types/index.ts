@@ -14,6 +14,8 @@ export interface OrganizationRef {
 }
 
 export interface Membership {
+  /** The membership's id (DELETE /organization/members/<id>/ with your own id leaves). */
+  id: number;
   organization: OrganizationRef;
   role: OrgRole;
 }

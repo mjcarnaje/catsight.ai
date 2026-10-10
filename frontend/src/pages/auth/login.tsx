@@ -1,7 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { AuthShell, Divider } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
@@ -9,20 +9,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSession } from "@/contexts/session-context";
 import { useGuestSignIn } from "@/hooks/use-guest-sign-in";
-import { authApi, errorMessage } from "@/lib/api";
+import { authApi, errorMessage, invitationsApi } from "@/lib/api";
 import { useConfig } from "@/lib/queries";
 
 export default function LoginPage() {
   const { signIn } = useSession();
   const { data: config } = useConfig();
   const guest = useGuestSignIn();
+  const navigate = useNavigate();
+  const { search } = useLocation();
+  const [params] = useSearchParams();
+  // Arriving from an invitation: the email is known, and signing in continues the invitation
+  const invite = params.get("invite");
   const [email, setEmail] = useState("");
+  const invitation = useQuery({
+    queryKey: ["invitation", invite],
+    queryFn: () => invitationsApi.preview(invite ?? ""),
+    enabled: Boolean(invite),
+    retry: false,
+  });
+  const invitedEmail = invitation.data?.email;
+  useEffect(() => {
+    if (invitedEmail) setEmail((current) => current || invitedEmail);
+  }, [invitedEmail]);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const login = useMutation({
     mutationFn: () => authApi.login(email.trim(), password),
-    onSuccess: signIn,
+    onSuccess: (response) => {
+      signIn(response);
+      // Same handler as signIn so the sign-in page's redirect never renders first
+      if (invite) navigate(`/invite/${encodeURIComponent(invite)}`, { replace: true });
+    },
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -34,18 +53,18 @@ export default function LoginPage() {
   return (
     <AuthShell
       title="Sign in to CATSight"
-      description="Ask the university's documents anything, with page-level citations."
+      description="Ask your organization's documents anything, with page-level citations."
       footer={
         <>
           No account yet?{" "}
-          <Link to="/register" className="text-foreground underline-offset-4 hover:underline">
+          <Link to={`/register${search}`} className="text-foreground underline-offset-4 hover:underline">
             Create one
           </Link>
         </>
       }
     >
       <div className="flex flex-col gap-6">
-        {config?.guest_access && (
+        {config?.guest_access && !invite && (
           <>
             <Button size="lg" onClick={() => guest.mutate()} disabled={guest.isPending} className="w-full">
               {guest.isPending ? <Loader2 className="animate-spin" /> : null}
@@ -101,7 +120,7 @@ export default function LoginPage() {
               {errorMessage(error)}
             </p>
           )}
-          <Button type="submit" variant={config?.guest_access ? "secondary" : "default"} disabled={login.isPending}>
+          <Button type="submit" variant={config?.guest_access && !invite ? "secondary" : "default"} disabled={login.isPending}>
             {login.isPending && <Loader2 className="animate-spin" />}
             Sign in
           </Button>

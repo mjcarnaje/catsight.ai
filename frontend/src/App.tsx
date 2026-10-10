@@ -22,6 +22,8 @@ const DocumentPage = lazy(() => import("@/pages/documents/document"));
 const SearchPage = lazy(() => import("@/pages/search/search"));
 const TagsPage = lazy(() => import("@/pages/tags/tags"));
 const SettingsPage = lazy(() => import("@/pages/settings/settings"));
+const InvitePage = lazy(() => import("@/pages/invite/invite"));
+const AdminOrganizationsPage = lazy(() => import("@/pages/admin/organizations"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,6 +44,8 @@ export default function App() {
               <Route path="/terms-and-conditions" element={<TermsAndConditionPage />} />
               <Route path="/login" element={<PublicOnlyRoute><Lazy><LoginPage /></Lazy></PublicOnlyRoute>} />
               <Route path="/register" element={<PublicOnlyRoute><Lazy><RegisterPage /></Lazy></PublicOnlyRoute>} />
+              {/* Public, and not PublicOnlyRoute: a signed-in user may open an invitation for their own account */}
+              <Route path="/invite/:token" element={<Lazy><InvitePage /></Lazy>} />
 
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
@@ -52,6 +56,7 @@ export default function App() {
                 <Route path="/chat/:id?" element={<ChatPage />} />
                 <Route path="/tags" element={<TagsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
