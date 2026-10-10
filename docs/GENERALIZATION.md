@@ -22,16 +22,18 @@ deploy would silently replace the system the thesis describes.
 ## Decisions
 
 ### Preservation
-- The hosted site stays a **frozen thesis demo**. The general version is not deployed there.
+- The hosted site was first kept a frozen thesis demo. On 10 October 2026 the owner chose
+  to run the general edition there "for now", with a scripted way back: see "Two editions
+  on the mini" below.
 - `thesis-revision` remains the branch for paper edits and for any fix to the demo.
 - Tags: `thesis-defended` on `e4ce7ab` (the defended edition, so the defended-vs-revised diff
   no longer depends on `HEAD~1`), `thesis-snapshot-2026-10` on `e6cef74` now, and
   `thesis-final` when the paper is approved.
-- Deploy guard: `catsight-remote deploy` deploys `CATSIGHT_DEPLOY_REF` from `.env.remote`
-  (set to `thesis-revision`) and refuses `master` unless asked explicitly. The guard has to
-  live on both branches, because the script runs from whatever branch is checked out.
+- Deploy guard: a plain `catsight-remote deploy` updates the edition the mini runs and never
+  switches; `deploy thesis|general` switches only when named. The script lives on both
+  branches, because it runs from whatever branch is checked out.
 - The rule is also written where other coding agents read it: `AGENTS.md`, `docs/HOSTING.md`
-  and `.agents/skills/deploy-to-mac-mini` (which today says "push to master"), on both branches.
+  and `.agents/skills/deploy-to-mac-mini`, on both branches.
 - Off-machine archive of a fresh full dump (users and chats included), the media archive and
   the 50 seed PDFs, with SHA-256 checksums and restore steps:
   1. on the MacBook, outside the repo;
@@ -109,6 +111,17 @@ deploy would silently replace the system the thesis describes.
   its chats' checkpoints, then everything that belongs to it.
 - **Re-embedding:** search compares only vectors from the organization's current embedding
   model, so while a library is re-embedded the keyword leg still finds the rest.
+
+## Two editions on the mini
+- `deploy general` adds `FIELD_ENCRYPTION_KEY` (and `DEMO_ORG=default` in demo mode) to
+  `.env.prod` when missing, deploys `master`, whose migrations move the library into the
+  organization `default`, and gives it the demo's `OPENROUTER_API_KEY` as its provider
+  (`manage.py configure_organization`).
+- `deploy thesis` runs `manage.py revert_to_single_library` with the general code first
+  (refused with more than one organization), then deploys `thesis-revision`.
+- Tested end to end on a copy of the production database (thesis → general → thesis): all
+  48 documents, 556 passages, 13 tags, 21 users and 45 chats came back, and the thesis code
+  created chats and tags on the reverted schema.
 
 ## Still open
 - Rotating `FIELD_ENCRYPTION_KEY`: today a new key makes the saved API keys unreadable, and
