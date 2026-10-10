@@ -75,3 +75,36 @@ def test_revert_to_single_library_migrates_back_with_one_organization(org, monke
     assert calls == []
     call_command("revert_to_single_library")
     assert calls == [("migrate", "app", "0021_remove_google_sign_in")]
+
+
+@pytest.mark.django_db
+def test_ensure_demo_organization_creates_it_once(monkeypatch, settings, capsys):
+    from app.constant import UserRole
+
+    from .conftest import make_user, membership
+
+    settings.DEMO_ORG = "demo"
+    root = make_user("root@example.com", role=UserRole.SUPER_ADMIN.value)
+    monkeypatch.setenv("ADMIN_EMAIL", "Root@example.com")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-demo-key-4321")
+    call_command("ensure_demo_organization", "--name", "Tamsin Ridge Water Cooperative")
+    org = Organization.objects.get(slug="demo")
+    assert org.name == "Tamsin Ridge Water Cooperative" and org.tags.count() == 7  # the general preset
+    assert membership(root, org).role == "admin"
+    assert org.ai_provider == "openrouter" and secrets.decrypt(org.ai_api_key) == "sk-or-demo-key-4321"
+    assert "sk-or-demo" not in capsys.readouterr().out
+
+    # Running it again changes nothing an admin may have changed since
+    org.name, org.ai_provider, org.ai_api_key = "Renamed", "openai", secrets.encrypt("sk-admin-chosen-0000")
+    org.save()
+    call_command("ensure_demo_organization", "--name", "Tamsin Ridge Water Cooperative")
+    org.refresh_from_db()
+    assert org.name == "Renamed" and secrets.decrypt(org.ai_api_key) == "sk-admin-chosen-0000"
+    assert Organization.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_ensure_demo_organization_needs_demo_org(settings):
+    settings.DEMO_ORG = ""
+    with pytest.raises(CommandError, match="DEMO_ORG"):
+        call_command("ensure_demo_organization")
