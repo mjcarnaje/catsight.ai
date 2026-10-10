@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, Fragment, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
 import { currentOrganization } from "@/lib/api";
 import { useSession } from "@/contexts/session-context";
@@ -12,7 +12,7 @@ interface OrganizationValue {
   current: Membership | null;
   isAdmin: boolean;
   isGuest: boolean;
-  /** Act in another organization: every cached query belongs to the old one, so the cache is cleared. */
+  /** Act in another organization: the cache is cleared and every page below remounts. */
   switchTo: (slug: string) => void;
 }
 
@@ -62,7 +62,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }),
     [memberships, current, switchTo]
   );
-  return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
+  // Keyed by organization: on a switch everything below remounts, so no mounted page keeps
+  // showing (or acting on) the previous organization's data from its last query result
+  return (
+    <OrganizationContext.Provider value={value}>
+      <Fragment key={slug ?? "none"}>{children}</Fragment>
+    </OrganizationContext.Provider>
+  );
 }
 
 export function useOrganization() {
