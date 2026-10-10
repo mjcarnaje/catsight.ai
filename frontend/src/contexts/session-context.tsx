@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { authApi, SESSION_EXPIRED, tokens } from "@/lib/api";
+import { authApi, currentOrganization, SESSION_EXPIRED, tokens } from "@/lib/api";
 import type { AuthResponse, User } from "@/types";
 
 interface SessionValue {
@@ -23,6 +23,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     tokens.clear();
+    currentOrganization.clear();
     setUser(null);
     queryClient.clear();
   }, [queryClient]);
@@ -30,6 +31,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     (response: AuthResponse) => {
       queryClient.clear(); // nothing cached from a previous account
+      currentOrganization.clear(); // the organization context picks one of this account's
       tokens.set(response.tokens.access, response.tokens.refresh);
       setUser(response.user);
     },

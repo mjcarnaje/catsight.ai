@@ -1,6 +1,11 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from "axios";
 
 import type {
+  AdminOrganization,
+  AdminOrganizationCreate,
+  AdminOrganizationCreated,
+  AISettings,
+  AISettingsUpdate,
   AppConfig,
   AuthResponse,
   Chat,
@@ -13,6 +18,13 @@ import type {
   DocumentStatus,
   DocumentUpdate,
   Extractor,
+  Invitation,
+  InvitationPreview,
+  IssuedInvitation,
+  Member,
+  Membership,
+  OrganizationDetail,
+  OrgRole,
   Paginated,
   SearchAnswer,
   SearchResponse,
@@ -38,6 +50,29 @@ export const tokens = {
   },
 };
 
+// --- Organization ------------------------------------------------------------------------
+const ORGANIZATION = "organization";
+
+/**
+ * The slug of the organization the app acts in, sent as X-Organization on every request.
+ * The organization context keeps it in step with the user's memberships.
+ */
+export const currentOrganization = {
+  get: () => localStorage.getItem(ORGANIZATION),
+  set: (slug: string) => localStorage.setItem(ORGANIZATION, slug),
+  clear: () => localStorage.removeItem(ORGANIZATION),
+};
+
+/** Headers every API request carries: the token and the organization. */
+export function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const access = tokens.access();
+  if (access) headers.Authorization = `Bearer ${access}`;
+  const organization = currentOrganization.get();
+  if (organization) headers["X-Organization"] = organization;
+  return headers;
+}
+
 /** Fired when the session can't be refreshed; the session context signs out. */
 export const SESSION_EXPIRED = "catsight:session-expired";
 
@@ -46,8 +81,7 @@ export const api = axios.create({ baseURL: "/api", timeout: 60_000 });
 api.interceptors.request.use((config) => {
   // Django routes end with a slash; add it so every call matches
   if (config.url && !config.url.endsWith("/") && !config.url.includes("?")) config.url += "/";
-  const access = tokens.access();
-  if (access) config.headers.Authorization = `Bearer ${access}`;
+  for (const [name, value] of Object.entries(authHeaders())) config.headers[name] = value;
   return config;
 });
 
@@ -122,7 +156,8 @@ function documentParams(filters: DocumentFilters) {
 export const authApi = {
   login: (email: string, password: string) =>
     api.post<AuthResponse>("/auth/login/", { email, password }).then((r) => r.data),
-  register: (data: { email: string; password: string; first_name: string; last_name: string }) =>
+  /** `invite`: an invitation token; joins its organization and lifts the email-domain restriction. */
+  register: (data: { email: string; password: string; first_name: string; last_name: string; invite?: string }) =>
     api.post<AuthResponse>("/auth/register/", data).then((r) => r.data),
   guest: () => api.post<AuthResponse>("/auth/guest/").then((r) => r.data),
   me: () => api.get<User>("/auth/me/").then((r) => r.data),
@@ -196,3 +231,48 @@ export const tagsApi = {
     api.patch<Tag>(`/tags/${id}/`, data).then((r) => r.data),
   remove: (id: number) => api.delete(`/tags/${id}/`),
 };
+
+/** The current organization (X-Organization), for its admins. */
+export const organizationApi = {
+  get: () => api.get<OrganizationDetail>("/organization/").then((r) => r.data),
+  rename: (name: string) => api.patch<OrganizationDetail>("/organization/", { name }).then((r) => r.data),
+  members: () => api.get<Member[]>("/organization/members/").then((r) => r.data),
+  setRole: (membershipId: number, role: OrgRole) =>
+    api.patch<Member>(`/organization/members/${membershipId}/`, { role }).then((r) => r.data),
+  /** Remove a member (or yourself, to leave the organization). */
+  removeMember: (membershipId: number) => api.delete(`/organization/members/${membershipId}/`),
+  invitations: () => api.get<Invitation[]>("/organization/invitations/").then((r) => r.data),
+  invite: (email: string, role: Exclude<OrgRole, "guest">) =>
+    api.post<IssuedInvitation>("/organization/invitations/", { email, role }).then((r) => r.data),
+  resendInvitation: (id: number) =>
+    api.post<IssuedInvitation>(`/organization/invitations/${id}/resend/`).then((r) => r.data),
+  revokeInvitation: (id: number) => api.delete(`/organization/invitations/${id}/`),
+};
+
+/** The current organization's AI provider (org admins). The key is write-only. */
+export const aiSettingsApi = {
+  get: () => api.get<AISettings>("/organization/ai/").then((r) => r.data),
+  // Saving checks the key and models with real (small) calls to the provider: allow time
+  save: (data: AISettingsUpdate) =>
+    api.put<AISettings & { reindexing?: number }>("/organization/ai/", data, { timeout: 90_000 }).then((r) => r.data),
+};
+
+/** Invitation links (/invite/:token): preview without signing in, accept as the invited address. */
+export const invitationsApi = {
+  preview: (token: string) => api.get<InvitationPreview>(`/invitations/${token}/`).then((r) => r.data),
+  accept: (token: string) =>
+    api.post<{ membership: Membership }>(`/invitations/${token}/accept/`).then((r) => r.data),
+};
+
+/** Platform administration (super admin only). */
+export const adminApi = {
+  organizations: () => api.get<AdminOrganization[]>("/admin/organizations/").then((r) => r.data),
+  createOrganization: (data: AdminOrganizationCreate) =>
+    api.post<AdminOrganizationCreated>("/admin/organizations/", data).then((r) => r.data),
+  updateOrganization: (id: number, data: { name?: string; ollama_allowed?: boolean }) =>
+    api.patch<AdminOrganization>(`/admin/organizations/${id}/`, data).then((r) => r.data),
+  /** Deletes the organization with its documents and chats; `confirm` must be its slug. */
+  deleteOrganization: (id: number, confirm: string) =>
+    api.delete(`/admin/organizations/${id}/`, { params: { confirm } }),
+};
+

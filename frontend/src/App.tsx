@@ -6,6 +6,7 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { Lazy, ProtectedRoute, PublicOnlyRoute } from "@/components/protected-route";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { OrganizationProvider } from "@/contexts/organization-context";
 import { SessionProvider } from "@/contexts/session-context";
 import { LandingPage } from "@/pages/landing/landing";
 import { PrivacyPolicyPage } from "@/pages/landing/privacy-policty";
@@ -32,6 +33,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
+        <OrganizationProvider>
         <TooltipProvider delayDuration={200}>
           <BrowserRouter>
             <Routes>
@@ -56,6 +58,7 @@ export default function App() {
             <Toaster />
           </BrowserRouter>
         </TooltipProvider>
+        </OrganizationProvider>
       </SessionProvider>
     </QueryClientProvider>
   );

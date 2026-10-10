@@ -1,7 +1,7 @@
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .views import auth, chat, documents, overview, search, tags
+from .views import admin_orgs, ai_settings, auth, chat, documents, organization, overview, search, tags
 
 urlpatterns = [
     # App
@@ -35,4 +35,25 @@ urlpatterns = [
     # Tags
     path("tags/", tags.tags, name="tags"),
     path("tags/<int:tag_id>/", tags.tag_detail, name="tag"),
+
+    # The request's organization (X-Organization): settings, members, invitations, AI provider
+    path("organization/", organization.organization_detail, name="organization"),
+    path("organization/members/", organization.members, name="organization_members"),
+    path("organization/members/<int:membership_id>/", organization.member_detail, name="organization_member"),
+    path("organization/invitations/", organization.invitations, name="organization_invitations"),
+    path("organization/invitations/<int:invitation_id>/", organization.invitation_detail, name="organization_invitation"),
+    path(
+        "organization/invitations/<int:invitation_id>/resend/",
+        organization.invitation_resend,
+        name="organization_invitation_resend",
+    ),
+    path("organization/ai/", ai_settings.ai_settings, name="organization_ai"),
+
+    # Invitation links (the token is the credential)
+    path("invitations/<str:token>/", organization.invitation_preview, name="invitation_preview"),
+    path("invitations/<str:token>/accept/", organization.invitation_accept, name="invitation_accept"),
+
+    # Platform administration (super admin)
+    path("admin/organizations/", admin_orgs.organizations, name="admin_organizations"),
+    path("admin/organizations/<int:organization_id>/", admin_orgs.organization_detail, name="admin_organization"),
 ]

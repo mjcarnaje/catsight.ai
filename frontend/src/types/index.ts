@@ -1,7 +1,22 @@
 /** Types mirroring the Django API (backend/app/serializers.py and views). */
 
 // --- Accounts ---------------------------------------------------------------------
-export type Role = "guest" | "user" | "admin" | "super_admin";
+/** Platform-wide role. What someone may do inside an organization is their OrgRole. */
+export type Role = "guest" | "user" | "super_admin";
+
+/** admin: members, invitations, tags, AI provider, every document; member: uploads and own documents; guest: read and ask. */
+export type OrgRole = "admin" | "member" | "guest";
+
+export interface OrganizationRef {
+  id: number;
+  slug: string;
+  name: string;
+}
+
+export interface Membership {
+  organization: OrganizationRef;
+  role: OrgRole;
+}
 
 export interface User {
   id: number;
@@ -11,7 +26,10 @@ export interface User {
   role: Role;
   avatar: string;
   is_guest: boolean;
-  is_admin: boolean;
+  /** Creates organizations; sees no organization's data without a membership. */
+  is_super_admin: boolean;
+  /** Oldest first; the first is used when no organization was chosen. */
+  memberships: Membership[];
   date_joined: string;
 }
 
@@ -44,21 +62,36 @@ export interface Usage {
 
 export type Extractor = "vision" | "marker" | "docling" | "markitdown";
 
+export type Provider = "openrouter" | "openai" | "ollama";
+
+/** The organization the request acted in (X-Organization header), as /api/config/ reports it. */
+export interface ConfigOrganization extends OrganizationRef {
+  role: OrgRole;
+  /** False: read-only until an admin adds a provider (Settings → AI provider). */
+  ai_configured: boolean;
+  /** Why the provider can't be used, when ai_configured is false. */
+  ai_error: string;
+}
+
 export interface AppConfig {
   demo_mode: boolean;
-  /** Whether this visitor may upload (admins always can). */
+  /** Whether this member may upload: not guests, only with a working provider, admins even when uploads are off. */
   uploads_enabled: boolean;
   guest_access: boolean;
   allowed_email_domains: string[];
-  provider: "openrouter" | "ollama";
-  models: { chat: string; ocr: string; embedding: string; reranker: string };
-  /** The default converter, and whether Marker refines hard regions with the OCR model. */
-  extraction: { default: Extractor; marker_llm: boolean };
+  /** Signed in and in an organization; null otherwise. */
+  organization: ConfigOrganization | null;
+  /** The organization's provider ("" when it has none). */
+  provider: Provider | "";
+  /** The organization's models; null without a working provider. reranker is "" when off. */
+  models: { chat: string; ocr: string; embedding: string; reranker: string } | null;
+  /** The default converter ("" when none can run), and whether Marker refines hard regions with the OCR model. */
+  extraction: { default: Extractor | ""; marker_llm: boolean };
   limits: Limits;
   guest_ttl_hours: number;
   // Signed-in only
   usage?: Usage;
-  extractors?: { default: Extractor; options: Extractor[] };
+  extractors?: { default: Extractor | ""; options: Extractor[] };
 }
 
 // --- Documents -------------------------------------------------------------------------
@@ -256,4 +289,106 @@ export interface Dashboard {
   timeline: { month: string; count: number }[];
   questions: { question: string; document_id: number }[];
   activity: { chats: number; questions_30d: number };
+}
+
+// --- Organization administration (org admins) ------------------------------------------
+export interface OrganizationDetail extends OrganizationRef {
+  role: OrgRole;
+  member_count: number;
+  created_at: string;
+}
+
+export interface Member {
+  /** The membership's id (used in /organization/members/<id>/). */
+  id: number;
+  user: { id: number; email: string; first_name: string; last_name: string; avatar: string; is_guest: boolean };
+  role: OrgRole;
+  created_at: string;
+  is_you: boolean;
+}
+
+export type InvitationStatus = "pending" | "accepted" | "expired";
+
+export interface Invitation {
+  id: number;
+  email: string;
+  role: Exclude<OrgRole, "guest">;
+  status: InvitationStatus;
+  invited_by: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+}
+
+/** Returned when an invitation is created or re-sent: the only time its link is shown. */
+export interface IssuedInvitation {
+  invitation: Invitation;
+  link: string;
+  /** False when email isn't set up or sending failed: share the link yourself. */
+  email_sent: boolean;
+}
+
+/** GET /api/invitations/<token>/ (no sign-in needed). */
+export interface InvitationPreview {
+  organization: { name: string; slug: string };
+  email: string;
+  role: Exclude<OrgRole, "guest">;
+  status: InvitationStatus;
+  invited_by_name: string | null;
+  account_exists: boolean;
+}
+
+// --- AI provider (org admins) -------------------------------------------------------------
+export type ModelRole = "chat_model" | "fast_model" | "ocr_model" | "embedding_model" | "reranker_model";
+export type ModelChoices = Record<ModelRole, string>;
+
+export interface AISettings {
+  provider: Provider | "";
+  has_key: boolean;
+  key_last4: string;
+  /** What the admin saved: "" means the provider's default, "none" turns the reranker or OCR model off. */
+  models: ModelChoices;
+  /** The models actually used (defaults filled in); null without a provider. */
+  effective: ModelChoices | null;
+  defaults: Record<Provider, ModelChoices>;
+  providers: { value: Provider; label: string; needs_key: boolean; available: boolean }[];
+  embedding_dimensions: number;
+  /** Ready documents whose vectors came from another embedding model (re-embedding pending). */
+  documents_to_reindex: number;
+}
+
+export interface AISettingsUpdate {
+  provider: Provider | "";
+  /** Omit to keep the saved key; required when switching between hosted providers. */
+  api_key?: string;
+  models: Partial<ModelChoices>;
+  /** Required (true) when the embedding model changes and documents must be re-embedded. */
+  confirm_reindex?: boolean;
+}
+
+// --- Platform administration (super admin) ---------------------------------------------
+export type TagPreset = "general" | "msu-iit";
+
+export interface AdminOrganization extends OrganizationRef {
+  created_at: string;
+  member_count: number;
+  document_count: number;
+  ai_provider: Provider | "";
+  ollama_allowed: boolean;
+}
+
+export interface AdminOrganizationCreate {
+  name: string;
+  slug?: string;
+  preset: TagPreset;
+  /** Invite this address as the organization's first admin. */
+  admin_email?: string;
+  /** Make the super admin an admin of the new organization. */
+  add_me?: boolean;
+}
+
+export interface AdminOrganizationCreated {
+  organization: AdminOrganization;
+  /** Present when admin_email was given. */
+  invitation?: IssuedInvitation;
 }

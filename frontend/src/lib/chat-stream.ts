@@ -3,7 +3,7 @@
  * request can carry a JSON body and an Authorization header).
  * Event names and payloads are documented in backend/app/views/chat.py.
  */
-import { refreshAccessToken, tokens } from "@/lib/api";
+import { authHeaders, refreshAccessToken } from "@/lib/api";
 import type { AssistantMessage, Chat, Source, UserMessage } from "@/types";
 
 export interface StreamRequest {
@@ -33,7 +33,7 @@ export class StreamError extends Error {
 async function post(body: StreamRequest, signal: AbortSignal, retried = false): Promise<Response> {
   const response = await fetch("/api/chats/stream/", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokens.access() ?? ""}` },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(body),
     signal,
   });

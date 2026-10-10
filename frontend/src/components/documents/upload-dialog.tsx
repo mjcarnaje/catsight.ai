@@ -61,8 +61,8 @@ export function UploadDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const uploadsLeft = usage?.limited && usage.uploads.limit > 0 ? Math.max(0, usage.uploads.limit - usage.uploads.used) : null;
   const outOfUploads = uploadsLeft === 0;
 
-  // Visitors in the public demo always upload privately; everyone else can choose
-  const forcedPrivate = Boolean(config?.demo_mode && user && !user.is_admin);
+  // Members limited by the public demo always upload privately; everyone else can choose
+  const forcedPrivate = Boolean(usage?.limited);
   const canChoosePrivacy = Boolean(user) && !forcedPrivate;
 
   const upload = useMutation({
@@ -70,7 +70,7 @@ export function UploadDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       documentsApi.upload(
         files,
         {
-          extractor: showExtractor ? chosenExtractor : undefined,
+          extractor: showExtractor ? chosenExtractor || undefined : undefined,
           private: forcedPrivate || (canChoosePrivacy && !shared),
         },
         setProgress

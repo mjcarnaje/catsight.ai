@@ -8,7 +8,7 @@ import { TagDialog } from "@/components/tags/tag-dialog";
 import { TagRow, TagRowSkeleton } from "@/components/tags/tag-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSession } from "@/contexts/session-context";
+import { useOrganization } from "@/contexts/organization-context";
 import { errorMessage } from "@/lib/api";
 import { plural } from "@/lib/format";
 import { useTags } from "@/lib/queries";
@@ -21,8 +21,7 @@ const FILTER_FROM = 8;
  * Admins can also create, edit and delete tags.
  */
 export default function TagsPage() {
-  const { user } = useSession();
-  const isAdmin = Boolean(user?.is_admin);
+  const { isAdmin } = useOrganization();
   const tags = useTags();
 
   const [filter, setFilter] = useState("");
