@@ -52,15 +52,24 @@ deploy would silently replace the system the thesis describes.
   stay as optional catalogue fields, filled only when a document has them.
 - **Organizations:** `Organization` plus `Membership(user, org, role)`; roles move from `User`
   to the membership. A user can belong to several orgs (org switcher).
-- **Onboarding:** only the super admin creates orgs; org admins invite members by email.
-  Optional auto-join by email domain replaces the global `ALLOWED_EMAIL_DOMAINS`.
+- **Onboarding:** only the super admin creates orgs; org admins invite members by email
+  (SMTP; the link can always be copied). An invitation is accepted only by an account with
+  the invited address, and registering through one lifts `ALLOWED_EMAIL_DOMAINS`.
+  Auto-joining by email domain was dropped: registration doesn't verify addresses, so
+  anyone could claim `someone@theirdomain` and walk into the organization.
+- **Super admin:** creates, renames and deletes organizations and allows Ollama per org,
+  but sees no organization's documents or chats without a membership.
 - **Data scoping:** documents, tags, chats and usage events belong to an org. Tag names are
   unique per org. Every retrieval path (hybrid search, the agent's search tool, the search
   answer) filters by org, with tests that one org can never retrieve another's passages.
-- **Bring your own key:** each org stores an OpenRouter **or** OpenAI key.
+- **Bring your own key:** each org stores an OpenRouter **or** OpenAI key, or uses the
+  server's Ollama (always the server's `OLLAMA_BASE_URL`, never a URL from the request)
+  when the super admin allows it.
   - Encrypted at rest with a server secret; write-only (the API returns provider and last
     four characters); checked with a cheap call on save; managed by org admins only.
-  - All models are configurable per org (chat, fast, OCR, embedding, reranker).
+  - All models are configurable per org (chat, fast, OCR, embedding, reranker); blank means
+    the provider's default and `none` turns the reranker or OCR model off. OpenAI's
+    reasoning models (o-series, GPT-5) get no temperature, which they reject.
   - Embeddings must return 1024 values (bge-m3, or OpenAI `text-embedding-3` with
     `dimensions=1024`); validated on save. Changing the embedding model warns how many
     documents will be re-embedded with the org's key, then queues a reindex.
@@ -70,9 +79,10 @@ deploy would silently replace the system the thesis describes.
 - **Tags:** per-org, seeded from a preset when the org is created: "General" (Report,
   Contract, Policy, Memo, Letter, Other) or "MSU-IIT" (today's 13 tags).
 - **Guests:** `DEMO_MODE` stays; guests join one designated demo org (`DEMO_ORG`), read-only,
-  using that org's key. Every other org is invite-only.
-- **Brand:** keep the CATSight name and mascot; replace the MSU-IIT maroon with a neutral
-  accent; the footer shows the organization's name.
+  using that org's key. Every other org is invite-only. The daily limits apply only to
+  non-admins of the demo org; every other org pays with its own key and isn't limited.
+- **Brand:** keep the CATSight name and mascot (gold, tabby); the MSU-IIT maroon becomes a
+  neutral near-black primary; no MSU-IIT wording outside the "MSU-IIT" tag preset.
 - **Where:** built and tested locally with Docker Compose on an empty database. Hosting is
   decided once it works.
 
@@ -89,16 +99,24 @@ deploy would silently replace the system the thesis describes.
 | `frontend/src/index.css:9` | maroon brand colour |
 | `README.md`, `AGENTS.md`, `docs/HOSTING.md` | describe the MSU-IIT demo |
 
+## Decided during implementation
+- **Existing rows:** a database with documents or chats gets one "Default organization"
+  holding everything, every user a member (old admins become its admins); the stored vectors
+  are labelled with the provider and embedding model of the time. Tested on the thesis dump:
+  48 documents, 556 passages, 13 tags, 45 chats and 21 users moved without loss. A fresh
+  database drops the MSU-IIT tags that migration `0020` creates (they are now a preset).
+- **Deleting an organization** (super admin, typing its slug) removes its documents' files,
+  its chats' checkpoints, then everything that belongs to it.
+- **Re-embedding:** search compares only vectors from the organization's current embedding
+  model, so while a library is re-embedded the keyword leg still finds the rest.
+
 ## Still open
-- **Ollama.** Today `LLM_PROVIDER=ollama` is the self-hosted, key-free path, and the only way
-  to exercise a local build without paid calls. Either a third per-org provider
-  ("ollama": base URL, no key) or self-hosting is retired. This shapes the `llm.py` refactor.
-- Accent colour that replaces maroon.
-- How invitations are sent (email provider) and accepted.
-- What deleting an org does to its documents, media and vectors.
-- Rotating the key-encryption secret.
-- Whether the existing per-user limits still apply when an org pays with its own key.
-- What the multi-org migration does with rows that already exist (e.g. a "default" org).
+- Rotating `FIELD_ENCRYPTION_KEY`: today a new key makes the saved API keys unreadable, and
+  admins enter them again (the app says so).
+- Email verification, which would make auto-joining by email domain safe.
+- Hosting the general version (it runs locally only).
+- Marker's per-organization LLM mode runs only in the local-OCR image, which the development
+  image doesn't include, so it is covered by unit tests of its options but not run end to end.
 
 ## Order of work
 1. **Preserve**, in this order, each step only after the previous one checks out: fresh
