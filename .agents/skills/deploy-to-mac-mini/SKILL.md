@@ -1,6 +1,6 @@
 ---
 name: deploy-to-mac-mini
-description: Deploy the CATSight.AI thesis demo to the Mac mini (catsight.mjcarnaje.com) over SSH/Tailscale — push the thesis-revision branch (never master), back up the production database and media, fast-forward the mini's checkout, rebuild the Docker stack and verify health — while keeping the mini's data authoritative. Use when the user asks to deploy, ship, release, update the hosted demo, seed its library, or check on it.
+description: Deploy CATSight.AI to the Mac mini (catsight.mjcarnaje.com) over SSH/Tailscale — the thesis edition (thesis-revision) or the general edition (master), switching between them only when asked — back up the production database and media, fast-forward the mini's checkout, rebuild the Docker stack and verify health — while keeping the mini's data authoritative. Use when the user asks to deploy, ship, release, update the hosted demo, seed its library, or check on it.
 ---
 
 # Deploy CATSight.AI to the Mac mini
@@ -8,11 +8,12 @@ description: Deploy the CATSight.AI thesis demo to the Mac mini (catsight.mjcarn
 Read [the hosting guide](../../../docs/HOSTING.md) first: host, checkout, ports,
 secrets, volumes and the tunnel are documented there.
 
-**The mini serves the thesis demo.** It runs the `thesis-revision` branch (the MSU-IIT
-system the thesis describes); `master` is the general, multi-organization version and
-must not be deployed there. `catsight-remote deploy` deploys `CATSIGHT_DEPLOY_REF` from
-`.env.remote` (`thesis-revision`) and refuses `master`. Never set `CATSIGHT_ALLOW_MASTER=1`
-or change the deploy ref unless the user explicitly asks to replace the thesis demo. A deploy is **Git for code,
+**Two editions.** The mini runs either the thesis edition (`thesis-revision`, the MSU-IIT
+system the thesis describes) or the general edition (`master`, organizations with their
+own AI providers). `./scripts/catsight-remote status` says which. A plain `deploy`
+updates the running edition; `deploy general` / `deploy thesis` switch, and switching
+migrates the database (docs/HOSTING.md, "Editions"): only switch when the user asks
+for that edition by name. A deploy is **Git for code,
 never for data**: the laptop pushes, the mini fast-forwards. The mini's Postgres
 volume and media volume are production's source of truth.
 
@@ -28,14 +29,16 @@ SSH commands that change state.
 2. Backend checks: `docker compose exec -T backend python -m pytest` (no model
    calls; the suite fakes them).
 3. Frontend checks: `cd frontend && npx tsc --noEmit -p tsconfig.app.json && npm run build`.
-4. Conventional commit on `thesis-revision` (a fix for the demo; general features
-   belong on `master` and are not deployed here), then `git push origin thesis-revision`.
+4. Conventional commit on the running edition's branch (`master` for the general
+   edition, `thesis-revision` for the thesis edition), then push it.
 
 ## 2. Deploy
 
 ```sh
 ./scripts/catsight-remote status   # what's running now
-./scripts/catsight-remote deploy   # backup -> switch to the deploy ref -> ff-only merge -> build -> up -d -> health
+./scripts/catsight-remote deploy           # backup -> ff-only merge -> build -> up -d -> health
+./scripts/catsight-remote deploy general   # only when asked: switch to the general edition
+./scripts/catsight-remote deploy thesis    # only when asked: switch back (reverts the org migrations first)
 ```
 
 - `deploy` stops if the mini's checkout has local changes: show them to the user

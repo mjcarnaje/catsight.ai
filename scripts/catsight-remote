@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # Manage the CATSight.AI deployment on the Mac mini over SSH (Tailscale).
 #
-#   ./scripts/catsight-remote status          containers + local health
-#   ./scripts/catsight-remote logs [service]  follow logs (backend, worker, web, tunnel, db)
-#   ./scripts/catsight-remote backup          pg_dump + media archive into ~/catsight-backups
-#   ./scripts/catsight-remote deploy          backup, fast-forward to origin/$CATSIGHT_DEPLOY_REF, rebuild, restart, health check
-#   ./scripts/catsight-remote ingest          add every PDF in the mini's ~/catsight/seed to the library
+#   ./scripts/catsight-remote status            edition, revision, containers, local health
+#   ./scripts/catsight-remote logs [service]    follow logs (backend, worker, web, tunnel, db)
+#   ./scripts/catsight-remote backup            pg_dump + media archive into ~/catsight-backups
+#   ./scripts/catsight-remote deploy            backup, fast-forward the edition the mini runs, rebuild, health check
+#   ./scripts/catsight-remote deploy general    switch to the general, multi-organization edition (master)
+#   ./scripts/catsight-remote deploy thesis     switch back to the thesis edition (thesis-revision)
+#   ./scripts/catsight-remote ingest            add every PDF in the mini's ~/catsight/seed to the library
+#
+# Switching editions changes the database too (docs/HOSTING.md, "Editions"): going to
+# general migrates the library into one organization and adds FIELD_ENCRYPTION_KEY
+# (and DEMO_ORG) to .env.prod when missing; going back to thesis first reverts those
+# migrations with the general code, and refuses if there is more than one organization.
+# A plain `deploy` never switches.
 #
 # Where the mini is comes from the environment or, for unset variables, a gitignored
 # .env.remote at the repo root (plain KEY=value lines):
@@ -13,23 +21,32 @@
 #   CATSIGHT_SSH=user@host           required: the mini's SSH login (e.g. its Tailscale address)
 #   CATSIGHT_HOST_KEY_ALIAS=name     optional: verify the host key under this known_hosts name
 #   CATSIGHT_DIR=catsight            optional: the checkout, relative to the remote home
-#   CATSIGHT_DEPLOY_REF=branch       required by deploy: the branch the mini serves (thesis-revision)
-#
-# The mini serves the thesis demo, so deploy refuses master (the general, multi-organization
-# version) unless CATSIGHT_ALLOW_MASTER=1 is set in the environment (not in .env.remote).
 set -euo pipefail
 
 command_name="${1:-status}"
-service="${2:-}"
-allow_master="${CATSIGHT_ALLOW_MASTER:-}"  # environment only: read before .env.remote
+argument="${2:-}"
+service=""
+target=""  # the branch to deploy; empty: the one the mini runs
 
+usage() { echo "Usage: $0 [status|logs [service]|backup|deploy [thesis|general]|ingest]" >&2; exit 2; }
 case "$command_name" in
-  status|logs|backup|deploy|ingest) ;;
-  *) echo "Usage: $0 [status|logs [service]|backup|deploy|ingest]" >&2; exit 2 ;;
+  logs)
+    service="$argument"
+    if [[ -n "$service" && ! "$service" =~ ^(backend|worker|web|tunnel|db|redis)$ ]]; then
+      echo "Unknown service: $service" >&2; exit 2
+    fi
+    ;;
+  deploy)
+    case "$argument" in
+      "") ;;
+      thesis) target=thesis-revision ;;
+      general) target=master ;;
+      *) usage ;;
+    esac
+    ;;
+  status|backup|ingest) [[ -z "$argument" ]] || usage ;;
+  *) usage ;;
 esac
-if [[ -n "$service" && ! "$service" =~ ^(backend|worker|web|tunnel|db|redis)$ ]]; then
-  echo "Unknown service: $service" >&2; exit 2
-fi
 
 config="$(dirname "$0")/../.env.remote"
 if [[ -f "$config" ]]; then
@@ -40,22 +57,11 @@ if [[ -f "$config" ]]; then
 fi
 : "${CATSIGHT_SSH:?set it to user@host in the environment or .env.remote (see docs/HOSTING.md)}"
 remote_dir="${CATSIGHT_DIR:-catsight}"
-deploy_ref="${CATSIGHT_DEPLOY_REF:-}"
-
-if [[ "$command_name" == deploy ]]; then
-  if [[ -z "$deploy_ref" ]]; then
-    echo "Set CATSIGHT_DEPLOY_REF in .env.remote to the branch the mini serves (thesis-revision)." >&2; exit 2
-  fi
-  if [[ ! "$deploy_ref" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
-    echo "CATSIGHT_DEPLOY_REF is not a branch name: $deploy_ref" >&2; exit 2
-  fi
-  if [[ "$deploy_ref" == master && "$allow_master" != 1 ]]; then
-    echo "Refusing to deploy master: the mini serves the thesis demo (thesis-revision), and master" >&2
-    echo "is the general multi-organization version. Override with CATSIGHT_ALLOW_MASTER=1." >&2
-    exit 2
-  fi
-  echo "Deploying origin/$deploy_ref to the mini"
-fi
+case "$command_name:$target" in
+  deploy:) echo "Updating the edition the mini runs now" ;;
+  deploy:master) echo "Deploying the general edition (master) to the mini" ;;
+  deploy:thesis-revision) echo "Deploying the thesis edition (thesis-revision) to the mini" ;;
+esac
 ssh_options=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes)
 if [[ -n "${CATSIGHT_HOST_KEY_ALIAS:-}" ]]; then ssh_options+=(-o "HostKeyAlias=$CATSIGHT_HOST_KEY_ALIAS"); fi
 
@@ -65,6 +71,12 @@ export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 cd "$remote_dir"
 compose() { docker compose -f docker-compose.prod.yml --env-file .env.prod --profile tunnel "\$@"; }
 health() { curl -fsS --max-time 10 http://127.0.0.1:\${WEB_PORT:-8790}/api/health/ && echo; }
+# After a restart the backend migrates first (more so when switching editions): give it a minute
+wait_healthy() { for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do health 2>/dev/null && return 0; sleep 5; done; health; }
+env_value() { grep -E "^\$1=" .env.prod | tail -n 1 | cut -d= -f2- || true; }
+edition() { case "\$1" in master) echo general ;; thesis-revision) echo thesis ;; *) echo "unknown (\$1)" ;; esac; }
+is_on() { case "\$1" in 1|true|yes|on) return 0 ;; *) return 1 ;; esac; }
+library_org() { local org; org=\$(env_value DEMO_ORG); echo "\${org:-default}"; }  # the migrated library's organization
 
 backup() {
   local ts dir
@@ -76,8 +88,24 @@ backup() {
   ls -lh "\$dir"/*-"\$ts".*
 }
 
+# The general edition needs a key to encrypt organizations' API keys, and guests
+# need to know which organization to join; neither changes the thesis edition.
+general_settings() {
+  if [ -z "\$(env_value FIELD_ENCRYPTION_KEY)" ]; then
+    printf '\n# Encrypts the API keys organizations save (general edition); never change it\nFIELD_ENCRYPTION_KEY=%s\n' \
+      "\$(openssl rand -base64 32 | tr '+/' '-_')" >> .env.prod
+    echo "Added a new FIELD_ENCRYPTION_KEY to .env.prod"
+  fi
+  if is_on "\$(env_value DEMO_MODE)" && [ -z "\$(env_value DEMO_ORG)" ]; then
+    printf '\n# The organization guests join (the migrated library is "default")\nDEMO_ORG=default\n' >> .env.prod
+    echo "Added DEMO_ORG=default to .env.prod"
+  fi
+}
+
 case "$command_name" in
-  status) echo "Branch: \$(git branch --show-current)"; git log -1 --format='%h %s (%cr)'; compose ps; health ;;
+  status)
+    branch=\$(git branch --show-current)
+    echo "Edition: \$(edition "\$branch") (branch \$branch)"; git log -1 --format='%h %s (%cr)'; compose ps; health ;;
   logs) compose logs -f --tail 200 $service ;;
   backup) backup ;;
   deploy)
@@ -85,23 +113,47 @@ case "$command_name" in
     if [ -n "\$(git status --porcelain --untracked-files=no)" ]; then
       echo "The mini's checkout has local changes; reconcile them first:"; git status --short; exit 1
     fi
-    if ! git rev-parse -q --verify "refs/remotes/origin/$deploy_ref" >/dev/null; then
-      echo "origin has no branch $deploy_ref"; exit 1
+    current=\$(git branch --show-current)
+    target="$target"
+    [ -n "\$target" ] || target="\$current"
+    case "\$target" in
+      master|thesis-revision) ;;
+      *) echo "The mini is on \$target, which is neither edition; deploy thesis or general explicitly."; exit 1 ;;
+    esac
+    if ! git rev-parse -q --verify "refs/remotes/origin/\$target" >/dev/null; then
+      echo "origin has no branch \$target"; exit 1
     fi
+    if [ "\$target" = master ]; then general_settings; fi
     backup
-    if [ "\$(git branch --show-current)" != "$deploy_ref" ]; then
-      if git show-ref -q --verify "refs/heads/$deploy_ref"; then git switch -q "$deploy_ref"
-      else git switch -q -c "$deploy_ref" --track "origin/$deploy_ref"; fi
+    if [ "\$current" = master ] && [ "\$target" = thesis-revision ]; then
+      echo "Reverting the database to one library with the general code (organizations are dropped)"
+      compose exec -T backend python manage.py revert_to_single_library
     fi
-    git merge --ff-only "origin/$deploy_ref"
+    if [ "\$current" != "\$target" ]; then
+      if git show-ref -q --verify "refs/heads/\$target"; then git switch -q "\$target"
+      else git switch -q -c "\$target" --track "origin/\$target"; fi
+      echo "Switched from the \$(edition "\$current") edition to the \$(edition "\$target") edition"
+    fi
+    git merge --ff-only "origin/\$target"
     compose build
     compose up -d --remove-orphans
-    sleep 8
-    health
+    wait_healthy
+    if [ "\$target" = master ] && [ -n "\$(env_value OPENROUTER_API_KEY)" ]; then
+      # The migrated library keeps answering with the demo's OpenRouter key (left alone once set)
+      compose exec -T backend python manage.py configure_organization "\$(library_org)" \
+        --provider openrouter --api-key-env OPENROUTER_API_KEY --if-unconfigured \
+        || echo "Couldn't give the organization the OpenRouter key; add it in Settings -> AI provider."
+    fi
     docker image prune -f >/dev/null
     git log -1 --format='Deployed %h %s'
     ;;
-  ingest) compose exec -T worker python manage.py ingest /seed ;;
+  ingest)
+    if [ "\$(git branch --show-current)" = master ]; then
+      compose exec -T worker python manage.py ingest /seed --org "\$(library_org)"
+    else
+      compose exec -T worker python manage.py ingest /seed
+    fi
+    ;;
 esac
 SCRIPT
 

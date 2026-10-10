@@ -7,8 +7,10 @@ Postgres + pgvector. See [README.md](README.md) for the architecture.
 ## Branches
 - `master`: the general, multi-organization product.
 - `thesis-revision`: the thesis paper (`thesis/`) and the MSU-IIT system it describes.
-  The Mac mini (catsight.mjcarnaje.com) serves this branch; never deploy `master` there.
   Tags `thesis-defended` and `thesis-snapshot-2026-10` mark the thesis editions.
+- The Mac mini (catsight.mjcarnaje.com) runs one of the two: `catsight-remote deploy`
+  updates the running edition, `deploy general|thesis` switches (and migrates the
+  database), only when the user asks for it.
 
 ## Working rules
 - Commit straight to `master` with conventional commits (`feat(chat): …`, `fix(security): …`); only when asked.

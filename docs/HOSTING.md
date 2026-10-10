@@ -4,10 +4,12 @@ CATSight.AI runs as a public demo on a Mac mini, alongside other self-hosted
 services, and is published at <https://catsight.mjcarnaje.com> through its own
 Cloudflare Tunnel.
 
-**The mini serves the thesis demo, not `master`.** It deploys the `thesis-revision`
-branch: the MSU-IIT system the thesis describes (tag `thesis-snapshot-2026-10`).
-`master` is the general, multi-organization version and is not deployed here;
-`catsight-remote deploy` refuses it (see [GENERALIZATION.md](GENERALIZATION.md)).
+**Two editions.** The mini runs either the **thesis** edition (branch
+`thesis-revision`: the MSU-IIT system the thesis describes, tag
+`thesis-snapshot-2026-10`) or the **general** edition (`master`: organizations,
+each with its own AI provider). `catsight-remote deploy thesis|general` switches
+between them; a plain `deploy` updates whichever one is running. See
+[Editions](#editions) and [GENERALIZATION.md](GENERALIZATION.md).
  Everything runs in Docker (`docker-compose.prod.yml`): Postgres + pgvector, Redis, the Django API
 (gunicorn), the Celery worker (built with `LOCAL_OCR=1` for Marker), nginx serving the
 built frontend, and `cloudflared`. Marker 2's OCR model, Surya OCR 2, runs outside Docker
@@ -42,22 +44,22 @@ take precedence:
 CATSIGHT_SSH=you@100.x.y.z            # the mini's SSH login, e.g. its Tailscale address
 CATSIGHT_HOST_KEY_ALIAS=mini.local    # optional: check the host key under this known_hosts name
 CATSIGHT_DIR=catsight                 # optional: the checkout, relative to the remote home
-CATSIGHT_DEPLOY_REF=thesis-revision   # required by deploy: the branch the mini serves
 ```
 
 Then:
 
 ```sh
-./scripts/catsight-remote status        # branch, revision, containers, /api/health/
+./scripts/catsight-remote status        # edition, revision, containers, /api/health/
 ./scripts/catsight-remote logs worker   # follow one service (backend, worker, web, tunnel, db)
 ./scripts/catsight-remote backup        # pg_dump + media archive
-./scripts/catsight-remote deploy        # backup -> fast-forward to origin/$CATSIGHT_DEPLOY_REF -> build -> up -> health
+./scripts/catsight-remote deploy        # backup -> fast-forward the running edition -> build -> up -> health
+./scripts/catsight-remote deploy general   # switch to the general edition (master)
+./scripts/catsight-remote deploy thesis    # switch back to the thesis edition (thesis-revision)
 ./scripts/catsight-remote ingest        # add every PDF under ~/catsight/seed to the library
 ```
 
-`deploy` refuses to run when the mini's checkout has local changes, and refuses
-`master` unless `CATSIGHT_ALLOW_MASTER=1` is set in the environment (deliberately not
-read from `.env.remote`). On the home
+`deploy` refuses to run when the mini's checkout has local changes, and never
+switches editions unless it's named. On the home
 network, `CATSIGHT_SSH=you@mini.local ./scripts/catsight-remote status` also works.
 
 ## First-time setup
@@ -110,11 +112,35 @@ Done once, by the owner, on the mini over SSH:
 
 ## Updating
 
-From the laptop, after pushing to `thesis-revision`: `./scripts/catsight-remote deploy`.
-It backs up first, switches the mini's checkout to `CATSIGHT_DEPLOY_REF` if needed,
-fast-forwards it (never resets), rebuilds the
-images, restarts the stack (the backend migrates on start) and checks
-`/api/health/`. Failed builds leave the running containers in place.
+From the laptop, after pushing the branch of the running edition:
+`./scripts/catsight-remote deploy`. It backs up first, fast-forwards the mini's
+checkout (never resets), rebuilds the images, restarts the stack (the backend
+migrates on start) and waits for `/api/health/`. Failed builds leave the running
+containers in place.
+
+## Editions
+
+The two editions share the database volume, but not its schema, so switching moves
+the data too. Every switch starts with a backup.
+
+- **`deploy general`** (thesis → general): adds `FIELD_ENCRYPTION_KEY` (a new random
+  key, never printed) and, in demo mode, `DEMO_ORG=default` to `.env.prod` when they
+  are missing; the backend's migrations then move the whole library, its users and
+  chats into one organization, `default` (the super admin becomes its admin, guests its
+  guests). If `.env.prod` has `OPENROUTER_API_KEY`, that key becomes the organization's
+  provider, so the demo keeps answering; rename the organization and change its models
+  in Settings. `FIELD_ENCRYPTION_KEY` must never change afterwards: the saved keys
+  would become unreadable.
+- **`deploy thesis`** (general → thesis): with the general code still running,
+  `manage.py revert_to_single_library` migrates back to the single-library schema
+  (organizations, memberships, invitations and provider settings are dropped;
+  documents, passages, tags, users and chats stay), then the thesis branch is
+  deployed. It refuses when there is more than one organization, because their
+  libraries would merge; restore the backup taken before the switch to general instead.
+
+The round trip (thesis → general → thesis) was tested on a copy of the production
+database on 10 October 2026: every document, passage, tag, user and chat came back,
+and the thesis code created chats and tags on it.
 
 If an update changes `EMBEDDING_MODEL`, re-index every document:
 `docker compose -f docker-compose.prod.yml --env-file .env.prod exec worker python manage.py reindex --all`.
